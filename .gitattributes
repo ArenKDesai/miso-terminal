@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.ttf binary
+*.ico binary
+*.png binary
+# Recorded MISO responses are compared byte-for-byte by nobody, but keep them
+# exactly as captured so diffs show real format changes.
+fixtures/** -text

@@ -1,0 +1,16 @@
+[package]
+name = "mt-theme"
+description = "Theme model: TOML theme files, built-in themes, validation. UI-toolkit agnostic."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[lints]
+workspace = true

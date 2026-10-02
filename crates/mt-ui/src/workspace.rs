@@ -1,0 +1,167 @@
+//! The tiled, tabbed workspace (egui_dock) and its persistence.
+//!
+//! Tabs persist as [`Route`]s only; panels are rebuilt through the registry
+//! on load. A route whose function no longer exists (renamed or removed in a
+//! later version) opens a placeholder instead of breaking the saved layout.
+
+use egui::{RichText, Ui, WidgetText};
+use egui_dock::{DockState, NodeIndex, TabViewer};
+use serde::{Deserialize, Serialize};
+
+use crate::context::PanelCx;
+use crate::function::{Panel, Registry, Route};
+
+/// Bump when the default layout or persisted format changes incompatibly;
+/// saved layouts with another version are replaced by the default.
+pub const LAYOUT_VERSION: u32 = 1;
+
+#[derive(Serialize, Deserialize)]
+pub struct Tab {
+    pub id: u64,
+    pub route: Route,
+    #[serde(skip)]
+    panel: Option<Box<dyn Panel>>,
+}
+
+impl Tab {
+    fn new(id: u64, route: Route) -> Self {
+        Self {
+            id,
+            route,
+            panel: None,
+        }
+    }
+
+    fn panel(&mut self, registry: &Registry) -> &mut dyn Panel {
+        let route = &self.route;
+        self.panel
+            .get_or_insert_with(|| {
+                registry.open(route).unwrap_or_else(|error| {
+                    Box::new(Missing {
+                        route: route.clone(),
+                        error,
+                    })
+                })
+            })
+            .as_mut()
+    }
+}
+
+/// Shown for a route that cannot be opened.
+struct Missing {
+    route: Route,
+    error: String,
+}
+
+impl Panel for Missing {
+    fn title(&self) -> String {
+        format!("{} ?", self.route.code)
+    }
+
+    fn route(&self) -> Route {
+        self.route.clone()
+    }
+
+    fn ui(&mut self, ui: &mut Ui, cx: &mut PanelCx<'_>) {
+        ui.label(
+            RichText::new(format!("Cannot open {}: {}", self.route, self.error))
+                .color(cx.skin.negative),
+        );
+        ui.label("Type HELP for the list of functions, or close this tab.");
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Workspace {
+    pub version: u32,
+    pub dock: DockState<Tab>,
+    next_id: u64,
+}
+
+impl Workspace {
+    pub fn default_layout() -> Self {
+        let mut ws = Self {
+            version: LAYOUT_VERSION,
+            dock: DockState::new(Vec::new()),
+            next_id: 1,
+        };
+        let home = ws.tab(Route::code("HOME"));
+        let lmp = ws.tab(Route::code("LMP"));
+        let load = ws.tab(Route::code("LOAD"));
+        let fuel = ws.tab(Route::code("FUEL"));
+        let cons = ws.tab(Route::code("CONS"));
+        let help = ws.tab(Route::code("HELP"));
+        ws.dock = DockState::new(vec![home, help]);
+        let surface = ws.dock.main_surface_mut();
+        let [_, right] = surface.split_right(NodeIndex::root(), 0.52, vec![lmp]);
+        surface.split_below(right, 0.55, vec![load, fuel, cons]);
+        ws
+    }
+
+    fn tab(&mut self, route: Route) -> Tab {
+        let id = self.next_id;
+        self.next_id += 1;
+        Tab::new(id, route)
+    }
+
+    /// Focus a tab with this route if one is open, else open it in the focused pane.
+    pub fn open(&mut self, route: Route) {
+        if let Some(path) = self.dock.find_tab_from(|t| t.route == route) {
+            let _ = self.dock.set_active_tab(path);
+            self.dock.set_focused_node_and_surface(path.node_path());
+            return;
+        }
+        let tab = self.tab(route);
+        self.dock.push_to_focused_leaf(tab);
+    }
+
+    pub fn routes(&self) -> Vec<Route> {
+        self.dock
+            .iter_all_tabs()
+            .map(|(_, t)| t.route.clone())
+            .collect()
+    }
+
+    /// Restore a persisted workspace, discarding incompatible versions.
+    pub fn restore(saved: Option<Self>) -> Self {
+        match saved {
+            Some(ws)
+                if ws.version == LAYOUT_VERSION && ws.dock.iter_all_tabs().next().is_some() =>
+            {
+                ws
+            }
+            _ => Self::default_layout(),
+        }
+    }
+}
+
+/// Bridges egui_dock to panels.
+pub struct Viewer<'a, 'b> {
+    pub cx: &'a mut PanelCx<'b>,
+}
+
+impl TabViewer for Viewer<'_, '_> {
+    type Tab = Tab;
+
+    fn id(&mut self, tab: &mut Tab) -> egui::Id {
+        egui::Id::new(("mt-tab", tab.id))
+    }
+
+    fn title(&mut self, tab: &mut Tab) -> WidgetText {
+        let registry = self.cx.registry;
+        tab.panel(registry).title().into()
+    }
+
+    fn ui(&mut self, ui: &mut Ui, tab: &mut Tab) {
+        let registry = self.cx.registry;
+        let panel = tab.panel(registry);
+        panel.ui(ui, self.cx);
+        // Keep the persisted route in step with the panel's state (node, days, ...).
+        tab.route = panel.route();
+    }
+
+    fn scroll_bars(&self, _tab: &Tab) -> [bool; 2] {
+        // Panels manage their own scrolling (tables and charts fill the tab).
+        [false, false]
+    }
+}

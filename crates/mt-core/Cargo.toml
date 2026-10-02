@@ -1,0 +1,15 @@
+[package]
+name = "mt-core"
+description = "Domain model for MISO market data: time, nodes, prices, load, fuel mix. No I/O."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

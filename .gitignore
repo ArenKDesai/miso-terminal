@@ -1,0 +1,11 @@
+/target
+**/*.rs.bk
+*.pdb
+
+# Python tooling (tools/*.py run through uv)
+__pycache__/
+.venv/
+
+# Local scratch
+/scratch/
+*.log

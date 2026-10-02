@@ -1,0 +1,68 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+default-members = ["crates/miso-terminal"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+repository = "https://github.com/ArenKDesai/miso-terminal"
+
+[workspace.dependencies]
+# Internal crates
+mt-core = { path = "crates/mt-core" }
+mt-data = { path = "crates/mt-data" }
+mt-miso = { path = "crates/mt-miso" }
+mt-theme = { path = "crates/mt-theme" }
+mt-ui = { path = "crates/mt-ui" }
+
+# UI. egui, eframe, egui_extras, egui_plot and egui_dock move in lockstep; bump them together.
+egui = "0.36"
+eframe = { version = "0.36", features = ["persistence"] }
+egui_extras = "0.36"
+egui_plot = "0.37"
+egui_dock = { version = "0.21", features = ["serde"] }
+
+# Async + networking. native-tls means SChannel on Windows, so corporate
+# TLS-inspection roots in the Windows certificate store are trusted.
+tokio = { version = "1.53", features = ["rt-multi-thread", "sync", "time", "macros"] }
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "http2", "charset", "system-proxy", "gzip"] }
+bytes = "1"
+
+# Data
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+csv = "1.4"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
+flate2 = "1.1"
+
+# Plumbing
+anyhow = "1"
+thiserror = "2"
+parking_lot = "0.12"
+directories = "6"
+fontdb = "0.24"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+# egui and wgpu are painfully slow unoptimized; optimize dependencies even in dev builds.
+[profile.dev.package."*"]
+opt-level = 2
