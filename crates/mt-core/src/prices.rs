@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{Datelike, NaiveDate, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 
 /// MISO's eight trading hubs, in display order.
@@ -260,6 +260,71 @@ impl RtIntraday {
         found.next()
     }
 
+    /// Compact binary form, for keeping today's store across restarts.
+    /// Layout (little-endian): magic, market day, interval count, node count,
+    /// interval timestamps, node names, then LMP, MCC and MLC node-major.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let (nt, nn) = (self.intervals.len(), self.nodes.len());
+        let mut out = Vec::with_capacity(32 + nt * 8 + nn * 24 + nn * nt * 12);
+        out.extend_from_slice(INTRADAY_MAGIC);
+        let day = self.market_day.map_or(i32::MIN, |d| d.num_days_from_ce());
+        out.extend_from_slice(&day.to_le_bytes());
+        out.extend_from_slice(&(nt as u32).to_le_bytes());
+        out.extend_from_slice(&(nn as u32).to_le_bytes());
+        for t in &self.intervals {
+            out.extend_from_slice(&t.and_utc().timestamp().to_le_bytes());
+        }
+        for n in &self.nodes {
+            let b = n.as_bytes();
+            out.extend_from_slice(&(b.len() as u16).to_le_bytes());
+            out.extend_from_slice(b);
+        }
+        for column in [&self.lmp, &self.mcc, &self.mlc] {
+            for node in column {
+                for v in node {
+                    out.extend_from_slice(&v.to_le_bytes());
+                }
+            }
+        }
+        out
+    }
+
+    /// Inverse of [`Self::to_bytes`]; `None` for anything malformed.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let mut r = Reader { bytes, at: 0 };
+        if r.take(INTRADAY_MAGIC.len())? != INTRADAY_MAGIC {
+            return None;
+        }
+        let day = i32::from_le_bytes(r.array()?);
+        let nt = u32::from_le_bytes(r.array()?) as usize;
+        let nn = u32::from_le_bytes(r.array()?) as usize;
+        let mut s = Self {
+            market_day: NaiveDate::from_num_days_from_ce_opt(day),
+            ..Self::default()
+        };
+        for _ in 0..nt {
+            let ts = i64::from_le_bytes(r.array()?);
+            s.intervals
+                .push(chrono::DateTime::from_timestamp(ts, 0)?.naive_utc());
+        }
+        for i in 0..nn {
+            let len = u16::from_le_bytes(r.array()?) as usize;
+            let name = std::str::from_utf8(r.take(len)?).ok()?.to_owned();
+            s.index.insert(name.clone(), i);
+            s.nodes.push(name);
+        }
+        for column in [&mut s.lmp, &mut s.mcc, &mut s.mlc] {
+            for _ in 0..nn {
+                let mut node = Vec::with_capacity(nt);
+                for _ in 0..nt {
+                    node.push(f32::from_le_bytes(r.array()?));
+                }
+                column.push(node);
+            }
+        }
+        (r.at == bytes.len()).then_some(s)
+    }
+
     /// Latest price at every node for the most recent interval.
     pub fn latest_all(&self) -> Vec<(&str, Lmp)> {
         let Some(t) = self.intervals.len().checked_sub(1) else {
@@ -270,6 +335,26 @@ impl RtIntraday {
             .enumerate()
             .filter_map(|(n, name)| self.at(n, t).map(|p| (name.as_str(), p)))
             .collect()
+    }
+}
+
+const INTRADAY_MAGIC: &[u8] = b"MTRT1 ";
+
+/// A bounds-checked little-endian cursor.
+struct Reader<'a> {
+    bytes: &'a [u8],
+    at: usize,
+}
+
+impl<'a> Reader<'a> {
+    fn take(&mut self, n: usize) -> Option<&'a [u8]> {
+        let slice = self.bytes.get(self.at..self.at.checked_add(n)?)?;
+        self.at += n;
+        Some(slice)
+    }
+
+    fn array<const N: usize>(&mut self) -> Option<[u8; N]> {
+        self.take(N)?.try_into().ok()
     }
 }
 
@@ -395,6 +480,21 @@ mod tests {
         assert_eq!(s.series("C").unwrap().lmp.len(), 3);
         assert!(s.series("C").unwrap().lmp[0].is_nan());
         assert_eq!(s.latest_all().len(), 2); // A and C at 16:10
+    }
+
+    #[test]
+    fn intraday_round_trips_through_bytes() {
+        let s = RtIntraday::from_rows([row(0, "A", 10.0), row(5, "A", 11.0), row(5, "BÉ", 20.0)]);
+        let back = RtIntraday::from_bytes(&s.to_bytes()).unwrap();
+        assert_eq!(back.market_day, s.market_day);
+        assert_eq!(back.intervals(), s.intervals());
+        assert_eq!(back.node_names(), s.node_names());
+        assert_eq!(back.latest("A"), s.latest("A"));
+        assert!(back.series("BÉ").unwrap().lmp[0].is_nan(), "gaps survive");
+        // Truncated or foreign data is rejected, not misread.
+        let bytes = s.to_bytes();
+        assert!(RtIntraday::from_bytes(&bytes[..bytes.len() - 1]).is_none());
+        assert!(RtIntraday::from_bytes(b"nonsense").is_none());
     }
 
     #[test]

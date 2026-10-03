@@ -320,6 +320,21 @@ impl DataHub {
         entry.store(Arc::new(value), fresh);
     }
 
+    /// Put in a value that is already old (restored from disk at startup): it
+    /// is shown at once, reported with its real age, and refetched on the next
+    /// watch. `as_of` is when the data was current.
+    pub fn seed_stale<Q: Query>(&self, q: &Q, value: Q::Output, as_of: DateTime<Utc>) {
+        let fresh = q.freshness(&value);
+        let mut entries = self.inner.entries.lock();
+        let entry = entries.entry(q.key()).or_insert_with(|| Entry::new(q));
+        entry.store(Arc::new(value), fresh);
+        let age = (Utc::now() - as_of).to_std().unwrap_or_default();
+        let at = Instant::now().checked_sub(age).unwrap_or_else(Instant::now);
+        entry.updated = Some((at, as_of));
+        // Due immediately, whatever its freshness window.
+        entry.fresh_for = Some(Duration::ZERO);
+    }
+
     /// Drop entries nobody has watched for `idle`. Returns how many were dropped.
     pub fn gc(&self, idle: Duration) -> usize {
         let now = Instant::now();
@@ -566,6 +581,24 @@ mod tests {
         std::thread::sleep(Duration::from_millis(20));
         assert_eq!(hub.gc(Duration::from_millis(10)), 2);
         assert!(hub.status().is_empty());
+    }
+
+    #[test]
+    fn stale_seeds_show_at_once_then_refresh() {
+        let (_rt, hub) = hub();
+        let q = Counter::new("t/g", Freshness::Forever);
+        let hours_ago = Utc::now() - chrono::Duration::hours(3);
+        hub.seed_stale(&q, 5, hours_ago);
+        let first = hub.watch(&q); // returns the seed and starts a refresh
+        assert_eq!(first.data(), Some(&5));
+        assert_eq!(first.updated, Some(hours_ago), "the real age is reported");
+        assert!(first.loading);
+        wait_for(|| hub.peek(&q).generation == 2);
+        assert_eq!(
+            hub.peek(&q).data(),
+            Some(&51),
+            "the refresh saw the seed as prev"
+        );
     }
 
     #[test]

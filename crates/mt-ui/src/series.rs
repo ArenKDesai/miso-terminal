@@ -101,6 +101,20 @@ pub fn subtract(a: &[(NaiveDateTime, f64)], b: &[(NaiveDateTime, f64)]) -> Point
         .collect()
 }
 
+/// Population standard deviation.
+pub fn std_dev(values: &[f64]) -> Option<f64> {
+    let m = mean(values.iter().copied())?;
+    mean(values.iter().map(|v| (v - m).powi(2))).map(f64::sqrt)
+}
+
+/// MISO's on-peak block: HE 8 to HE 23 (hours starting 07:00 to 22:00 EST),
+/// Monday to Friday. NERC holidays (also off-peak) are not excluded.
+pub fn is_on_peak(hour_start: NaiveDateTime) -> bool {
+    use chrono::Datelike;
+    let weekday = hour_start.weekday().number_from_monday() <= 5;
+    weekday && (7..=22).contains(&hour_start.hour())
+}
+
 pub fn mean(values: impl IntoIterator<Item = f64>) -> Option<f64> {
     let (sum, n) = values
         .into_iter()
@@ -299,6 +313,24 @@ mod tests {
         let a = [(t(0, 0), 10.0), (t(0, 5), 12.0), (t(0, 10), 9.0)];
         let b = [(t(0, 0), 4.0), (t(0, 10), 10.0)];
         assert_eq!(subtract(&a, &b), vec![(t(0, 0), 6.0), (t(0, 10), -1.0)]);
+    }
+
+    #[test]
+    fn on_peak_is_weekday_he8_to_he23() {
+        // 2026-10-02 is a Friday, 2026-10-03 a Saturday.
+        assert!(is_on_peak(t(7, 0)));
+        assert!(is_on_peak(t(22, 0)));
+        assert!(!is_on_peak(t(6, 0)));
+        assert!(!is_on_peak(t(23, 0)));
+        let saturday = NaiveDate::from_ymd_opt(2026, 10, 3)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
+        assert!(!is_on_peak(saturday));
+        assert_eq!(
+            std_dev(&[2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]),
+            Some(2.0)
+        );
     }
 
     #[test]

@@ -104,8 +104,8 @@ def main() -> int:
         for c in args.run:
             cmd += ["--run", c]
         proc = subprocess.Popen(cmd, cwd=ROOT, creationflags=subprocess.CREATE_NO_WINDOW)
+        hwnd = None
         try:
-            hwnd = None
             for _ in range(120):
                 time.sleep(0.25)
                 hwnd = find_window(proc.pid)
@@ -119,8 +119,15 @@ def main() -> int:
             capture(hwnd).save(args.out)
             print(f"wrote {args.out}")
         finally:
-            proc.terminate()
-            proc.wait(timeout=10)
+            # Close politely so the app saves its layout and today's prices,
+            # then make sure it is gone.
+            if hwnd:
+                user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+            try:
+                proc.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                proc.terminate()
+                proc.wait(timeout=10)
     return 0
 
 

@@ -69,6 +69,18 @@ strip = "symbols"
 [profile.dev]
 debug = "line-tables-only"
 
+# The data path parses tens of MB of JSON a minute (the rolling five-minute
+# feed); unoptimized it takes most of a minute. Optimize it in dev too. The UI
+# crate stays at opt-level 0 so edit-compile cycles stay quick.
+[profile.dev.package.mt-core]
+opt-level = 2
+[profile.dev.package.mt-data]
+opt-level = 2
+[profile.dev.package.mt-miso]
+opt-level = 2
+[profile.dev.package.mt-nws]
+opt-level = 2
+
 # egui and wgpu are painfully slow unoptimized; optimize dependencies even in dev builds.
 # Their debug info is rarely useful and bloats the Windows PDB past the linker's limits.
 [profile.dev.package."*"]

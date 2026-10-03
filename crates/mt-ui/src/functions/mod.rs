@@ -6,11 +6,13 @@ mod ace;
 mod alrt;
 mod asm;
 mod capacity;
+mod compare;
 mod cons;
 mod fuel;
 pub(crate) mod gp;
 mod help;
 mod home;
+mod hubs;
 mod lmp;
 mod load;
 mod log;
@@ -31,9 +33,11 @@ pub fn all() -> Vec<FunctionSpec> {
     vec![
         home::SPEC,
         lmp::SPEC,
+        hubs::SPEC,
         map::SPEC,
         gp::SPEC,
         spread::SPEC,
+        compare::SPEC,
         watchlist::SPEC,
         asm::SPEC,
         load::SPEC,

@@ -66,6 +66,12 @@ fn routes(registry: &Registry) -> Vec<Route> {
     out.push(Route::new("GP", ["NOT.A.NODE"]));
     out.push(Route::new("LMP", ["ALL"]));
     out.push(Route::new("MAP", ["MCC"]));
+    out.push(Route::new("HUBS", ["3"]));
+    out.push(Route::new(
+        "CMP",
+        ["MINN.HUB", "MICHIGAN.HUB", "ILLINOIS.HUB"],
+    ));
+    out.push(Route::new("CMP", ["MINN.HUB", "MICHIGAN.HUB", "3"]));
     out.push(Route::new("GP", ["ALTE.ALTE", "7", "HEAT"]));
     out.push(Route::new("GP", ["MINN.HUB", "7", "DUR"]));
     out.push(Route::new("SPRD", ["MINN.HUB", "ILLINOIS.HUB", "7", "DUR"]));
@@ -356,4 +362,59 @@ fn a_panicking_panel_is_contained_to_its_tab() {
     // Two frames: the first catches the panic, the second shows the error page.
     h.draw_with(&skin, |ui, cx| draw_tab(ui, cx, &mut tab));
     assert_eq!(ws::crashed(&tab), Some("boom in a panel"));
+}
+
+#[test]
+fn intraday_prices_survive_a_restart() {
+    use mt_core::time::{market_to_utc, market_today};
+    use mt_core::{RtIntraday, RtRow};
+    use mt_data::DiskCache;
+
+    let rt = runtime();
+    let paths = temp_paths("restart");
+    let cache = DiskCache::new(paths.cache_dir.join("http"));
+    let key = crate::app::intraday_key(market_today());
+    let at = market_today().and_hms_opt(10, 0, 0).unwrap();
+    let row = RtRow {
+        interval: at,
+        node: "MINN.HUB".into(),
+        lmp: 12.5,
+        mcc: 0.0,
+        mlc: 0.0,
+    };
+    cache
+        .put(&key, &RtIntraday::from_rows([row]).to_bytes())
+        .unwrap();
+
+    let ctx = FetchCtx::new(
+        Arc::new(FixtureTransport::new(fixtures())),
+        Some(cache.clone()),
+        FetchCtxOptions::default(),
+        EventLog::default(),
+    );
+    let hub = DataHub::new(rt.handle().clone(), ctx);
+    hub.set_paused(true); // nothing may come from the network in this test
+    let deps = Deps {
+        hub: hub.clone(),
+        config: AppConfig::default(),
+        config_error: None,
+        paths: paths.clone(),
+        reset_layout: true,
+        startup_commands: Vec::new(),
+    };
+    let mut app = TerminalApp::headless(&egui::Context::default(), deps);
+
+    let snap = hub.peek(&Miso::default().rt_intraday());
+    let store = snap.data().expect("restored before any fetch");
+    assert_eq!(store.latest("MINN.HUB").map(|(_, p)| p.lmp), Some(12.5));
+    assert_eq!(
+        snap.updated,
+        Some(market_to_utc(at + chrono::Duration::minutes(5)))
+    );
+
+    // Exiting writes the store back (here unchanged, but freshly written).
+    std::fs::remove_file(cache.path_for(&key)).unwrap();
+    eframe::App::on_exit(&mut app);
+    assert!(cache.get(&key).is_some(), "saved on exit");
+    let _ = std::fs::remove_dir_all(paths.config_file.parent().unwrap());
 }

@@ -25,6 +25,7 @@ const WORKSPACE_KEY: &str = "workspace";
 const THEME_POLL: Duration = Duration::from_secs(2);
 const GC_EVERY: Duration = Duration::from_secs(60);
 const GC_IDLE: Duration = Duration::from_secs(15 * 60);
+const INTRADAY_SAVE_EVERY: Duration = Duration::from_secs(5 * 60);
 /// Space kept free on the right of the top bar for Functions / Theme / Reset layout.
 const MENU_BUTTONS_WIDTH: f32 = 290.0;
 
@@ -72,6 +73,9 @@ pub struct TerminalApp {
     /// A capture to request at the start of the next frame, once the menu that
     /// asked for it has closed.
     capture_next: Option<crate::capture::Request>,
+    last_intraday_save: Instant,
+    /// Generation of the intraday store last written to disk.
+    intraday_saved: u64,
 }
 
 impl TerminalApp {
@@ -121,11 +125,66 @@ impl TerminalApp {
                 .collect(),
             alerts: AlertEngine::default(),
             capture_next: None,
+            last_intraday_save: Instant::now(),
+            intraday_saved: 0,
             config: deps.config,
             paths: deps.paths,
         };
         app.apply_theme(ctx);
+        app.restore_intraday();
         app
+    }
+
+    /// Show today's five-minute prices from the last session straight away
+    /// (marked stale) instead of waiting for the rolling feed, which can take
+    /// most of a minute late in the day.
+    fn restore_intraday(&self) {
+        let Some(cache) = self.hub.ctx().cache() else {
+            return;
+        };
+        let today = mt_core::time::market_today();
+        let Some(store) = cache
+            .get(&intraday_key(today))
+            .and_then(|b| mt_core::RtIntraday::from_bytes(&b))
+        else {
+            return;
+        };
+        let Some(latest) = store
+            .latest_interval()
+            .filter(|_| store.market_day == Some(today))
+        else {
+            return;
+        };
+        let as_of = mt_core::time::market_to_utc(latest + chrono::Duration::minutes(5));
+        tracing::info!(
+            "restored {} five-minute intervals from the last session",
+            store.intervals().len()
+        );
+        self.hub.seed_stale(&self.miso.rt_intraday(), store, as_of);
+    }
+
+    /// Write today's five-minute store to the cache if it changed since the
+    /// last save. `background` hands the work to a thread.
+    fn save_intraday(&mut self, background: bool) {
+        let Some(cache) = self.hub.ctx().cache().cloned() else {
+            return;
+        };
+        let snap = self.hub.peek(&self.miso.rt_intraday());
+        let (Some(store), true) = (snap.data, snap.generation != self.intraday_saved) else {
+            return;
+        };
+        let Some(day) = store.market_day else { return };
+        self.intraday_saved = snap.generation;
+        let write = move || {
+            if let Err(e) = cache.put(&intraday_key(day), &store.to_bytes()) {
+                tracing::warn!("could not save intraday prices: {e}");
+            }
+        };
+        if background {
+            std::thread::spawn(write);
+        } else {
+            write();
+        }
     }
 
     pub fn workspace_mut(&mut self) -> &mut Workspace {
@@ -365,6 +424,10 @@ impl TerminalApp {
                 self.apply_theme(ctx);
                 tracing::info!("themes folder changed; reloaded");
             }
+        }
+        if self.last_intraday_save.elapsed() >= INTRADAY_SAVE_EVERY {
+            self.last_intraday_save = Instant::now();
+            self.save_intraday(true);
         }
         if self.last_gc.elapsed() >= GC_EVERY {
             self.last_gc = Instant::now();
@@ -811,6 +874,15 @@ impl eframe::App for TerminalApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, WORKSPACE_KEY, &self.workspace);
     }
+
+    fn on_exit(&mut self) {
+        self.save_intraday(false);
+    }
+}
+
+/// Disk-cache key for a market day's five-minute store.
+pub(crate) fn intraday_key(day: chrono::NaiveDate) -> String {
+    format!("local://intraday/{day}")
 }
 
 /// Open a folder in the platform file manager.
