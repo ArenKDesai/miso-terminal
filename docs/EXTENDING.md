@@ -79,18 +79,33 @@ Rules of thumb:
    back between reports), implement `mt_data::Query` directly. `RtIntradayQuery`
    and `RtBestDayQuery` are the examples.
 
+Daily reports that MISO only publishes as legacy `.xls` (the binding-constraint
+histories) go through `calamine`: see `parse_constraint_history`, which finds
+columns by normalised header name, and `ConstraintHistoryQuery`, which maps a
+market day to the file's date. Fetch binary bodies with `ctx.get` /
+`ctx.get_immutable` (bytes) rather than the `_text` variants.
+
 When MISO changes a format: re-run `capture_fixtures`, see which parser test
 fails, and fix that parser. Endpoint moves are a config change (`[endpoints]`
 in `config.toml`) or a one-line path change.
 
 ## Add a non-MISO source
 
-`mt-nws` (weather) is the worked example. Create a crate next to `mt-miso`
-(for example `mt-eia` for gas prices) that depends on `mt-core` and `mt-data`. Implement `Query` for its datasets, add a
-facade like `Miso`, and hand it to panels through `PanelCx`. The hub, cache,
-transports, polite interval and LOG function all apply unchanged. If the source
-needs an API key, put it in `AppConfig` (a new `[eia]` table with
-`#[serde(default)]`).
+`mt-nws` (weather, JSON) and `mt-eia` (Henry Hub gas, a spreadsheet) are the
+worked examples. Create a crate next to `mt-miso` that depends on `mt-core` and
+`mt-data`; implement `Query` for its datasets, add a facade like `Miso`, and
+hand it to panels through `PanelCx` (a field plus one line where the app and the
+smoke harness build it). Give it a fixture, a parser test that honours
+`MT_FIXTURES`, and a recorder example with a name unique in the workspace
+(`capture_weather`, `capture_gas`); then add it to the Linux CI job and the
+weekly drift workflow. The hub, cache, transports, polite interval and LOG
+function all apply unchanged. If the source needs an API key, put it in
+`AppConfig` (a new table with `#[serde(default)]`).
+
+Data the app keeps itself (the five-minute archive, the long-history archive)
+lives in the disk cache under `local://` keys, read and written with
+`FetchCtx::local_get` / `local_put`; exempt its directory from the size cap in
+`main.rs` and give it its own retention if it grows.
 
 ## Add or change a theme
 
