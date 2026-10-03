@@ -21,6 +21,7 @@ egui_plot.workspace = true
 fontdb.workspace = true
 parking_lot.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 toml.workspace = true
 tracing.workspace = true
 

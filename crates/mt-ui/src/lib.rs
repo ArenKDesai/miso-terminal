@@ -14,6 +14,7 @@ pub mod context;
 pub mod fonts;
 pub mod function;
 pub mod functions;
+pub mod geo;
 pub mod series;
 pub mod skin;
 pub mod widgets;

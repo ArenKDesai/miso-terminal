@@ -13,6 +13,7 @@ mod home;
 mod lmp;
 mod load;
 mod log;
+mod map;
 mod nsi;
 mod outages;
 mod renew;
@@ -27,6 +28,7 @@ pub fn all() -> Vec<FunctionSpec> {
     vec![
         home::SPEC,
         lmp::SPEC,
+        map::SPEC,
         gp::SPEC,
         spread::SPEC,
         watchlist::SPEC,
