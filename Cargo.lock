@@ -2352,6 +2352,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mt-nws"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "mt-core",
+ "mt-data",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "mt-theme"
 version = "0.1.0"
 dependencies = [
@@ -2376,6 +2388,7 @@ dependencies = [
  "mt-core",
  "mt-data",
  "mt-miso",
+ "mt-nws",
  "mt-theme",
  "parking_lot",
  "serde",

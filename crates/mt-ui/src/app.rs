@@ -54,6 +54,7 @@ struct CommandLine {
 pub struct TerminalApp {
     hub: DataHub,
     miso: Miso,
+    nws: mt_nws::Nws,
     config: AppConfig,
     pub(crate) paths: AppPaths,
     registry: Registry,
@@ -95,6 +96,7 @@ impl TerminalApp {
         let themes = ThemeRegistry::load(Some(&deps.paths.themes_dir));
         let mut app = Self {
             miso: Miso::new(deps.config.endpoints.clone()),
+            nws: mt_nws::Nws::default(),
             hub: deps.hub,
             registry: Registry::builtin(),
             skin: Skin::new(themes.resolve(&deps.config.theme).clone()),
@@ -745,6 +747,7 @@ impl eframe::App for TerminalApp {
                 let mut cx = PanelCx {
                     hub: &self.hub,
                     miso: &self.miso,
+                    nws: &self.nws,
                     skin: &self.skin,
                     config: &self.config,
                     paths: &self.paths,

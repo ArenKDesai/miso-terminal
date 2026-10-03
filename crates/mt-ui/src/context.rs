@@ -43,6 +43,8 @@ pub enum AppCommand {
 pub struct PanelCx<'a> {
     pub hub: &'a DataHub,
     pub miso: &'a Miso,
+    /// Weather (National Weather Service).
+    pub nws: &'a mt_nws::Nws,
     pub skin: &'a Skin,
     pub config: &'a AppConfig,
     pub paths: &'a AppPaths,

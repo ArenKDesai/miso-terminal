@@ -1,0 +1,1 @@
+{"properties":{"forecastHourly":"https://api.weather.gov/gridpoints/LZK/82,73/forecast/hourly","gridId":"LZK","gridX":82,"gridY":73,"relativeLocation":{"properties":{"bearing":{"unitCode":"wmoUnit:degree_(angle)","value":0},"city":"Little Rock","distance":{"unitCode":"wmoUnit:m","value":0},"state":"AR"}}}}

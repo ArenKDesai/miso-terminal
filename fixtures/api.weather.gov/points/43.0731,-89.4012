@@ -1,0 +1,1 @@
+{"properties":{"forecastHourly":"https://api.weather.gov/gridpoints/MKX/38,64/forecast/hourly","gridId":"MKX","gridX":38,"gridY":64,"relativeLocation":{"properties":{"bearing":{"unitCode":"wmoUnit:degree_(angle)","value":0},"city":"Madison","distance":{"unitCode":"wmoUnit:m","value":0},"state":"WI"}}}}

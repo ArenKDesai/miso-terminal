@@ -1,0 +1,1 @@
+{"properties":{"forecastHourly":"https://api.weather.gov/gridpoints/DMX/73,49/forecast/hourly","gridId":"DMX","gridX":73,"gridY":49,"relativeLocation":{"properties":{"bearing":{"unitCode":"wmoUnit:degree_(angle)","value":0},"city":"Des Moines","distance":{"unitCode":"wmoUnit:m","value":0},"state":"IA"}}}}

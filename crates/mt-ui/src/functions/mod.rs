@@ -23,6 +23,7 @@ mod spread;
 mod theme;
 mod transfer;
 mod watchlist;
+mod wx;
 
 use crate::function::FunctionSpec;
 
@@ -42,6 +43,7 @@ pub fn all() -> Vec<FunctionSpec> {
         nsi::SPEC,
         transfer::SPEC,
         ace::SPEC,
+        wx::SPEC,
         cons::SPEC,
         outages::SPEC,
         alrt::SPEC,

@@ -283,6 +283,35 @@ impl Panel for Home {
                     cx.open(Route::code("CONS"));
                 }
             });
+
+            widgets::section(ui, skin, "Weather · now and today's high");
+            let wx = super::wx::forecasts(cx);
+            ui.horizontal_wrapped(|ui| {
+                for (city, snap) in &wx {
+                    let Some(f) = snap.data() else { continue };
+                    let (Some(now), Some(today)) = (f.current(), f.daily().first().copied()) else {
+                        continue;
+                    };
+                    ui.label(RichText::new(city.name).small().color(skin.text_muted));
+                    ui.label(
+                        RichText::new(super::wx::temp(now.temp_f))
+                            .strong()
+                            .color(super::wx::temp_color(skin, now.temp_f)),
+                    );
+                    ui.label(
+                        RichText::new(format!("H {}", super::wx::temp(today.high)))
+                            .small()
+                            .color(skin.text_muted),
+                    );
+                    ui.add_space(8.0);
+                }
+                if wx.iter().all(|(_, s)| s.data.is_none()) {
+                    ui.label(RichText::new("loading…").small().color(skin.text_muted));
+                }
+            });
+            if widgets::link(ui, skin, "Forecasts by zone → WX").clicked() {
+                cx.open(Route::code("WX"));
+            }
         });
     }
 }

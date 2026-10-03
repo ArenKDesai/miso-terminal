@@ -17,5 +17,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Record live responses
         run: cargo run -p mt-miso --example capture_fixtures -- "$RUNNER_TEMP/live"
+      - name: Record live weather
+        run: cargo run -p mt-nws --example capture_fixtures -- "$RUNNER_TEMP/live"
       - name: Parse them
-        run: MT_FIXTURES="$RUNNER_TEMP/live" cargo test -p mt-miso --test parsers
+        run: MT_FIXTURES="$RUNNER_TEMP/live" cargo test -p mt-miso -p mt-nws --test parsers

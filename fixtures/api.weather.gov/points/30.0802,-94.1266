@@ -1,0 +1,1 @@
+{"properties":{"forecastHourly":"https://api.weather.gov/gridpoints/LCH/25,88/forecast/hourly","gridId":"LCH","gridX":25,"gridY":88,"relativeLocation":{"properties":{"bearing":{"unitCode":"wmoUnit:degree_(angle)","value":0},"city":"Beaumont","distance":{"unitCode":"wmoUnit:m","value":0},"state":"TX"}}}}

@@ -85,6 +85,7 @@ struct Harness {
     ctx: egui::Context,
     hub: DataHub,
     miso: Miso,
+    nws: mt_nws::Nws,
     config: AppConfig,
     paths: AppPaths,
     registry: Registry,
@@ -98,6 +99,7 @@ impl Harness {
             ctx: egui::Context::default(),
             hub,
             miso: Miso::default(),
+            nws: mt_nws::Nws::default(),
             config: AppConfig::default(),
             paths: temp_paths("panels"),
             registry: Registry::builtin(),
@@ -141,6 +143,7 @@ impl Harness {
                 let mut cx = PanelCx {
                     hub: &self.hub,
                     miso: &self.miso,
+                    nws: &self.nws,
                     skin,
                     config: &self.config,
                     paths: &self.paths,

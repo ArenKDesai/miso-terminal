@@ -9,6 +9,8 @@ pub mod grid;
 pub mod num;
 pub mod prices;
 pub mod time;
+pub mod weather;
 
 pub use grid::*;
 pub use prices::*;
+pub use weather::*;

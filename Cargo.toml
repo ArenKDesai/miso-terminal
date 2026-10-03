@@ -15,6 +15,7 @@ repository = "https://github.com/ArenKDesai/miso-terminal"
 mt-core = { path = "crates/mt-core" }
 mt-data = { path = "crates/mt-data" }
 mt-miso = { path = "crates/mt-miso" }
+mt-nws = { path = "crates/mt-nws" }
 mt-theme = { path = "crates/mt-theme" }
 mt-ui = { path = "crates/mt-ui" }
 

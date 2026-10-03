@@ -1,0 +1,1 @@
+{"properties":{"forecastHourly":"https://api.weather.gov/gridpoints/MPX/108,72/forecast/hourly","gridId":"MPX","gridX":108,"gridY":72,"relativeLocation":{"properties":{"bearing":{"unitCode":"wmoUnit:degree_(angle)","value":0},"city":"Minneapolis","distance":{"unitCode":"wmoUnit:m","value":0},"state":"MN"}}}}

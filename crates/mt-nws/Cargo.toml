@@ -1,0 +1,20 @@
+[package]
+name = "mt-nws"
+description = "National Weather Service source: hourly forecasts for MISO load centres."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+mt-core.workspace = true
+mt-data.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

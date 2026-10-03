@@ -1,0 +1,1 @@
+{"properties":{"forecastHourly":"https://api.weather.gov/gridpoints/JAN/76,63/forecast/hourly","gridId":"JAN","gridX":76,"gridY":63,"relativeLocation":{"properties":{"bearing":{"unitCode":"wmoUnit:degree_(angle)","value":0},"city":"Jackson","distance":{"unitCode":"wmoUnit:m","value":0},"state":"MS"}}}}

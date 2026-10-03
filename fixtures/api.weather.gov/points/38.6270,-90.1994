@@ -1,0 +1,1 @@
+{"properties":{"forecastHourly":"https://api.weather.gov/gridpoints/LSX/95,74/forecast/hourly","gridId":"LSX","gridX":95,"gridY":74,"relativeLocation":{"properties":{"bearing":{"unitCode":"wmoUnit:degree_(angle)","value":0},"city":"St. Louis","distance":{"unitCode":"wmoUnit:m","value":0},"state":"MO"}}}}

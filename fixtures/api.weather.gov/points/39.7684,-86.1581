@@ -1,0 +1,1 @@
+{"properties":{"forecastHourly":"https://api.weather.gov/gridpoints/IND/58,69/forecast/hourly","gridId":"IND","gridX":58,"gridY":69,"relativeLocation":{"properties":{"bearing":{"unitCode":"wmoUnit:degree_(angle)","value":0},"city":"Indianapolis city (balance)","distance":{"unitCode":"wmoUnit:m","value":0},"state":"IN"}}}}

@@ -66,6 +66,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `NSI` | Interchange | Net scheduled interchange by neighbour, plus 5-min history |
 | `RDT` | Regional transfer | North-South regional directional transfer over the last day against its limits, with utilisation |
 | `ACE` | Area control error | 30-second ACE over the last two hours: how far generation is from balancing load |
+| `WX` | Weather | Now, today's and tomorrow's high/low, dew point, wind and the 48-hour trend for a city in each MISO zone (National Weather Service); hourly chart for all or one |
 | `CONS` | Binding constraints | RT binding constraints, shadow prices, and how long each has bound |
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
 | `ALRT` | Alerts | Price (any node, above/below) and constraint alerts: add rules, see which hold, and what fired. A firing rule flashes the taskbar and shows a ⚠ badge |
@@ -133,6 +134,7 @@ crates/
   mt-core       domain model: prices, load, fuel, constraints, market time (no I/O)
   mt-data       source-agnostic data hub: queries, cache, refresh, transports
   mt-miso       MISO endpoints, response parsers (fixture-tested), queries
+  mt-nws        National Weather Service forecasts (the template for non-MISO sources)
   mt-theme      theme model, TOML loading, validation, built-ins (no UI toolkit)
   mt-ui         egui front end: shell, command line, workspace, functions
   miso-terminal the binary: paths, logging, runtime, window
@@ -164,8 +166,9 @@ each piece plugs in.
       MCP history, load-zone summaries.
 - [ ] **Node metadata** beyond the 317 mapped nodes: type, zone and LBA for every
       CP node, for filtering (`geo.rs` already carries type and position for the mapped ones).
-- [ ] Non-MISO context sources: gas prices (EIA), weather forecasts by MISO
-      region (NWS), neighbouring ISO prices at the seams (PJM, SPP).
+- [x] Weather by MISO zone (`WX`, National Weather Service): the first non-MISO source (`mt-nws`).
+- [ ] More context sources: gas prices (EIA, needs a free key), neighbouring ISO
+      prices at the seams (PJM, SPP).
 - [x] Disk-cache size cap with least-recently-used pruning (`data.cache_max_mb`).
 - [ ] An in-app switch between live data and offline replay.
 

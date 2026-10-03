@@ -1,0 +1,1 @@
+{"properties":{"forecastHourly":"https://api.weather.gov/gridpoints/DTX/66,34/forecast/hourly","gridId":"DTX","gridX":66,"gridY":34,"relativeLocation":{"properties":{"bearing":{"unitCode":"wmoUnit:degree_(angle)","value":0},"city":"Detroit","distance":{"unitCode":"wmoUnit:m","value":0},"state":"MI"}}}}

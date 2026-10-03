@@ -1,0 +1,1 @@
+{"properties":{"forecastHourly":"https://api.weather.gov/gridpoints/LIX/68,88/forecast/hourly","gridId":"LIX","gridX":68,"gridY":88,"relativeLocation":{"properties":{"bearing":{"unitCode":"wmoUnit:degree_(angle)","value":0},"city":"New Orleans","distance":{"unitCode":"wmoUnit:m","value":0},"state":"LA"}}}}

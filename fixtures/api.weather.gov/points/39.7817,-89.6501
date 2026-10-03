@@ -1,0 +1,1 @@
+{"properties":{"forecastHourly":"https://api.weather.gov/gridpoints/ILX/47,55/forecast/hourly","gridId":"ILX","gridX":47,"gridY":55,"relativeLocation":{"properties":{"bearing":{"unitCode":"wmoUnit:degree_(angle)","value":0},"city":"Springfield","distance":{"unitCode":"wmoUnit:m","value":0},"state":"IL"}}}}
