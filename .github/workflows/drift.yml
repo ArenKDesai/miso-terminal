@@ -1,0 +1,21 @@
+name: MISO format drift
+
+# Weekly: record live MISO responses and run every parser against them, so a
+# format change on MISO's side shows up here before it shows up as a blank panel.
+# One request per endpoint (about 20 in total), well inside MISO's guidance.
+on:
+  schedule:
+    - cron: "17 14 * * 1" # Mondays 14:17 UTC (09:17 EST)
+  workflow_dispatch:
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Record live responses
+        run: cargo run -p mt-miso --example capture_fixtures -- "$RUNNER_TEMP/live"
+      - name: Parse them
+        run: MT_FIXTURES="$RUNNER_TEMP/live" cargo test -p mt-miso --test parsers

@@ -195,6 +195,15 @@ fn main() -> Result<()> {
         max_concurrent: config.data.max_concurrent_requests,
         polite_interval: std::time::Duration::from_secs(config.data.polite_interval_secs),
     };
+    if let Some(cache) = cache.clone() {
+        let max = config.data.cache_max_mb.saturating_mul(1024 * 1024);
+        runtime.spawn_blocking(move || {
+            let (files, bytes) = cache.prune(max);
+            if files > 0 {
+                tracing::info!("pruned {files} cached reports ({} MB)", bytes / 1_048_576);
+            }
+        });
+    }
     let hub = DataHub::new(
         runtime.handle().clone(),
         FetchCtx::new(transport, cache, opts, EventLog::default()),

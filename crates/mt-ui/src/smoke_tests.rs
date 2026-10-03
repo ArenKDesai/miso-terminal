@@ -101,6 +101,19 @@ impl Harness {
 
     /// Draw one panel for a frame (twice: fonts load on the first pass).
     fn draw(&self, skin: &Skin, panel: &mut dyn Panel) -> Vec<AppCommand> {
+        self.draw_with(skin, |ui, cx| {
+            panel.ui(ui, cx);
+            let _ = panel.title();
+            let _ = panel.route();
+        })
+    }
+
+    /// Run two frames of arbitrary UI with a full `PanelCx`.
+    fn draw_with(
+        &self,
+        skin: &Skin,
+        mut f: impl FnMut(&mut egui::Ui, &mut PanelCx<'_>),
+    ) -> Vec<AppCommand> {
         let mut commands = Vec::new();
         for _ in 0..2 {
             let input = egui::RawInput {
@@ -122,9 +135,7 @@ impl Harness {
                     notices: &[],
                     commands: &mut commands,
                 };
-                panel.ui(ui, &mut cx);
-                let _ = panel.title();
-                let _ = panel.route();
+                f(ui, &mut cx);
             });
             finish_frame(&self.ctx, out);
         }
@@ -275,4 +286,17 @@ fn readme_lists_every_function() {
             spec.code
         );
     }
+}
+
+#[test]
+fn a_panicking_panel_is_contained_to_its_tab() {
+    use crate::workspace::{draw_tab, tests as ws};
+    let rt = runtime();
+    let h = Harness::new(hub(&rt));
+    let skin = Skin::new(mt_theme::builtin().remove(0));
+    h.apply(&skin);
+    let mut tab = ws::bomb_tab();
+    // Two frames: the first catches the panic, the second shows the error page.
+    h.draw_with(&skin, |ui, cx| draw_tab(ui, cx, &mut tab));
+    assert_eq!(ws::crashed(&tab), Some("boom in a panel"));
 }

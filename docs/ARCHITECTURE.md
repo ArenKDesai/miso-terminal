@@ -121,7 +121,13 @@ with a grid that snaps to market midnight.
 | `mt-ui` | Command parsing and completion; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands |
 
 The smoke test iterates the registry, so a new function gets coverage without
-writing a test. It also checks that every feed any panel requests loads from the
+writing a test. Separately, the weekly `drift.yml` workflow records live MISO
+responses and runs the parser tests against them (`MT_FIXTURES`), so MISO format
+changes surface in CI rather than as a blank panel.
+
+At runtime, each tab's `ui()` runs inside `catch_unwind`. A panicking panel is
+logged, its state is dropped, and the tab shows the error with a *Reload panel*
+button. The rest of the terminal keeps running. It also checks that every feed any panel requests loads from the
 fixtures without error, which is what makes `--offline` trustworthy.
 
 ## Decisions

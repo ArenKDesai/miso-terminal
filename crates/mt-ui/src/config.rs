@@ -67,6 +67,9 @@ pub struct DataConfig {
     pub polite_interval_secs: u64,
     /// Default look-back for GP history charts, in days.
     pub history_days: u32,
+    /// Size cap for the market-report cache, in MB. Least-recently-used files
+    /// are pruned at startup.
+    pub cache_max_mb: u64,
 }
 
 impl Default for DataConfig {
@@ -75,6 +78,7 @@ impl Default for DataConfig {
             max_concurrent_requests: 4,
             polite_interval_secs: 55,
             history_days: 7,
+            cache_max_mb: 2048,
         }
     }
 }

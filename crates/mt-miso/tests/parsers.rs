@@ -3,6 +3,9 @@
 //! These tests assert structure and sanity (row counts, plausible ranges), not
 //! exact values, so re-recording fixtures with `capture_fixtures` keeps them
 //! passing unless MISO actually changed a format.
+//!
+//! Set `MT_FIXTURES` to run them against another recording (the weekly drift
+//! check in CI records live responses into a temp dir and points here).
 
 use std::path::PathBuf;
 
@@ -10,10 +13,14 @@ use chrono::NaiveDate;
 use mt_core::{DayReportKind, TRADING_HUBS};
 use mt_miso::parse::*;
 
+fn root() -> PathBuf {
+    std::env::var_os("MT_FIXTURES")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures"))
+}
+
 fn fixture(rel: &str) -> String {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fixtures")
-        .join(rel);
+    let path = root().join(rel);
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
@@ -23,8 +30,7 @@ fn api(path: &str) -> String {
 
 /// The newest recorded report with this suffix, and its date.
 fn report(suffix: &str) -> (NaiveDate, String) {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fixtures/docs.misoenergy.org/marketreports");
+    let dir = root().join("docs.misoenergy.org/marketreports");
     let mut names: Vec<String> = std::fs::read_dir(&dir)
         .expect("fixtures/docs.misoenergy.org/marketreports exists")
         .flatten()

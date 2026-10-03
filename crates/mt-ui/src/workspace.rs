@@ -3,6 +3,11 @@
 //! Tabs persist as [`Route`]s only; panels are rebuilt through the registry
 //! on load. A route whose function no longer exists (renamed or removed in a
 //! later version) opens a placeholder instead of breaking the saved layout.
+//!
+//! A panel that panics is contained to its tab: the panic is caught, logged,
+//! and the tab offers to reload the panel instead of the whole app exiting.
+
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use egui::{RichText, Ui, WidgetText};
 use egui_dock::{DockState, NodeIndex, TabViewer};
@@ -21,6 +26,9 @@ pub struct Tab {
     pub route: Route,
     #[serde(skip)]
     panel: Option<Box<dyn Panel>>,
+    /// Set when the panel panicked; cleared by "Reload".
+    #[serde(skip)]
+    crashed: Option<String>,
 }
 
 impl Tab {
@@ -29,6 +37,7 @@ impl Tab {
             id,
             route,
             panel: None,
+            crashed: None,
         }
     }
 
@@ -135,6 +144,40 @@ impl Workspace {
     }
 }
 
+/// Draw one tab's panel, containing any panic to the tab.
+pub(crate) fn draw_tab(ui: &mut Ui, cx: &mut PanelCx<'_>, tab: &mut Tab) {
+    if let Some(error) = &tab.crashed {
+        ui.label(RichText::new(format!("{} stopped: {error}", tab.route)).color(cx.skin.negative));
+        ui.label(
+            RichText::new(
+                "The rest of the terminal is unaffected. The details are in the log file.",
+            )
+            .color(cx.skin.text_muted),
+        );
+        if ui.button("Reload panel").clicked() {
+            tab.crashed = None;
+        }
+        return;
+    }
+    let registry = cx.registry;
+    let panel = tab.panel(registry);
+    match catch_unwind(AssertUnwindSafe(|| panel.ui(ui, cx))) {
+        // Keep the persisted route in step with the panel's state (node, days, ...).
+        Ok(()) => tab.route = panel.route(),
+        Err(payload) => {
+            let message = payload
+                .downcast_ref::<&str>()
+                .map(|s| (*s).to_owned())
+                .or_else(|| payload.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "panic".to_owned());
+            tracing::error!("panel {} panicked: {message}", tab.route);
+            // Drop the panel's state; "Reload" rebuilds it from the route.
+            tab.panel = None;
+            tab.crashed = Some(message);
+        }
+    }
+}
+
 /// Bridges egui_dock to panels.
 pub struct Viewer<'a, 'b> {
     pub cx: &'a mut PanelCx<'b>,
@@ -148,20 +191,51 @@ impl TabViewer for Viewer<'_, '_> {
     }
 
     fn title(&mut self, tab: &mut Tab) -> WidgetText {
+        if tab.crashed.is_some() {
+            return format!("{} ⚠", tab.route.code).into();
+        }
         let registry = self.cx.registry;
         tab.panel(registry).title().into()
     }
 
     fn ui(&mut self, ui: &mut Ui, tab: &mut Tab) {
-        let registry = self.cx.registry;
-        let panel = tab.panel(registry);
-        panel.ui(ui, self.cx);
-        // Keep the persisted route in step with the panel's state (node, days, ...).
-        tab.route = panel.route();
+        draw_tab(ui, self.cx, tab);
     }
 
     fn scroll_bars(&self, _tab: &Tab) -> [bool; 2] {
         // Panels manage their own scrolling (tables and charts fill the tab).
         [false, false]
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+
+    /// A panel that panics on demand, for crash-isolation tests.
+    pub(crate) struct Bomb;
+
+    impl Panel for Bomb {
+        fn title(&self) -> String {
+            "BOMB".into()
+        }
+
+        fn route(&self) -> Route {
+            Route::code("LMP")
+        }
+
+        fn ui(&mut self, _ui: &mut Ui, _cx: &mut PanelCx<'_>) {
+            panic!("boom in a panel");
+        }
+    }
+
+    pub(crate) fn bomb_tab() -> Tab {
+        let mut tab = Tab::new(99, Route::code("LMP"));
+        tab.panel = Some(Box::new(Bomb));
+        tab
+    }
+
+    pub(crate) fn crashed(tab: &Tab) -> Option<&str> {
+        tab.crashed.as_deref()
     }
 }

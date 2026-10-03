@@ -132,7 +132,8 @@ crates/
 Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how data flows and why,
 and [`docs/EXTENDING.md`](docs/EXTENDING.md) for step-by-step recipes: adding a
 function, a dataset, a non-MISO source, or a theme. CI runs on Windows (fmt,
-clippy, tests, release build). Pushing a `v*` tag builds a Windows zip release.
+clippy, tests, release build). A weekly job re-records MISO's feeds and runs the
+parsers against them. Pushing a `v*` tag builds a Windows zip release.
 
 ## TODO
 
@@ -156,7 +157,8 @@ each piece plugs in.
       pipeline has 317 geolocated nodes) for filtering and a map.
 - [ ] Non-MISO context sources: gas prices (EIA), weather forecasts by MISO
       region (NWS), neighbouring ISO prices at the seams (PJM, SPP).
-- [ ] Disk-cache size cap and pruning; an in-app offline/online toggle.
+- [x] Disk-cache size cap with least-recently-used pruning (`data.cache_max_mb`).
+- [ ] An in-app switch between live data and offline replay.
 
 ### Functions and UI
 - [ ] `MAP`: a node price heat map (LMP, congestion or loss), click to GP.
@@ -172,8 +174,7 @@ each piece plugs in.
 - [ ] `SET`: edit `config.toml` values in-app.
 - [ ] Command line: fuzzy matching, inline argument hints, Bloomberg-style
       function-key menus.
-- [ ] Isolate panel panics (`catch_unwind` around each tab) so a bug costs one
-      tab, not the app. Today a panic is logged and the app exits.
+- [x] Contain panel panics to their tab (logged, with a *Reload panel* button).
 
 ### Themes
 - [ ] Follow the Windows light/dark setting with paired themes (Everforge Dark ↔ Light).
@@ -190,7 +191,8 @@ each piece plugs in.
 
 ### Engineering
 - [ ] Visual regression tests with `egui_kittest` snapshots, per theme.
-- [ ] A scheduled CI job that records fixtures weekly and fails on MISO format changes.
+- [x] A weekly CI job (`drift.yml`) that records live responses and runs every
+      parser against them, to catch MISO format changes early.
 - [ ] Benchmarks for the rolling-feed parser (~33 MB of JSON per seed).
 - [ ] Publish the GitHub repository and turn on CI.
 - [ ] Choose a licence (the bundled fonts are OFL; see `assets/fonts/`).
