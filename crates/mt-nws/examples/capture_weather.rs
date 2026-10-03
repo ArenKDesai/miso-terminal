@@ -1,7 +1,7 @@
 //! Record NWS responses for every MISO city into `fixtures/` (offline mode and
 //! parser tests).
 //!
-//!     cargo run -p mt-nws --example capture_fixtures
+//!     cargo run -p mt-nws --example capture_weather
 //!
 //! Two requests per city. Responses are trimmed to the fields the parsers read
 //! and to 72 forecast hours, to keep the repository small.

@@ -13,7 +13,8 @@ cargo clippy --workspace --all-targets -- -D warnings   # what CI runs
 cargo fmt --all
 cargo run -- --offline                 # UI work against recorded fixtures, no network
 cargo run -p mt-miso --example capture_fixtures       # re-record MISO fixtures (one hit per endpoint)
-cargo run -p mt-nws --example capture_fixtures        # re-record weather fixtures (two per city)
+cargo run -p mt-nws --example capture_weather        # re-record weather fixtures (two per city)
+cargo run -p mt-eia --example capture_gas            # re-record the Henry Hub gas workbook
 cargo run -p mt-theme --example sync_everforge -- ..\everforge
 cargo run -p mt-ui --example render -- out.png --run "MAP MCC" --zoom   # offscreen PNG, fixtures, no window
 $env:UPDATE_SNAPSHOTS=force; cargo test -p mt-ui --test snapshots           # accept intended visual changes
@@ -48,6 +49,9 @@ with WM_CLOSE, which lets it save.
 - `crates/mt-ui/src/capture.rs`: copy/save a panel as an image.
 - `crates/mt-ui/src/geo.rs`: map asset and projection.
 - `crates/mt-nws`: National Weather Service source, the template for non-MISO sources.
+- `crates/mt-eia`: EIA Henry Hub gas spot, a second example of one.
+- Example names must be unique across the workspace (they share
+  `target/debug/examples/`; duplicates race at link time on Windows).
 
 ## Conventions
 

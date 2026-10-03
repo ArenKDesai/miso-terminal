@@ -18,8 +18,8 @@ jobs:
       - name: Record live responses
         run: cargo run -p mt-miso --example capture_fixtures -- "$RUNNER_TEMP/live"
       - name: Record live weather
-        run: cargo run -p mt-nws --example capture_fixtures -- "$RUNNER_TEMP/live"
+        run: cargo run -p mt-nws --example capture_weather -- "$RUNNER_TEMP/live"
       - name: Record live gas prices
-        run: cargo run -p mt-eia --example capture_fixtures -- "$RUNNER_TEMP/live"
+        run: cargo run -p mt-eia --example capture_gas -- "$RUNNER_TEMP/live"
       - name: Parse them
         run: MT_FIXTURES="$RUNNER_TEMP/live" cargo test -p mt-miso -p mt-nws -p mt-eia --test parsers

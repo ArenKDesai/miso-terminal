@@ -1,6 +1,6 @@
 //! Record EIA's Henry Hub workbook into `fixtures/` (offline mode, parser tests).
 //!
-//!     cargo run -p mt-eia --example capture_fixtures [DIR]
+//!     cargo run -p mt-eia --example capture_gas [DIR]
 
 use std::path::PathBuf;
 use std::sync::Arc;
