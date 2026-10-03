@@ -64,6 +64,11 @@ lto = "thin"
 codegen-units = 1
 strip = "symbols"
 
+# Line tables keep file:line backtraces while keeping target/ (and its
+# incremental cache) a fraction of the size full debug info produces.
+[profile.dev]
+debug = "line-tables-only"
+
 # egui and wgpu are painfully slow unoptimized; optimize dependencies even in dev builds.
 # Their debug info is rarely useful and bloats the Windows PDB past the linker's limits.
 [profile.dev.package."*"]
