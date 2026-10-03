@@ -274,6 +274,7 @@ fn app_shell_runs_frames_and_executes_commands() {
         }],
         ..AppConfig::default()
     };
+    let (remote, inbox) = crate::remote::channel_pair();
     let deps = Deps {
         hub: hub(&rt),
         config,
@@ -281,6 +282,7 @@ fn app_shell_runs_frames_and_executes_commands() {
         paths: temp_paths("shell"),
         reset_layout: true,
         startup_commands: vec!["FUEL".into(), "GP INDIANA.HUB".into(), "ALRT".into()],
+        remote: Some(inbox),
     };
     let mut app = TerminalApp::headless(&ctx, deps);
     let mut frame = eframe::Frame::_new_kittest();
@@ -311,6 +313,16 @@ fn app_shell_runs_frames_and_executes_commands() {
         run(&mut app);
     }
     assert!(app.alerts.history[0].rule.contains("MINN.HUB"));
+    // A later launch of the app forwards its commands to this window.
+    assert!(remote.send(vec!["SPRD MINN.HUB TEXAS.HUB".into()]));
+    run(&mut app);
+    assert!(
+        app.workspace_mut()
+            .routes()
+            .iter()
+            .any(|r| r.code == "SPRD"),
+        "a forwarded command did not open"
+    );
     let before = app.workspace_mut().routes().len();
     app.apply_commands(
         &ctx,
@@ -406,6 +418,7 @@ fn intraday_prices_survive_a_restart() {
         paths: paths.clone(),
         reset_layout: true,
         startup_commands: Vec::new(),
+        remote: None,
     };
     let mut app = TerminalApp::headless(&egui::Context::default(), deps);
 

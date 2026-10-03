@@ -40,6 +40,8 @@ pub struct Deps {
     pub reset_layout: bool,
     /// Command-line commands to run on the first frame (`--run`).
     pub startup_commands: Vec<String>,
+    /// Commands forwarded by later launches of the app.
+    pub remote: Option<crate::remote::RemoteInbox>,
 }
 
 #[derive(Default)]
@@ -76,6 +78,7 @@ pub struct TerminalApp {
     last_intraday_save: Instant,
     /// Generation of the intraday store last written to disk.
     intraday_saved: u64,
+    remote: Option<crate::remote::RemoteInbox>,
 }
 
 impl TerminalApp {
@@ -127,11 +130,15 @@ impl TerminalApp {
             capture_next: None,
             last_intraday_save: Instant::now(),
             intraday_saved: 0,
+            remote: deps.remote,
             config: deps.config,
             paths: deps.paths,
         };
         app.apply_theme(ctx);
         app.restore_intraday();
+        if let Some(inbox) = &app.remote {
+            inbox.attach(ctx);
+        }
         app
     }
 
@@ -819,6 +826,16 @@ impl eframe::App for TerminalApp {
         let ctx = ui.ctx().clone();
         self.background_work(&ctx);
         let mut commands = std::mem::take(&mut self.pending);
+        if let Some(forwarded) = self.remote.as_ref().and_then(|r| r.drain()) {
+            // Another launch: come forward (Windows may only flash the taskbar
+            // button if focus cannot be taken) and run what it asked for.
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                egui::UserAttentionType::Informational,
+            ));
+            commands.extend(forwarded.into_iter().map(AppCommand::Run));
+        }
         if let Some(req) = self.capture_next.take() {
             crate::capture::send(&ctx, req);
         }

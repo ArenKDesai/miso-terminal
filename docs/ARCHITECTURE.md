@@ -179,3 +179,10 @@ fixtures without error, which is what makes `--offline` trustworthy.
   a few nodes.
 - **TOML for config and themes.** Hand-editable, comment-friendly, and every
   field is optional with a default, so old files keep working.
+- **One live window per home.** The binary locks `instance.lock` next to the
+  window state and listens on a loopback port (`instance.rs`); a second launch
+  sends its `--run` commands there with a token from `instance.port`, and the
+  UI receives them through `mt_ui::remote`. Shortcuts then open functions in
+  the running terminal, and MISO is never polled by two copies. Offline replay
+  and `--new-instance` opt out. Standard library only (`File::try_lock`), no
+  named pipes or `unsafe`.

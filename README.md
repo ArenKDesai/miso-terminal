@@ -56,8 +56,9 @@ Useful flags:
 |---|---|
 | `--offline [DIR]` | Replay the recorded responses in `fixtures/` instead of calling MISO. Use it for demos, UI work, or when MISO is down. |
 | `--home DIR` | Portable mode: keep everything in `DIR`. Also enabled by `MISO_TERMINAL_HOME`, or a file named `portable` next to the exe. |
-| `--run "CMD"` | Run a command at startup (repeatable), e.g. a desktop shortcut with `--run "GP ALTE.ALTE"`. |
+| `--run "CMD"` | Run a command at startup (repeatable), e.g. a desktop shortcut with `--run "GP ALTE.ALTE"`. If the terminal is already open, the command runs in that window instead. |
 | `--reset-layout` | Start from the default layout. |
+| `--new-instance` | Open a second window anyway. Normally there is one live window per home, so MISO is polled once. |
 
 Files live in `%APPDATA%\MISO Terminal\config` (config, themes, fonts: these roam)
 and `%LOCALAPPDATA%\MISO Terminal` (report cache, logs, window and layout state).
@@ -232,7 +233,8 @@ each piece plugs in.
 - [x] Per-user install script in the release zip (`packaging/install.ps1`).
 - [ ] A proper installer (MSI via `cargo-wix`, or MSIX for winget).
 - [ ] **Code signing.** Unsigned executables trip SmartScreen and Smart App Control.
-- [ ] Single instance, plus jump-list entries for favourite functions.
+- [x] Single instance: a second launch hands its `--run` commands to the open window.
+- [ ] Jump-list entries for favourite functions (taskbar right-click).
 - [ ] An update check against GitHub releases.
 
 ### Engineering

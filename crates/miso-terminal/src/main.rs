@@ -14,6 +14,8 @@ use mt_data::{
 };
 use mt_ui::{AppConfig, AppPaths, Deps, TerminalApp};
 
+mod instance;
+
 const APP_NAME: &str = "MISO Terminal";
 const USAGE: &str = "\
 MISO Terminal - a Bloomberg-style information terminal for MISO
@@ -28,7 +30,10 @@ OPTIONS:
                     next to the executable.
   --reset-layout    Start with the default layout.
   --run COMMAND     Run a command-line command at startup (repeatable),
-                    e.g. --run \"GP ALTE.ALTE\" for a desktop shortcut.
+                    e.g. --run \"GP ALTE.ALTE\" for a desktop shortcut. If the
+                    terminal is already open, the command runs in that window.
+  --new-instance    Open another window even if one is running (live mode
+                    normally allows one window per home, so MISO is polled once).
   --version         Print the version.
   --help            Print this help.";
 
@@ -38,6 +43,7 @@ struct Args {
     home: Option<PathBuf>,
     reset_layout: bool,
     run: Vec<String>,
+    new_instance: bool,
 }
 
 fn parse_args() -> Result<Option<Args>> {
@@ -51,6 +57,7 @@ fn parse_args() -> Result<Option<Args>> {
             }
             "--home" => args.home = Some(it.next().context("--home needs a directory")?.into()),
             "--reset-layout" => args.reset_layout = true,
+            "--new-instance" => args.new_instance = true,
             "--run" => args.run.push(it.next().context("--run needs a command")?),
             "--version" | "-V" => {
                 println!("miso-terminal {}", env!("CARGO_PKG_VERSION"));
@@ -155,6 +162,27 @@ fn main() -> Result<()> {
         tracing::error!("panic: {info}");
         default_hook(info);
     }));
+    // One live window per home: a second launch hands its commands over.
+    // Offline replay is for development and demos, so it never forwards.
+    let primary = if args.offline.is_none() && !args.new_instance {
+        let dir = paths
+            .state_file
+            .parent()
+            .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+        match instance::claim(&dir, &args.run) {
+            Ok(instance::Claim::Forwarded) => {
+                tracing::info!("already running; handed over {:?}", args.run);
+                return Ok(());
+            }
+            Ok(instance::Claim::Primary(p)) => Some(p),
+            Err(e) => {
+                tracing::warn!("could not reach the running window ({e}); opening another");
+                None
+            }
+        }
+    } else {
+        None
+    };
     tracing::info!(
         "MISO Terminal {} starting; config {}",
         env!("CARGO_PKG_VERSION"),
@@ -230,6 +258,8 @@ fn main() -> Result<()> {
         persistence_path: Some(paths.state_file.clone()),
         ..Default::default()
     };
+    let (remote, inbox) = mt_ui::remote::channel_pair();
+    let _instance_lock = primary.map(|p| p.serve(remote));
     let deps = Deps {
         hub,
         config,
@@ -237,6 +267,7 @@ fn main() -> Result<()> {
         paths,
         reset_layout: args.reset_layout,
         startup_commands: args.run,
+        remote: Some(inbox),
     };
     eframe::run_native(
         APP_NAME,
