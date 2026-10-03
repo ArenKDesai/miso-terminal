@@ -24,6 +24,8 @@ and never submits anything to MISO.
 |---|---|
 | ![GP history](docs/screenshots/gp-history.png) | ![Amber Terminal](docs/screenshots/amber-terminal.png) |
 
+![MAP: real-time congestion across the footprint](docs/screenshots/map.png)
+
 ## Quick start (Windows)
 
 ```powershell
