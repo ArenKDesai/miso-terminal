@@ -212,6 +212,9 @@ each piece plugs in.
 - [x] Disk-cache size cap with least-recently-used pruning (`data.cache_max_mb`); the
       five-minute archive is exempt and kept for `data.archive_days` (default 90).
 - [ ] An in-app switch between live data and offline replay.
+- [ ] MISO's operational notifications (Max Gen, capacity advisories, conservative
+      operations). Not in the public API, and misoenergy.org serves them behind a
+      browser challenge, so there is no clean source today.
 
 ### Functions and UI
 - [x] `MAP`: node price map (LMP, congestion, loss, DA, DART) built from MISO's own node positions; click to GP.
@@ -257,7 +260,8 @@ each piece plugs in.
       recording time and compared with committed images.
 - [x] A weekly CI job (`drift.yml`) that records live responses and runs every
       parser against them, to catch MISO format changes early.
-- [ ] Benchmarks for the rolling-feed parser (~33 MB of JSON per seed).
+- [x] A rolling-feed benchmark (`cargo run --release -p mt-miso --example bench_rolling`): a full
+      day (29 MB, 530k rows) parses in ~0.4 s and builds in ~50 ms; the download dominates.
 - [x] GitHub repository (private) with CI on every push.
 - [ ] Make the repository public (the owner's call).
 - [ ] Choose a licence (the bundled fonts are OFL; see `assets/fonts/`).
