@@ -1,18 +1,20 @@
 # MISO Terminal
 
 A Bloomberg-style information terminal for the Midcontinent ISO, written in Rust.
-It covers prices, load, generation, interchange, constraints and outages in one
-keyboard-driven, tiled workspace. It is read-only: it shows MISO's public data
-and never submits anything to MISO.
+It covers prices, load, generation, interchange, constraints, the seams, gas and
+weather in one keyboard-driven, tiled workspace. It is read-only: it shows MISO's
+public data (plus EIA gas prices and NWS forecasts) and never submits anything to MISO.
 
 ![MISO Terminal, Everforge Dark](docs/screenshots/home-everforge-dark.png)
 
 - **Command line first.** Type `LMP`, `GP MINN.HUB`, `MINN.HUB GP 14`, or just a
   node name, then press Enter. Completion covers every function and every pricing node.
-- **Tiled, tabbed workspace.** Drag tabs to split panes. Your layout is saved
+- **Tiled, tabbed workspace.** Drag tabs to split panes, zoom one to the whole
+  window (`Ctrl+M`), or pop it out onto a second monitor. Your layout is saved
   between sessions.
 - **Live.** Real-time feeds refresh once a minute (MISO's limit). Daily market
-  reports are cached on disk, so history loads instantly the second time.
+  reports are cached on disk, so history loads instantly the second time, and an
+  optional local archive reaches back to 2023. Alerts arrive as Windows notifications.
 - **Themed.** Ships with **Everforge Dark** (the default), Everforge Light,
   Amber Terminal and High Contrast. Drop a TOML file into the themes folder to add your own; it
   hot-reloads while you edit it.
