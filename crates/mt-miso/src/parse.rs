@@ -523,6 +523,38 @@ pub fn parse_nsi_history(body: &str) -> Result<InterchangeHistory, FetchError> {
     Ok(InterchangeHistory { points })
 }
 
+#[derive(Deserialize)]
+struct NaiRaw {
+    #[serde(rename = "Date")]
+    date: Option<String>,
+    #[serde(rename = "Actual")]
+    actual: Option<NaiActualRaw>,
+}
+
+#[derive(Deserialize)]
+struct NaiActualRaw {
+    #[serde(rename = "TieFlow")]
+    tie_flow: Option<NaiFlowRaw>,
+}
+
+#[derive(Deserialize)]
+struct NaiFlowRaw {
+    #[serde(rename = "Value")]
+    value: Option<Num>,
+}
+
+/// Net actual interchange (`Interchange/GetNai`).
+pub fn parse_nai(body: &str) -> Result<ActualInterchange, FetchError> {
+    let raw: NaiRaw = json("net actual interchange", body)?;
+    Ok(ActualInterchange {
+        time: raw.date.as_deref().and_then(parse_ref_id),
+        mw: raw
+            .actual
+            .and_then(|a| a.tie_flow)
+            .and_then(|f| num(&f.value)),
+    })
+}
+
 // --- Binding constraints ------------------------------------------------------
 
 #[derive(Deserialize)]

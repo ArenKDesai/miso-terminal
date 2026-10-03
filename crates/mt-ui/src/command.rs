@@ -53,6 +53,12 @@ pub fn hint(input: &str, registry: &Registry) -> Option<(&'static str, &'static 
     Some((spec.usage, spec.description))
 }
 
+/// Whether every character of `needle` appears in `hay` in order.
+fn is_subsequence(needle: &str, hay: &str) -> bool {
+    let mut hay = hay.chars();
+    needle.chars().all(|c| hay.any(|h| h == c))
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Suggestion {
     /// Full command-line text to run when chosen.
@@ -69,12 +75,26 @@ pub fn suggest(
 ) -> Vec<Suggestion> {
     let upper = input.trim_start().to_ascii_uppercase();
     let mut out = Vec::new();
-    let node_matches = |prefix: &str| {
-        let contains: Vec<&String> = nodes.iter().filter(|n| n.contains(prefix)).collect();
-        let (mut starts, rest): (Vec<&String>, Vec<&String>) =
-            contains.into_iter().partition(|n| n.starts_with(prefix));
-        starts.extend(rest);
-        starts
+    // Prefix matches first, then substring, then (for 3+ characters) fuzzy
+    // subsequence matches such as `michub` -> `MICHIGAN.HUB`.
+    let node_matches = |needle: &str| {
+        let mut ranked: Vec<(u8, &String)> = nodes
+            .iter()
+            .filter_map(|n| {
+                let rank = if n.starts_with(needle) {
+                    0
+                } else if n.contains(needle) {
+                    1
+                } else if needle.len() >= 3 && is_subsequence(needle, n) {
+                    2
+                } else {
+                    return None;
+                };
+                Some((rank, n))
+            })
+            .collect();
+        ranked.sort_by_key(|(rank, _)| *rank);
+        ranked.into_iter().map(|(_, n)| n).collect::<Vec<_>>()
     };
 
     match upper.split_once(' ') {
@@ -97,16 +117,24 @@ pub fn suggest(
             if upper.is_empty() {
                 return out;
             }
+            let mut fuzzy = Vec::new();
             for spec in registry.specs() {
                 let code_hit = spec.code.starts_with(&upper)
                     || spec.aliases.iter().any(|a| a.starts_with(&upper));
                 let name_hit = upper.len() >= 3 && spec.name.to_ascii_uppercase().contains(&upper);
+                let suggestion = Suggestion {
+                    command: spec.code.to_owned(),
+                    detail: spec.name.to_owned(),
+                };
                 if code_hit || name_hit {
-                    out.push(Suggestion {
-                        command: spec.code.to_owned(),
-                        detail: spec.name.to_owned(),
-                    });
+                    out.push(suggestion);
+                } else if upper.len() >= 2 && is_subsequence(&upper, spec.code) {
+                    fuzzy.push(suggestion);
                 }
+            }
+            // Fuzzy code matches (`SPD` -> `SPRD`) only when nothing matched exactly.
+            if out.is_empty() {
+                out.extend(fuzzy);
             }
             if upper.len() >= 2 {
                 for n in node_matches(&upper) {
@@ -188,6 +216,21 @@ mod tests {
         assert_eq!(s[0].command, "GP ALTE.ALTE");
         assert!(suggest("", &r, &nodes, 10).is_empty());
         assert!(suggest("gp", &r, &nodes, 3).len() <= 3);
+    }
+
+    #[test]
+    fn fuzzy_matches_rank_after_exact_ones() {
+        let r = reg();
+        let nodes: Vec<String> = ["MICHIGAN.HUB", "MINN.HUB", "AMIL.MICH1"]
+            .map(String::from)
+            .to_vec();
+        let s = suggest("michub", &r, &nodes, 10);
+        assert_eq!(s[0].command, "GP MICHIGAN.HUB");
+        let s = suggest("spd", &r, &nodes, 10);
+        assert_eq!(s[0].command, "SPRD", "fuzzy code match");
+        // An exact prefix match wins over fuzzy ones.
+        assert_eq!(suggest("gp", &r, &nodes, 10)[0].command, "GP");
+        assert!(is_subsequence("MHB", "MICHIGAN.HUB") && !is_subsequence("BHM", "MICHIGAN.HUB"));
     }
 
     #[test]

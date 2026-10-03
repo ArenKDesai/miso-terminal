@@ -314,6 +314,19 @@ fn app_shell_runs_frames_and_executes_commands() {
     assert_eq!(app.workspace_mut().routes().len(), before + 1);
     app.apply_commands(&ctx, vec![AppCommand::Run("THEME amber-terminal".into())]);
     run(&mut app);
+    let open = app.workspace_mut().routes().len();
+    app.apply_commands(
+        &ctx,
+        vec![
+            AppCommand::CycleTab(true),
+            AppCommand::CycleTab(false),
+            AppCommand::CloseTab,
+        ],
+    );
+    assert!(
+        app.workspace_mut().routes().len() <= open,
+        "close never adds tabs"
+    );
     app.apply_commands(&ctx, vec![AppCommand::ResetLayout]);
     run(&mut app);
     let _ = std::fs::remove_dir_all(app.paths.config_file.parent().unwrap());

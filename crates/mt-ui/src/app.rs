@@ -267,6 +267,8 @@ impl TerminalApp {
                     self.save_config();
                 }
                 AppCommand::ResetLayout => self.workspace = Workspace::default_layout(),
+                AppCommand::CloseTab => self.workspace.close_focused(),
+                AppCommand::CycleTab(forward) => self.workspace.cycle_focused(forward),
                 AppCommand::RefreshWatched => self.hub.refresh_watched(),
                 AppCommand::SetPaused(p) => self.hub.set_paused(p),
                 AppCommand::ClearCache => {
@@ -388,6 +390,15 @@ impl TerminalApp {
             }
             if i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::L) {
                 commands.push(AppCommand::ResetLayout);
+            }
+            if i.consume_key(egui::Modifiers::COMMAND, Key::W) {
+                commands.push(AppCommand::CloseTab);
+            }
+            if i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::Tab) {
+                commands.push(AppCommand::CycleTab(false));
+            }
+            if i.consume_key(egui::Modifiers::COMMAND, Key::Tab) {
+                commands.push(AppCommand::CycleTab(true));
             }
         });
     }

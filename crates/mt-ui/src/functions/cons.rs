@@ -147,5 +147,37 @@ impl Panel for Cons {
                 .color(skin.text_muted),
             );
         });
+
+        // Reserve and sub-regional constraints rarely bind, so they get a line each.
+        for (title, snap) in [
+            (
+                "Reserve constraints",
+                cx.hub.watch(&cx.miso.reserve_constraints()),
+            ),
+            (
+                "Sub-regional constraints",
+                cx.hub.watch(&cx.miso.subregional_constraints()),
+            ),
+        ] {
+            widgets::section(ui, skin, title);
+            match snap.data() {
+                Some(c) if c.constraints.is_empty() => {
+                    ui.label(RichText::new("None binding.").color(skin.text_muted));
+                }
+                Some(c) => {
+                    for k in &c.constraints {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(&k.name).monospace());
+                            ui.label(
+                                RichText::new(fmt::price_opt(k.shadow_price)).color(skin.warning),
+                            );
+                        });
+                    }
+                }
+                None => {
+                    widgets::placeholder(ui, skin, snap.error.as_ref().map(ToString::to_string))
+                }
+            }
+        }
     }
 }

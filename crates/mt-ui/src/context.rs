@@ -25,6 +25,10 @@ pub enum AppCommand {
     AddFavorite(String),
     RemoveFavorite(String),
     ResetLayout,
+    /// Close the active tab in the focused pane.
+    CloseTab,
+    /// Activate the next (`true`) or previous tab in the focused pane.
+    CycleTab(bool),
     RefreshWatched,
     SetPaused(bool),
     ClearCache,

@@ -146,6 +146,46 @@ impl Workspace {
         self.dock.push_to_focused_leaf(tab);
     }
 
+    /// Close the active tab in the focused pane (Ctrl+W).
+    pub fn close_focused(&mut self) {
+        let Some(node) = self.dock.focused_leaf() else {
+            return;
+        };
+        let Ok(leaf) = self.dock.leaf(node) else {
+            return;
+        };
+        if leaf.is_empty() {
+            return;
+        }
+        let path = egui_dock::TabPath::new(node.surface, node.node, leaf.active);
+        self.dock.remove_tab(path);
+    }
+
+    /// Activate the next (or previous) tab in the focused pane (Ctrl+Tab).
+    pub fn cycle_focused(&mut self, forward: bool) {
+        let Some(node) = self.dock.focused_leaf() else {
+            return;
+        };
+        let Ok(leaf) = self.dock.leaf(node) else {
+            return;
+        };
+        let n = leaf.len();
+        if n < 2 {
+            return;
+        }
+        let i = leaf.active.0;
+        let next = if forward {
+            (i + 1) % n
+        } else {
+            (i + n - 1) % n
+        };
+        let _ = self.dock.set_active_tab(egui_dock::TabPath::new(
+            node.surface,
+            node.node,
+            next.into(),
+        ));
+    }
+
     pub fn routes(&self) -> Vec<Route> {
         self.dock
             .iter_all_tabs()

@@ -48,6 +48,33 @@ impl Panel for Nsi {
                 .color(skin.text_muted),
         );
 
+        // Scheduled against metered: the gap is inadvertent interchange.
+        let actual = cx.hub.watch(&cx.miso.actual_interchange());
+        ui.horizontal_wrapped(|ui| {
+            let scheduled = now.data().and_then(|n| n.net());
+            let metered = actual.data().and_then(|a| a.mw);
+            let mw = |v: Option<f64>| v.map_or_else(|| fmt::DASH.into(), fmt::mw_signed);
+            widgets::stat_tile(ui, skin, "Scheduled (NSI) · MW", &mw(scheduled), None);
+            widgets::stat_tile(
+                ui,
+                skin,
+                "Actual (NAI) · MW",
+                &mw(metered),
+                actual.data().and_then(|a| a.time).map(|t| {
+                    RichText::new(format!("metered at {} EST", fmt::hm(t))).color(skin.text_muted)
+                }),
+            );
+            if let (Some(s), Some(m)) = (scheduled, metered) {
+                widgets::stat_tile(
+                    ui,
+                    skin,
+                    "Actual − scheduled",
+                    &fmt::mw_signed(m - s),
+                    Some(RichText::new("inadvertent flow").color(skin.text_muted)),
+                );
+            }
+        });
+
         widgets::with_data(ui, skin, &now, |ui, n| {
             Grid::new("nsi-now")
                 .striped(true)

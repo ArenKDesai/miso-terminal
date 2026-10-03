@@ -73,6 +73,15 @@ impl Miso {
     pub fn binding_constraints(&self) -> ApiQuery<BindingConstraints> {
         self.api(&CONSTRAINTS)
     }
+    pub fn reserve_constraints(&self) -> ApiQuery<BindingConstraints> {
+        self.api(&RESERVE_CONSTRAINTS)
+    }
+    pub fn subregional_constraints(&self) -> ApiQuery<BindingConstraints> {
+        self.api(&SUBREGIONAL_CONSTRAINTS)
+    }
+    pub fn actual_interchange(&self) -> ApiQuery<ActualInterchange> {
+        self.api(&NAI)
+    }
     pub fn renewables(&self) -> ApiQuery<Renewables> {
         self.api(&RENEWABLES)
     }
@@ -167,6 +176,19 @@ api_spec!(
     parse::parse_regional_transfer
 );
 api_spec!(ACE: Ace = "ace", "Area control error", paths::ACE, parse::parse_ace);
+api_spec!(NAI: ActualInterchange = "nai", "Net actual interchange", paths::NAI, parse::parse_nai);
+api_spec!(
+    RESERVE_CONSTRAINTS: BindingConstraints = "reserve-constraints",
+    "Reserve constraints",
+    paths::RESERVE_CONSTRAINTS,
+    parse::parse_binding_constraints
+);
+api_spec!(
+    SUBREGIONAL_CONSTRAINTS: BindingConstraints = "subregional-constraints",
+    "Sub-regional constraints",
+    paths::SUBREGIONAL_CONSTRAINTS,
+    parse::parse_binding_constraints
+);
 
 /// A query for one [`ApiSpec`] dataset.
 pub struct ApiQuery<T: 'static> {

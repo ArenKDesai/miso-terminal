@@ -63,11 +63,11 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `CAP` | Capacity & headroom | Committed capacity vs demand, forecasts, available capacity |
 | `FUEL` | Fuel mix | Generation by fuel now, plus a stacked chart of the day |
 | `RENEW` | Wind & solar | Hourly forecast vs actual for today and tomorrow, with forecast bias |
-| `NSI` | Interchange | Net scheduled interchange by neighbour, plus 5-min history |
+| `NSI` | Interchange | Net scheduled interchange by neighbour, actual (metered) interchange and the inadvertent gap, plus 5-min history |
 | `RDT` | Regional transfer | North-South regional directional transfer over the last day against its limits, with utilisation |
 | `ACE` | Area control error | 30-second ACE over the last two hours: how far generation is from balancing load |
 | `WX` | Weather | Now, today's and tomorrow's high/low, dew point, wind and the 48-hour trend for a city in each MISO zone (National Weather Service); hourly chart for all or one |
-| `CONS` | Binding constraints | RT binding constraints, shadow prices, and how long each has bound |
+| `CONS` | Binding constraints | RT binding constraints, shadow prices and how long each has bound; reserve and sub-regional constraints |
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
 | `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast and ACE: add rules, see which hold, and what fired. A firing rule flashes the taskbar and shows a ⚠ badge |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, fetch activity, cache and file locations |
@@ -79,7 +79,8 @@ Right-click a tab title to copy the panel as an image or save it as a PNG (to
 `Pictures\MISO Terminal`).
 
 Keyboard: `Ctrl+K` or `Esc` focuses the command line, `Enter` runs it, `Tab`/`↑`/`↓`
-pick a suggestion, `F1` opens help, `F5` refreshes every open feed, and
+pick a suggestion, `F1` opens help, `F5` refreshes every open feed,
+`Ctrl+Tab` / `Ctrl+Shift+Tab` cycle tabs, `Ctrl+W` closes one, and
 `Ctrl+Shift+L` resets the layout.
 
 ## Data
@@ -163,8 +164,8 @@ each piece plugs in.
       Parquet export of it. GP then gets `90d`, `1y` and more.
 - [x] Hub **ex-ante LMPs** (next interval) on HOME.
 - [x] New MISO feeds: `ACE` and `RDT` (regional directional transfer vs limits).
-- [ ] More MISO feeds: reserve and sub-regional constraints, RSG commitments,
-      short-term reserve requirements, NAI.
+- [x] Net actual interchange (NSI) and reserve / sub-regional constraints (CONS).
+- [ ] More MISO feeds: RSG commitments, short-term reserve requirements.
 - [ ] More market reports: DA ex-ante LMPs, DA/RT binding-constraint history,
       MCP history, load-zone summaries.
 - [ ] **Node metadata** beyond the 317 mapped nodes: type, zone and LBA for every

@@ -135,6 +135,13 @@ impl Interchange {
     }
 }
 
+/// Net actual interchange: metered tie-line flow, MW (negative = importing).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ActualInterchange {
+    pub time: Option<NaiveDateTime>,
+    pub mw: Option<f64>,
+}
+
 /// Five-minute interchange history.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct InterchangeHistory {

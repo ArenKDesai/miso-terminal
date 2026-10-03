@@ -159,6 +159,26 @@ fn interchange() {
 }
 
 #[test]
+fn actual_interchange() {
+    let n = parse_nai(&api("Interchange/GetNai")).unwrap();
+    assert!(n.time.is_some());
+    assert!(n.mw.is_some_and(|v| v.abs() < 50_000.0));
+}
+
+#[test]
+fn reserve_and_subregional_constraints() {
+    // Both feeds send a "None" placeholder row when nothing binds; either way they parse.
+    for path in [
+        "BindingConstraints/Reserve",
+        "BindingConstraints/SubRegional",
+    ] {
+        let c = parse_binding_constraints(&api(path)).unwrap_or_else(|e| panic!("{path}: {e}"));
+        assert!(c.interval.is_some(), "{path}");
+        assert!(c.constraints.iter().all(|k| !k.name.is_empty()));
+    }
+}
+
+#[test]
 fn binding_constraints() {
     let c = parse_binding_constraints(&api("BindingConstraints/RealTime")).unwrap();
     assert!(c.interval.is_some());

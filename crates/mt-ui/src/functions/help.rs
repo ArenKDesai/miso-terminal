@@ -29,6 +29,15 @@ pub const SHORTCUTS: &[(&str, &str)] = &[
     ("Tab / ↑ ↓", "Pick a suggestion"),
     ("F1", "Help"),
     ("F5", "Refresh every open feed"),
+    (
+        "Ctrl+Tab / Ctrl+Shift+Tab",
+        "Next / previous tab in the focused pane",
+    ),
+    ("Ctrl+W", "Close the current tab"),
+    (
+        "Right-click a tab",
+        "Copy the panel as an image, or save it as PNG",
+    ),
     ("Ctrl+Shift+L", "Reset the layout"),
 ];
 

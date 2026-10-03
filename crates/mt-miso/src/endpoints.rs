@@ -56,7 +56,10 @@ pub mod paths {
     pub const LOAD: &str = "RealTimeTotalLoad";
     pub const NSI: &str = "Interchange/GetNsi";
     pub const NSI_FIVE_MIN: &str = "Interchange/GetNsi/FiveMinute";
+    pub const NAI: &str = "Interchange/GetNai";
     pub const BINDING_CONSTRAINTS: &str = "BindingConstraints/RealTime";
+    pub const RESERVE_CONSTRAINTS: &str = "BindingConstraints/Reserve";
+    pub const SUBREGIONAL_CONSTRAINTS: &str = "BindingConstraints/SubRegional";
     pub const WIND_SOLAR: &str = "WindSolar/GetCombined";
     pub const OUTAGES: &str = "GenerationOutages/GetGenerationOutagesPlusMinusFiveDays";
     pub const CAPACITY: &str = "CsatSupplyDemand";
@@ -77,7 +80,10 @@ pub mod paths {
         LOAD,
         NSI,
         NSI_FIVE_MIN,
+        NAI,
         BINDING_CONSTRAINTS,
+        RESERVE_CONSTRAINTS,
+        SUBREGIONAL_CONSTRAINTS,
         WIND_SOLAR,
         OUTAGES,
         CAPACITY,
