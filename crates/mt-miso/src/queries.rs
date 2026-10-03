@@ -7,13 +7,14 @@
 //! report fallbacks) get their own types.
 
 use std::fmt;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{NaiveDate, TimeDelta};
 use mt_core::time::market_today;
 use mt_core::*;
-use mt_data::{FetchCtx, FetchError, Freshness, Query};
+use mt_data::{DiskCache, FetchCtx, FetchError, Freshness, Query};
 
 use crate::endpoints::{MisoEndpoints, paths, reports};
 use crate::parse;
@@ -369,6 +370,38 @@ impl Query for RtPreviousDayQuery {
 /// written every few minutes while the app runs; earlier days form the archive.
 pub fn intraday_archive_key(day: NaiveDate) -> String {
     format!("local://intraday/{day}")
+}
+
+/// The directory holding the archive inside `cache` (exempt from the size cap).
+pub fn archive_dir(cache: &DiskCache) -> PathBuf {
+    cache
+        .path_for(&intraday_archive_key(NaiveDate::default()))
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_default()
+}
+
+/// Delete archived days more than `keep_days` before `today` (0 keeps
+/// everything). Returns how many days were removed.
+pub fn prune_archive(cache: &DiskCache, keep_days: u32, today: NaiveDate) -> usize {
+    if keep_days == 0 {
+        return 0;
+    }
+    let cutoff = today - TimeDelta::days(i64::from(keep_days));
+    let Ok(entries) = std::fs::read_dir(archive_dir(cache)) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .filter(|e| {
+            e.file_name()
+                .to_str()
+                .and_then(|n| n.strip_suffix(".gz"))
+                .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+                .is_some_and(|d| d < cutoff)
+        })
+        .filter(|e| std::fs::remove_file(e.path()).is_ok())
+        .count()
 }
 
 /// Five-minute intervals in a complete market day.

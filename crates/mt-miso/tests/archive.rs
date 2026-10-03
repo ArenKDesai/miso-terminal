@@ -45,5 +45,19 @@ async fn previous_day_fills_the_archive() {
         .unwrap();
     assert!(never.is_none(), "a day that was never saved");
 
+    // Retention: days before the window go, the rest stay.
+    let old = day - Duration::days(120);
+    cache
+        .put(&intraday_archive_key(old), &previous.to_bytes())
+        .unwrap();
+    assert_eq!(mt_miso::prune_archive(&cache, 90, day), 1);
+    assert!(cache.get(&intraday_archive_key(old)).is_none());
+    assert!(cache.get(&intraday_archive_key(day)).is_some());
+    assert_eq!(
+        mt_miso::prune_archive(&cache, 0, day),
+        0,
+        "0 keeps everything"
+    );
+
     let _ = std::fs::remove_dir_all(&dir);
 }

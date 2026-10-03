@@ -103,10 +103,13 @@ impl DiskCache {
         out
     }
 
-    /// Delete least-recently-used files until the cache is at most `max_bytes`.
+    /// Delete least-recently-used files until the cache is at most `max_bytes`,
+    /// leaving anything under the `keep` directories alone (and out of the
+    /// total): data the app keeps on purpose has its own retention.
     /// Returns `(files removed, bytes freed)`.
-    pub fn prune(&self, max_bytes: u64) -> (usize, u64) {
+    pub fn prune(&self, max_bytes: u64, keep: &[PathBuf]) -> (usize, u64) {
         let mut files = self.files();
+        files.retain(|f| !keep.iter().any(|k| f.0.starts_with(k)));
         let mut total: u64 = files.iter().map(|f| f.1).sum();
         files.sort_by_key(|f| f.2);
         let (mut removed, mut freed) = (0, 0);
@@ -159,17 +162,26 @@ mod tests {
         let cache = DiskCache::new(&dir);
         let (a, b, c) = ("https://h/a.csv", "https://h/b.csv", "https://h/c.csv");
         let body = vec![b'x'; 10_000];
+        // The oldest file of all, but in a directory that is kept.
+        let kept = "local://archive/day";
+        cache.put(kept, &body).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
         for url in [a, b, c] {
             cache.put(url, &body).unwrap();
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
         cache.get(a).unwrap(); // a becomes the most recently used
-        let per_file = cache.size_bytes() / 3;
-        let (removed, freed) = cache.prune(per_file * 2);
-        assert_eq!(removed, 1);
+        let per_file = cache.size_bytes() / 4;
+        let archive = cache.path_for(kept).parent().unwrap().to_path_buf();
+        let (removed, freed) = cache.prune(per_file * 2, &[archive]);
+        assert_eq!(
+            removed, 1,
+            "the kept directory does not count towards the cap"
+        );
         assert!(freed > 0);
         assert!(cache.get(b).is_none(), "b was least recently used");
         assert!(cache.get(a).is_some() && cache.get(c).is_some());
+        assert!(cache.get(kept).is_some());
         cache.clear().unwrap();
     }
 }

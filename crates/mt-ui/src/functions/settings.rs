@@ -113,6 +113,18 @@ impl Panel for Settings {
                             .color(skin.text_muted),
                     );
                     ui.end_row();
+                    ui.label("Five-minute archive");
+                    ui.add(
+                        egui::DragValue::new(&mut draft.data.archive_days)
+                            .range(0..=3650)
+                            .suffix(" days"),
+                    );
+                    ui.label(
+                        RichText::new("about 3 MB a day; 0 keeps everything")
+                            .small()
+                            .color(skin.text_muted),
+                    );
+                    ui.end_row();
                     ui.label("Simultaneous requests");
                     ui.add(
                         egui::DragValue::new(&mut draft.data.max_concurrent_requests).range(1..=16),

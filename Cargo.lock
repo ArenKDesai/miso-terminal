@@ -2291,6 +2291,7 @@ dependencies = [
  "anyhow",
  "directories",
  "eframe",
+ "mt-core",
  "mt-data",
  "mt-miso",
  "mt-ui",

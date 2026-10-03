@@ -79,7 +79,8 @@ day into it whenever MISO's previous-day feed is fetched, replacing a partial
 day. Queries reach the store through `FetchCtx::local_get` / `local_put`, which
 keep the disk work off the async workers; any source can keep its own data the
 same way. `series::node_five_minute` stitches archive days, yesterday and today
-together for GP and SPRD (`… 5MIN`).
+together for GP and SPRD (`… 5MIN`). The archive is exempt from the cache's size cap and
+keeps `data.archive_days` days instead.
 
 ### Feeds with memory
 

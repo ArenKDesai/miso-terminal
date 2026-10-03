@@ -196,7 +196,8 @@ each piece plugs in.
 - [x] Weather by MISO zone (`WX`, National Weather Service): the first non-MISO source (`mt-nws`).
 - [ ] More context sources: gas prices (EIA, needs a free key), neighbouring ISO
       prices at the seams (PJM, SPP).
-- [x] Disk-cache size cap with least-recently-used pruning (`data.cache_max_mb`).
+- [x] Disk-cache size cap with least-recently-used pruning (`data.cache_max_mb`); the
+      five-minute archive is exempt and kept for `data.archive_days` (default 90).
 - [ ] An in-app switch between live data and offline replay.
 
 ### Functions and UI

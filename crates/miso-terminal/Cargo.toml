@@ -11,6 +11,7 @@ name = "miso-terminal"
 path = "src/main.rs"
 
 [dependencies]
+mt-core.workspace = true
 mt-data.workspace = true
 mt-miso.workspace = true
 mt-ui.workspace = true
