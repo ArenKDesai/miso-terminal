@@ -283,6 +283,9 @@ impl Panel for Lmp {
         for _ in 1..columns.len() {
             table = table.column(Column::initial(84.0).at_least(50.0));
         }
+        // Today's five-minute trend; only visible rows draw one.
+        table = table.column(Column::initial(130.0).at_least(60.0));
+        let intraday = cx.hub.watch(&cx.miso.rt_intraday());
         let mut sort = self.sort;
         let mut clicked: Option<String> = None;
         table
@@ -290,6 +293,9 @@ impl Panel for Lmp {
                 for (i, (name, numeric)) in columns.iter().enumerate() {
                     header.col(|ui| sort_header(ui, skin, name, i, *numeric, &mut sort));
                 }
+                header.col(|ui| {
+                    widgets::label(ui, skin, "Today");
+                });
             })
             .body(|body| {
                 body.rows(row_h, rows.len(), |mut row| {
@@ -324,6 +330,11 @@ impl Panel for Lmp {
                         row.col(|ui| num_cell(ui, fmt::price_opt(r.mcc)));
                         row.col(|ui| num_cell(ui, fmt::price_opt(r.mlc)));
                     }
+                    row.col(|ui| {
+                        if let Some(s) = intraday.data().and_then(|d| d.series(&r.node)) {
+                            widgets::sparkline(ui, s.lmp, skin.series(0), egui::vec2(120.0, 14.0));
+                        }
+                    });
                 });
             });
         self.sort = sort;

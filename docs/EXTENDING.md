@@ -85,8 +85,8 @@ in `config.toml`) or a one-line path change.
 
 ## Add a non-MISO source
 
-Create a crate next to `mt-miso` (for example `mt-eia` for gas prices) that
-depends on `mt-core` and `mt-data`. Implement `Query` for its datasets, add a
+`mt-nws` (weather) is the worked example. Create a crate next to `mt-miso`
+(for example `mt-eia` for gas prices) that depends on `mt-core` and `mt-data`. Implement `Query` for its datasets, add a
 facade like `Miso`, and hand it to panels through `PanelCx`. The hub, cache,
 transports, polite interval and LOG function all apply unchanged. If the source
 needs an API key, put it in `AppConfig` (a new `[eia]` table with

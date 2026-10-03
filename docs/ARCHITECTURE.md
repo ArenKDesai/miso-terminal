@@ -17,7 +17,7 @@ line in a list.
             └───────┬──────────────────────┬──────────────────────┬────────┘
                     │ hub.watch(query)     │ miso.lmp_board() …   │ Theme
             ┌───────▼────────┐     ┌───────▼────────┐     ┌───────▼────────┐
- data       │ mt-data        │◄────│ mt-miso        │     │ mt-theme       │
+ data       │ mt-data        │◄────│ mt-miso, mt-nws│     │ mt-theme       │
             │ DataHub, Query │     │ endpoints      │     │ TOML themes    │
             │ FetchCtx,      │     │ parsers        │     │ validation     │
             │ Transport,     │     │ queries        │     │ registry       │
@@ -61,6 +61,15 @@ Panels therefore never block, never own threads, and never handle HTTP. Loading
 and error states look the same everywhere because they all go through
 `widgets::with_data`.
 
+### Restoring at launch
+
+Some feeds are slow to fill: MISO's rolling five-minute feed is tens of MB
+late in the day. The shell saves today's five-minute store to the disk cache
+(every 5 minutes and on exit) and, at launch, puts it back with
+`DataHub::seed_stale`. That shows the value immediately, reports its real
+age (so freshness labels stay honest), and makes it due at once. The first
+refresh then builds on it as `prev`.
+
 ### Feeds with memory
 
 `Query::fetch` receives the previous value. `RtIntradayQuery` uses that to seed
@@ -88,6 +97,14 @@ whose state changes (a new node, a new day count) reports that through
 Opening a route focuses an existing tab with the same route. A panel can also
 *absorb* a non-identical route of its own code (`Panel::absorb`). `WL` does this,
 so `WL ALTE.ALTE` adds to the open watchlist instead of opening a second one.
+
+Shared panel machinery lives outside the functions so panels stay small:
+`series` assembles a node's prices from whichever feeds cover each span
+(five-minute today, daily reports before, yesterday's full five-minute day on
+demand), and computes spreads, stats, percentiles and the on-peak block.
+`alerts` is a pure, edge-triggered rule engine the shell evaluates every
+frame, watching only the feeds active rules need. `capture` turns a tab's
+area into a clipboard image or PNG via egui's window screenshot.
 
 Panels talk back to the shell only through `AppCommand`s (open a route, set a
 theme, refresh, reveal a folder). The shell applies them after the frame, so
@@ -121,8 +138,9 @@ with a grid that snaps to market midnight.
 | `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging |
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; transports; disk cache |
 | `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green) |
+| `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
-| `mt-ui` | Command parsing and completion; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands |
+| `mt-ui` | Command parsing, completion and hints; alert engine; series maths; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart |
 
 The smoke test iterates the registry, so a new function gets coverage without
 writing a test. Separately, the weekly `drift.yml` workflow records live MISO
