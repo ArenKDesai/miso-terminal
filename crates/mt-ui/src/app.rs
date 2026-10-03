@@ -121,12 +121,24 @@ impl TerminalApp {
         &mut self.workspace
     }
 
+    /// The theme id to show now: the configured one, or the light/dark pair
+    /// when following the OS setting (and the OS has told us which it is).
+    fn wanted_theme(&self, ctx: &egui::Context) -> String {
+        let ui = &self.config.ui;
+        match (ui.follow_system_theme, ctx.system_theme()) {
+            (true, Some(egui::Theme::Dark)) => ui.dark_theme.clone(),
+            (true, Some(egui::Theme::Light)) => ui.light_theme.clone(),
+            _ => self.config.theme.clone(),
+        }
+    }
+
     fn apply_theme(&mut self, ctx: &egui::Context) {
-        let theme = self.themes.resolve(&self.config.theme).clone();
-        if !theme.meta.id.eq_ignore_ascii_case(&self.config.theme) {
+        let wanted = self.wanted_theme(ctx);
+        let theme = self.themes.resolve(&wanted).clone();
+        if !theme.meta.id.eq_ignore_ascii_case(&wanted) {
             self.notices.push(format!(
-                "Theme {:?} not found; using {}.",
-                self.config.theme, theme.meta.id
+                "Theme {wanted:?} not found; using {}.",
+                theme.meta.id
             ));
         }
         self.skin = Skin::new(theme);
@@ -148,6 +160,8 @@ impl TerminalApp {
             return;
         };
         self.config.theme = theme.meta.id.clone();
+        // Picking a theme by hand means "this one", not "whatever the OS says".
+        self.config.ui.follow_system_theme = false;
         self.apply_theme(ctx);
         self.save_config();
     }
@@ -203,6 +217,16 @@ impl TerminalApp {
                 AppCommand::Open(route) => self.workspace.open(route, &self.registry),
                 AppCommand::Run(text) => self.run_command(ctx, &text),
                 AppCommand::SetTheme(id) => self.set_theme(ctx, &id),
+                AppCommand::SetThemeFollow {
+                    follow,
+                    light,
+                    dark,
+                } => {
+                    let ui = &mut self.config.ui;
+                    (ui.follow_system_theme, ui.light_theme, ui.dark_theme) = (follow, light, dark);
+                    self.apply_theme(ctx);
+                    self.save_config();
+                }
                 AppCommand::AddFavorite(node) => {
                     let node = node.trim().to_ascii_uppercase();
                     if !node.is_empty() && !self.config.ui.favorite_nodes.contains(&node) {
@@ -230,6 +254,15 @@ impl TerminalApp {
     }
 
     fn background_work(&mut self, ctx: &egui::Context) {
+        // The OS light/dark setting can change at any time.
+        if self.config.ui.follow_system_theme {
+            let wanted = self.wanted_theme(ctx);
+            if !wanted.eq_ignore_ascii_case(&self.skin.theme.meta.id)
+                && self.themes.get(&wanted).is_some()
+            {
+                self.apply_theme(ctx);
+            }
+        }
         if self.last_theme_poll.elapsed() >= THEME_POLL {
             self.last_theme_poll = Instant::now();
             let fp = dir_fingerprint(&self.paths.themes_dir);

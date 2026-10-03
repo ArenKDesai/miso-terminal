@@ -1,7 +1,7 @@
 //! MAP: prices across the footprint. Every node MISO plots, coloured by the
 //! chosen metric on a diverging scale; hover for details, click to graph.
 
-use egui::{Color32, Pos2, RichText, Sense, Shape, Stroke, Ui, vec2};
+use egui::{Color32, Pos2, RichText, Shape, Stroke, Ui, vec2};
 use egui_plot::{Line, Plot, PlotPoint, PlotPoints};
 use mt_core::{LmpBoardRow, hub_short};
 
@@ -9,6 +9,7 @@ use crate::context::PanelCx;
 use crate::function::{Category, FunctionSpec, Panel, Route};
 use crate::geo::{self, GeoNode};
 use crate::skin::{Skin, label_style};
+use crate::widgets::scale::Diverging;
 use crate::widgets::{self, fmt};
 
 pub const SPEC: FunctionSpec = FunctionSpec {
@@ -97,40 +98,6 @@ struct MapPanel {
     labels: bool,
 }
 
-/// Diverging scale: `low` below the centre, `high` above, muted at the centre.
-struct Scale {
-    centre: f64,
-    half_range: f64,
-}
-
-impl Scale {
-    fn fit(values: &mut [f64], centred_on_zero: bool) -> Self {
-        if values.is_empty() {
-            return Self {
-                centre: 0.0,
-                half_range: 1.0,
-            };
-        }
-        values.sort_by(f64::total_cmp);
-        let q = |p: f64| values[((values.len() - 1) as f64 * p).round() as usize];
-        let centre = if centred_on_zero { 0.0 } else { q(0.5) };
-        let half_range = (q(0.95) - centre)
-            .abs()
-            .max((centre - q(0.05)).abs())
-            .max(0.5);
-        Self { centre, half_range }
-    }
-
-    fn color(&self, v: f64, skin: &Skin) -> Color32 {
-        let t = ((v - self.centre) / self.half_range).clamp(-1.0, 1.0) as f32;
-        if t >= 0.0 {
-            skin.text_muted.lerp_to_gamma(skin.negative, t)
-        } else {
-            skin.text_muted.lerp_to_gamma(skin.info, -t)
-        }
-    }
-}
-
 impl Panel for MapPanel {
     fn title(&self) -> String {
         format!("MAP {}", self.metric.code())
@@ -173,8 +140,8 @@ impl Panel for MapPanel {
             })
             .collect();
         let mut values: Vec<f64> = points.iter().filter_map(|p| p.2).collect();
-        let scale = Scale::fit(&mut values, self.metric.centred_on_zero());
-        legend(ui, skin, &scale, self.metric, board.interval);
+        let scale = Diverging::fit(&mut values, self.metric.centred_on_zero());
+        legend(ui, skin, &scale, board.interval);
 
         let outline = |ring: &[[f64; 2]], color: Color32, width: f32| {
             let pts: Vec<[f64; 2]> = ring.iter().map(|p| geo::project(p[0], p[1])).collect();
@@ -343,49 +310,10 @@ fn diamond(c: Pos2, r: f32, fill: Color32, stroke: Stroke) -> Shape {
     )
 }
 
-/// The colour bar with its centre and extremes labelled.
-fn legend(
-    ui: &mut Ui,
-    skin: &Skin,
-    scale: &Scale,
-    metric: Metric,
-    interval: Option<chrono::NaiveDateTime>,
-) {
+/// The colour bar, the interval it shows, and the marker key.
+fn legend(ui: &mut Ui, skin: &Skin, scale: &Diverging, interval: Option<chrono::NaiveDateTime>) {
     ui.horizontal(|ui| {
-        let lo = scale.centre - scale.half_range;
-        let hi = scale.centre + scale.half_range;
-        ui.label(
-            RichText::new(format!("≤ {}", fmt::price(lo)))
-                .small()
-                .color(skin.info),
-        );
-        let (rect, _) = ui.allocate_exact_size(vec2(220.0, 10.0), Sense::hover());
-        let steps = 44;
-        for k in 0..steps {
-            let t = k as f64 / (steps - 1) as f64;
-            let x0 = rect.left() + rect.width() * k as f32 / steps as f32;
-            let seg = egui::Rect::from_min_max(
-                egui::pos2(x0, rect.top()),
-                egui::pos2(x0 + rect.width() / steps as f32 + 0.5, rect.bottom()),
-            );
-            ui.painter()
-                .rect_filled(seg, 0.0, scale.color(lo + (hi - lo) * t, skin));
-        }
-        ui.label(
-            RichText::new(format!("≥ {}", fmt::price(hi)))
-                .small()
-                .color(skin.negative),
-        );
-        let centre = if metric.centred_on_zero() {
-            "centre 0".to_owned()
-        } else {
-            format!("median {}", fmt::price(scale.centre))
-        };
-        ui.label(
-            RichText::new(format!("$/MWh · {centre}"))
-                .small()
-                .color(skin.text_muted),
-        );
+        scale.legend(ui, skin);
         if let Some(t) = interval {
             ui.label(
                 RichText::new(format!("· RT interval {} EST", fmt::hm(t)))
@@ -399,21 +327,4 @@ fn legend(
                 .color(skin.text_muted),
         );
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn scale_centres_and_clamps() {
-        let mut v = vec![10.0, 20.0, 30.0, 40.0, 1000.0];
-        let s = Scale::fit(&mut v, false);
-        assert_eq!(s.centre, 30.0);
-        let mut z = vec![-5.0, 0.0, 2.0];
-        let s0 = Scale::fit(&mut z, true);
-        assert_eq!(s0.centre, 0.0);
-        assert!(s0.half_range >= 5.0);
-        assert_eq!(Scale::fit(&mut [], false).half_range, 1.0);
-    }
 }

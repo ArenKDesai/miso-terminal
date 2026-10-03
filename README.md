@@ -53,7 +53,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices (RT, next-interval ex-ante, DA) with 5-min sparklines, fuel mix, top constraints |
 | `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable and filterable. `LMP ALL` lists all ~2,600 CP nodes |
 | `MAP` | Price map | Every node MISO plots, on a map of the footprint, coloured by RT LMP, congestion, loss, DA or RT − DA. Hover for the breakdown, click to graph |
-| `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), or N days of hourly DA vs RT with stats. Switch between LMP, energy, congestion and loss |
+| `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), N days of hourly DA vs RT with stats, or an hour × day heatmap (`GP MINN.HUB 14 HEAT`). Switch between LMP, energy, congestion and loss |
 | `SPRD` | Node spread | A − B between any two nodes: today at 5 minutes, or hourly DA and RT spreads over N days, with stats. Use the congestion component for an FTR-style view |
 | `WL` | Watchlist | Your favourite nodes: RT vs DA, 5-min change and today's sparkline. Add from here, with `WL <node>`, or with ☆ in GP. Saved to config |
 | `ASM` | Ancillary MCPs | Regulation, spinning, supplemental, short-term reserve and ramp MCPs by zone |
@@ -168,7 +168,8 @@ each piece plugs in.
 - [x] `MAP`: node price map (LMP, congestion, loss, DA, DART) built from MISO's own node positions; click to GP.
 - [ ] MAP: an interpolated price surface and transmission lines (3D-MISO-Map has both).
 - [x] `SPRD A B`: node-to-node spreads (today at 5 minutes, hourly history, by component).
-- [ ] Price duration curve and an hour × day heatmap for a node.
+- [x] Hour × day heatmap for a node or a spread (`GP <node> 14 HEAT`, `SPRD A B 14 HEAT`).
+- [ ] Price duration curve for a node.
 - [ ] **Alerts:** per-node price thresholds, a constraint starting to bind, a load
       forecast miss. Shown in-app and as Windows toast notifications.
 - [x] `WL` watchlist of favourite nodes, editable in-app (☆ in GP) and saved to config.
@@ -182,7 +183,7 @@ each piece plugs in.
 - [x] Contain panel panics to their tab (logged, with a *Reload panel* button).
 
 ### Themes
-- [ ] Follow the Windows light/dark setting with paired themes (Everforge Dark ↔ Light).
+- [x] Follow the Windows light/dark setting with a chosen light/dark pair (`THEME`).
 - [ ] Everforge's chamfered corners (`cut-md`) on hero tiles and the active tab.
 - [ ] A high-contrast accessibility theme.
 - [ ] Optionally make `miso-terminal` a target in Everforge's own `build.py`

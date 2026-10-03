@@ -41,6 +41,11 @@ pub struct UiConfig {
     pub price_extreme: f64,
     /// Nodes listed first in pickers and shown in the GP quick list.
     pub favorite_nodes: Vec<String>,
+    /// Switch between `light_theme` and `dark_theme` with the Windows setting
+    /// (Settings > Personalization > Colors). Overrides `theme` when on.
+    pub follow_system_theme: bool,
+    pub light_theme: String,
+    pub dark_theme: String,
 }
 
 impl Default for UiConfig {
@@ -53,6 +58,9 @@ impl Default for UiConfig {
                 .iter()
                 .map(|s| (*s).to_owned())
                 .collect(),
+            follow_system_theme: false,
+            light_theme: "everforge-light".into(),
+            dark_theme: mt_theme::DEFAULT_THEME_ID.into(),
         }
     }
 }

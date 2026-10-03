@@ -15,7 +15,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     aliases: &["GRAPH", "CHART"],
     name: "Graph price",
     category: Category::Prices,
-    usage: "GP <node> [days]",
+    usage: "GP <node> [days] [HEAT]",
     description: "Price chart for one node: today's 5-minute RT vs DA, or hourly DA vs RT over N days, by component.",
     takes_node: true,
     open,
@@ -32,8 +32,9 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
         days,
         picker: NodePicker::default(),
         // Asking for a number of days means asking for history.
-        view: if days > 0 { View::History } else { View::Today },
+        view: View::from_args(days, args.get(2)),
         component: Component::Lmp,
+        heat: Heat::Rt,
     }))
 }
 
@@ -52,6 +53,26 @@ pub(crate) fn parse_days(arg: Option<&String>) -> Result<u32, String> {
 pub(crate) enum View {
     Today,
     History,
+    Heatmap,
+}
+
+impl View {
+    /// A day count asks for history; a trailing `HEAT` asks for the heatmap.
+    pub(crate) fn from_args(days: u32, flag: Option<&String>) -> Self {
+        match flag {
+            Some(f) if f.eq_ignore_ascii_case("HEAT") => Self::Heatmap,
+            _ if days > 0 => Self::History,
+            _ => Self::Today,
+        }
+    }
+}
+
+/// Which series the heatmap colours.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Heat {
+    Rt,
+    Da,
+    Dart,
 }
 
 struct Gp {
@@ -60,6 +81,7 @@ struct Gp {
     picker: NodePicker,
     view: View,
     component: Component,
+    heat: Heat,
 }
 
 impl Panel for Gp {
@@ -71,11 +93,14 @@ impl Panel for Gp {
     }
 
     fn route(&self) -> Route {
-        match &self.node {
-            Some(n) if self.days > 0 => Route::new("GP", [n.clone(), self.days.to_string()]),
-            Some(n) => Route::new("GP", [n.clone()]),
-            None => Route::code("GP"),
+        let mut args: Vec<String> = self.node.iter().cloned().collect();
+        if !args.is_empty() && (self.days > 0 || self.view != View::Today) {
+            args.push(self.days.max(1).to_string());
+            if self.view == View::Heatmap {
+                args.push("HEAT".into());
+            }
         }
+        Route::new("GP", args)
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut PanelCx<'_>) {
@@ -96,6 +121,7 @@ impl Panel for Gp {
         match self.view {
             View::Today => self.today(ui, cx, &node),
             View::History => self.history(ui, cx, &node),
+            View::Heatmap => self.heatmap(ui, cx, &node),
         }
     }
 }
@@ -110,11 +136,12 @@ pub(crate) fn view_controls(
     ui.horizontal(|ui| {
         ui.selectable_value(view, View::Today, "Today · 5-min");
         ui.selectable_value(view, View::History, "History · hourly");
+        ui.selectable_value(view, View::Heatmap, "Heatmap");
         ui.separator();
         for c in Component::ALL {
             ui.selectable_value(component, c, c.label());
         }
-        if *view == View::History {
+        if *view != View::Today {
             ui.separator();
             for d in [3, 7, 14, 30] {
                 ui.selectable_value(days, d, format!("{d}d"));
@@ -259,6 +286,31 @@ impl Gp {
             chart::hourly_steps(plot, "DA ex-post", &h.da, skin.series(1));
             chart::hourly_steps(plot, "RT", &h.rt, skin.series(0));
         });
+    }
+}
+
+impl Gp {
+    fn heatmap(&mut self, ui: &mut Ui, cx: &mut PanelCx<'_>, node: &str) {
+        let h = series::node_history(cx, node, self.component, self.days);
+        ui.horizontal(|ui| {
+            widgets::label(ui, cx.skin, "Colour by");
+            ui.selectable_value(&mut self.heat, Heat::Rt, "RT");
+            ui.selectable_value(&mut self.heat, Heat::Da, "DA");
+            ui.selectable_value(&mut self.heat, Heat::Dart, "RT − DA");
+        });
+        let levels = matches!(self.component, Component::Lmp | Component::Energy);
+        let (points, zero_centred) = match self.heat {
+            Heat::Rt => (h.rt.clone(), !levels),
+            Heat::Da => (h.da.clone(), !levels),
+            Heat::Dart => (series::subtract(&h.rt, &h.da), true),
+        };
+        history_notes(ui, cx, &h, || {
+            csv::to_csv(
+                &["hour_start_est", "da", "rt", "rt_minus_da"],
+                series::hourly_rows(&h.da, &h.rt),
+            )
+        });
+        widgets::heatmap::hour_day(ui, cx.skin, &points, zero_centred);
     }
 }
 

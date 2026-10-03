@@ -4,7 +4,9 @@
 pub mod chart;
 pub mod csv;
 pub mod fmt;
+pub mod heatmap;
 pub mod node_picker;
+pub mod scale;
 pub mod table;
 
 use egui::{Color32, Frame, Response, RichText, Sense, Stroke, Ui};

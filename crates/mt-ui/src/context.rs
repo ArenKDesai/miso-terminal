@@ -14,6 +14,12 @@ pub enum AppCommand {
     /// Run a command-line string as if typed.
     Run(String),
     SetTheme(String),
+    /// Follow the OS light/dark setting with these two themes (or stop following).
+    SetThemeFollow {
+        follow: bool,
+        light: String,
+        dark: String,
+    },
     /// Add a node to the watchlist (`config.ui.favorite_nodes`).
     AddFavorite(String),
     RemoveFavorite(String),

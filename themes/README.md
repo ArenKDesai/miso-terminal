@@ -61,6 +61,11 @@ bundled (IBM Plex Sans, JetBrains Mono, Space Grotesk; variable, so any weight
 from 100 to 900 works), then files in the fonts folder, then installed system
 fonts.
 
+To switch with Windows' light/dark setting, turn on *Follow Windows light/dark*
+in `THEME` and pick one theme for each mode (or set `follow_system_theme`,
+`light_theme` and `dark_theme` under `[ui]` in `config.toml`). Picking a theme by
+hand turns following off again.
+
 The `THEME` function shows contrast problems for the active theme. Errors mean
 text that is hard to read (body text under 4.5:1). Warnings are worth a look.
 

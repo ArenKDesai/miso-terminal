@@ -4,7 +4,7 @@
 use egui::{RichText, Ui};
 use egui_plot::HLine;
 
-use super::gp::{View, history_notes, parse_days, view_controls};
+use super::gp::{Heat, View, history_notes, parse_days, view_controls};
 use crate::context::PanelCx;
 use crate::function::{Category, FunctionSpec, Panel, Route};
 use crate::series::{self, Component, Stats};
@@ -17,7 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     aliases: &["SPREAD", "BASIS"],
     name: "Node spread",
     category: Category::Prices,
-    usage: "SPRD <node A> <node B> [days]",
+    usage: "SPRD <node A> <node B> [days] [HEAT]",
     description: "A − B price spread between two nodes: today at 5 minutes, or hourly DA and RT spreads over N days.",
     takes_node: true,
     open,
@@ -34,10 +34,11 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
         a: node(0),
         b: node(1),
         days,
-        view: if days > 0 { View::History } else { View::Today },
+        view: View::from_args(days, args.get(3)),
         component: Component::Lmp,
         pick_a: NodePicker::default(),
         pick_b: NodePicker::default(),
+        heat: Heat::Rt,
     }))
 }
 
@@ -49,6 +50,7 @@ struct Spread {
     component: Component,
     pick_a: NodePicker,
     pick_b: NodePicker,
+    heat: Heat,
 }
 
 impl Panel for Spread {
@@ -67,8 +69,11 @@ impl Panel for Spread {
             args.push(a.clone());
             if let Some(b) = &self.b {
                 args.push(b.clone());
-                if self.days > 0 {
-                    args.push(self.days.to_string());
+                if self.days > 0 || self.view != View::Today {
+                    args.push(self.days.max(1).to_string());
+                    if self.view == View::Heatmap {
+                        args.push("HEAT".into());
+                    }
                 }
             }
         }
@@ -112,6 +117,22 @@ impl Panel for Spread {
         match self.view {
             View::Today => self.today(ui, cx, &a, &b),
             View::History => self.history(ui, cx, &a, &b),
+            View::Heatmap => {
+                ui.horizontal(|ui| {
+                    widgets::label(ui, cx.skin, "Colour by");
+                    ui.selectable_value(&mut self.heat, Heat::Rt, "RT spread");
+                    ui.selectable_value(&mut self.heat, Heat::Da, "DA spread");
+                });
+                let (ha, hb) = (
+                    series::node_history(cx, &a, self.component, self.days),
+                    series::node_history(cx, &b, self.component, self.days),
+                );
+                let pts = match self.heat {
+                    Heat::Da => series::subtract(&ha.da, &hb.da),
+                    _ => series::subtract(&ha.rt, &hb.rt),
+                };
+                widgets::heatmap::hour_day(ui, cx.skin, &pts, true);
+            }
         }
     }
 }

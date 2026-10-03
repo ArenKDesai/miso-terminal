@@ -89,13 +89,15 @@ def main() -> int:
     ap.add_argument("--run", action="append", default=[], help="command to run at startup (repeatable)")
     ap.add_argument("--wait", type=float, default=20.0, help="seconds to let data load")
     ap.add_argument("--offline", action="store_true", help="replay fixtures instead of calling MISO")
+    ap.add_argument("--home", type=Path, help="use this app home (config, themes) instead of a throwaway one")
     args = ap.parse_args()
 
     exe = args.exe if args.exe.exists() else ROOT / "target" / "debug" / "miso-terminal.exe"
     if not exe.exists():
         print("build the app first: cargo build --release", file=sys.stderr)
         return 1
-    with tempfile.TemporaryDirectory(prefix="mt-shot-") as home:
+    with tempfile.TemporaryDirectory(prefix="mt-shot-") as tmp:
+        home = str(args.home) if args.home else tmp
         cmd = [str(exe), "--home", home]
         if args.offline:
             cmd.append("--offline")

@@ -106,6 +106,9 @@ impl Panel for ThemePanel {
                 ui.label(RichText::new(format!("⚠ {}: {}", err.path.display(), err.message)).color(skin.negative));
             }
 
+            widgets::section(ui, skin, "Follow Windows light/dark");
+            follow_system(ui, cx);
+
             widgets::section(ui, skin, "Make your own");
             ui.label(
                 "Themes are TOML files. Drop one in the folder below; it is picked up while the app runs. \
@@ -173,5 +176,63 @@ fn copy_theme(theme: &Theme, dir: &std::path::Path) -> String {
             path.display()
         ),
         Err(e) => format!("Could not write {}: {e}", path.display()),
+    }
+}
+
+/// The "switch with Windows" toggle and its light/dark theme pair.
+fn follow_system(ui: &mut Ui, cx: &mut PanelCx<'_>) {
+    let skin = cx.skin;
+    let cfg = &cx.config.ui;
+    let (mut follow, mut light, mut dark) = (
+        cfg.follow_system_theme,
+        cfg.light_theme.clone(),
+        cfg.dark_theme.clone(),
+    );
+    let mut changed = ui
+        .checkbox(
+            &mut follow,
+            "Switch themes with the Windows light/dark setting",
+        )
+        .changed();
+    let name = |id: &str| {
+        cx.themes
+            .get(id)
+            .map_or_else(|| id.to_owned(), |t| t.meta.name.clone())
+    };
+    ui.horizontal(|ui| {
+        for (label, slot, want_dark) in [
+            ("Light mode", &mut light, false),
+            ("Dark mode", &mut dark, true),
+        ] {
+            ui.label(label);
+            egui::ComboBox::from_id_salt(("theme-follow", want_dark))
+                .selected_text(name(slot))
+                .show_ui(ui, |ui| {
+                    for t in cx
+                        .themes
+                        .themes()
+                        .iter()
+                        .filter(|t| t.meta.dark == want_dark)
+                    {
+                        changed |= ui
+                            .selectable_value(slot, t.meta.id.clone(), &t.meta.name)
+                            .changed();
+                    }
+                });
+            ui.add_space(12.0);
+        }
+    });
+    let os = match ui.ctx().system_theme() {
+        Some(egui::Theme::Dark) => "Windows is in dark mode right now.",
+        Some(egui::Theme::Light) => "Windows is in light mode right now.",
+        None => "Windows hasn't reported a mode, so the theme above stays put.",
+    };
+    ui.label(RichText::new(os).small().color(skin.text_muted));
+    if changed {
+        cx.send(AppCommand::SetThemeFollow {
+            follow,
+            light,
+            dark,
+        });
     }
 }
