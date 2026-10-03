@@ -68,27 +68,62 @@ pub fn stat_tile(
     {
         ui.end_row();
     }
-    Frame::new()
-        .fill(skin.surface)
-        .stroke(Stroke::new(1.0, skin.border))
-        .corner_radius(egui::CornerRadius::same(skin.theme.style.rounding as u8))
-        .inner_margin(egui::Margin::symmetric(margin_x, margin_y))
-        .show(ui, |ui| {
-            ui.set_width(TILE_WIDTH);
-            ui.vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = 2.0;
-                label(ui, skin, title);
-                ui.label(
-                    RichText::new(value)
-                        .text_style(readout_style())
-                        .color(skin.text_strong),
-                );
-                if let Some(sub) = sub {
-                    ui.label(sub.small());
-                }
-            });
-        })
-        .response
+    let cut = skin.theme.style.chamfer.clamp(0.0, 16.0);
+    let mut frame = Frame::new().inner_margin(egui::Margin::symmetric(margin_x, margin_y));
+    // A chamfered plate is painted behind the content once its size is known.
+    let backdrop = (cut > 0.0).then(|| ui.painter().add(egui::Shape::Noop));
+    if backdrop.is_none() {
+        frame = frame
+            .fill(skin.surface)
+            .stroke(Stroke::new(1.0, skin.border))
+            .corner_radius(egui::CornerRadius::same(skin.theme.style.rounding as u8));
+    }
+    let resp = frame.show(ui, |ui| {
+        ui.set_width(TILE_WIDTH);
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 2.0;
+            label(ui, skin, title);
+            ui.label(
+                RichText::new(value)
+                    .text_style(readout_style())
+                    .color(skin.text_strong),
+            );
+            if let Some(sub) = sub {
+                ui.label(sub.small());
+            }
+        });
+    });
+    if let Some(slot) = backdrop {
+        ui.painter().set(
+            slot,
+            chamfered(
+                resp.response.rect,
+                cut,
+                skin.surface,
+                Stroke::new(1.0, skin.border),
+            ),
+        );
+    }
+    resp.response
+}
+
+/// A plate with its top-right and bottom-left corners cut at 45°, Everforge's
+/// chamfer: one opposite pair, never all four.
+pub fn chamfered(rect: egui::Rect, cut: f32, fill: Color32, stroke: Stroke) -> egui::Shape {
+    let c = cut.min(rect.width() / 2.0).min(rect.height() / 2.0);
+    let (l, t, r, b) = (rect.left(), rect.top(), rect.right(), rect.bottom());
+    egui::Shape::convex_polygon(
+        vec![
+            egui::pos2(l, t),
+            egui::pos2(r - c, t),
+            egui::pos2(r, t + c),
+            egui::pos2(r, b),
+            egui::pos2(l + c, b),
+            egui::pos2(l, b - c),
+        ],
+        fill,
+        stroke,
+    )
 }
 
 /// "Updated 16:35:10 EST · 12s ago" with a lamp coloured by freshness.

@@ -92,6 +92,14 @@ pub struct StyleParams {
     pub stroke: f32,
     /// Hard drop-shadow offset for floating plates (px); 0 disables.
     pub shadow_offset: f32,
+    /// Diagonal cut on two opposite corners (top-right, bottom-left) of hero
+    /// tiles (px); 0 keeps them square.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub chamfer: f32,
+}
+
+fn is_zero(v: &f32) -> bool {
+    *v == 0.0
 }
 
 impl Default for StyleParams {
@@ -102,6 +110,7 @@ impl Default for StyleParams {
             padding: 8.0,
             stroke: 1.0,
             shadow_offset: 2.0,
+            chamfer: 0.0,
         }
     }
 }

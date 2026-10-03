@@ -24,6 +24,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &std::fs::read_to_string(&dist).map_err(|e| format!("{}: {e}", dist.display()))?,
     )?;
     let version = json["version"].as_u64().unwrap_or(0);
+    let px = |group: &str, name: &str| -> Result<f32, String> {
+        json[group][name]
+            .as_str()
+            .and_then(|v| v.strip_suffix("px"))
+            .and_then(|v| v.parse().ok())
+            .ok_or_else(|| format!("missing or non-px token {group}.{name}"))
+    };
 
     for (variant, dark) in [("dark", true), ("light", false)] {
         let t = &json["themes"][variant];
@@ -80,8 +87,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ("imports".into(), c("ink")?),
                 ("other".into(), c("ink-muted")?),
             ]),
-            // radius-sm, space-2 gutters, a dense take on space-4 padding, shadow-plate offset.
-            style: StyleParams { rounding: 2.0, spacing: 6.0, padding: 8.0, stroke: 1.0, shadow_offset: 2.0 },
+            // radius-sm, space-2 gutters, a dense take on space-4 padding, shadow-plate
+            // offset, and the cut-md chamfer on hero tiles.
+            style: StyleParams {
+                rounding: px("radius", "radius-sm")?,
+                spacing: 6.0,
+                padding: 8.0,
+                stroke: 1.0,
+                shadow_offset: 2.0,
+                chamfer: px("radius", "cut-md")?,
+            },
             // Proportional type for reading, monospace only for code (tokens v3).
             fonts: Fonts {
                 body: Some(FontSpec { family: "IBM Plex Sans".into(), weight: 400, size: 14.0 }),

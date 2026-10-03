@@ -47,6 +47,7 @@ spacing = 6.0              # gap between widgets, px
 padding = 8.0              # panel padding, px
 stroke = 1.0               # border width, px
 shadow_offset = 2.0        # hard drop shadow on floating plates, px (0 = none)
+chamfer = 0.0              # 45° cut on two opposite corners of hero tiles, px (0 = square)
 
 [fonts]                    # optional; any role left out uses egui's default
 body    = { family = "IBM Plex Sans",  weight = 400, size = 14.0 }

@@ -218,7 +218,8 @@ each piece plugs in.
 
 ### Themes
 - [x] Follow the Windows light/dark setting with a chosen light/dark pair (`THEME`).
-- [ ] Everforge's chamfered corners (`cut-md`) on hero tiles and the active tab.
+- [x] Everforge's chamfered corners (`cut-md`) on hero tiles (a theme `chamfer` value).
+- [ ] The chamfer on the active tab (needs custom tab painting in egui_dock).
 - [x] A high-contrast accessibility theme (`high-contrast`).
 - [ ] Optionally make `miso-terminal` a target in Everforge's own `build.py`
       (per its port policy) instead of the sync example here.
@@ -235,5 +236,6 @@ each piece plugs in.
 - [x] A weekly CI job (`drift.yml`) that records live responses and runs every
       parser against them, to catch MISO format changes early.
 - [ ] Benchmarks for the rolling-feed parser (~33 MB of JSON per seed).
-- [ ] Publish the GitHub repository and turn on CI.
+- [x] GitHub repository (private) with CI on every push.
+- [ ] Make the repository public (the owner's call).
 - [ ] Choose a licence (the bundled fonts are OFL; see `assets/fonts/`).
