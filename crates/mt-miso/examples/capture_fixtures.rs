@@ -63,7 +63,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for path in paths::ALL {
         let url = endpoints.api(path);
         let body = ctx.get_text(&url).await?;
-        let body = if *path == paths::RT_FIVE_MIN_ROLLING {
+        let big = [paths::RT_FIVE_MIN_ROLLING, paths::RT_FIVE_MIN_PREVIOUS];
+        let body = if big.contains(path) {
             trim_table(&body, &keep)?
         } else {
             body

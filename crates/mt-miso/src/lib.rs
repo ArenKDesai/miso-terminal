@@ -15,4 +15,6 @@ pub mod parse;
 pub mod queries;
 
 pub use endpoints::MisoEndpoints;
-pub use queries::{ApiQuery, DayReportQuery, Miso, RtBestDayQuery, RtIntradayQuery};
+pub use queries::{
+    ApiQuery, DayReportQuery, Miso, RtBestDayQuery, RtIntradayQuery, RtPreviousDayQuery,
+};

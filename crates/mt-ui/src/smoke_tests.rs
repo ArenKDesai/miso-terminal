@@ -208,6 +208,8 @@ fn every_function_renders_in_every_theme_with_and_without_data() {
         .iter()
         .map(|r| registry.open(r).unwrap())
         .collect();
+    // States that no route expresses.
+    panels.push(crate::functions::gp::with_yesterday("MINN.HUB"));
     load_everything(&full, &skin, &mut panels);
     let failed: Vec<_> = full
         .hub

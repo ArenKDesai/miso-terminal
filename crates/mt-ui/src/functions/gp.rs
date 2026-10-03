@@ -35,6 +35,7 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
         view: View::from_args(days, args.get(2)),
         component: Component::Lmp,
         heat: Heat::Rt,
+        yesterday: false,
     }))
 }
 
@@ -93,6 +94,8 @@ struct Gp {
     view: View,
     component: Component,
     heat: Heat,
+    /// Also plot yesterday's five-minute RT and DA in the Today view.
+    yesterday: bool,
 }
 
 impl Panel for Gp {
@@ -209,10 +212,43 @@ impl Gp {
         });
     }
 
-    fn today(&self, ui: &mut Ui, cx: &mut PanelCx<'_>, node: &str) {
+    fn today(&mut self, ui: &mut Ui, cx: &mut PanelCx<'_>, node: &str) {
         let skin = cx.skin;
         let t = series::node_today(cx, node, self.component);
         let intraday = cx.hub.peek(&cx.miso.rt_intraday());
+        ui.checkbox(&mut self.yesterday, "+ yesterday")
+            .on_hover_text(
+                "Also show yesterday's five-minute RT and DA (one ~11 MB download per day)",
+            );
+        let (y_rt, y_da, y_loading) = if self.yesterday {
+            let prev = cx.hub.watch(&cx.miso.rt_previous_day());
+            let day = mt_core::time::market_today() - chrono::Duration::days(1);
+            let da = cx
+                .hub
+                .watch(&cx.miso.day_report(mt_core::DayReportKind::DaExPost, day));
+            let rt = prev
+                .data()
+                .and_then(|d| d.series(node))
+                .map(|s| self.component.intraday(&s))
+                .unwrap_or_default();
+            (
+                rt,
+                series::report_points(da.data(), node, self.component, day),
+                prev.loading,
+            )
+        } else {
+            (Vec::new(), Vec::new(), false)
+        };
+        if y_loading {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(
+                    RichText::new("Fetching yesterday's five-minute prices…")
+                        .small()
+                        .color(skin.text_muted),
+                );
+            });
+        }
 
         ui.horizontal_wrapped(|ui| {
             let sub = t.rt_5min.last().map(|(at, _)| {
@@ -262,6 +298,9 @@ impl Gp {
             return;
         }
         chart::time_plot(&format!("gp-today-{node}"), skin).show(ui, |plot| {
+            // Yesterday shares today's colours and names, so it reads as one series.
+            chart::hourly_steps(plot, "DA ex-post", &y_da, skin.series(1));
+            plot.line(chart::line("RT 5-min", &y_rt, skin.series(0)));
             chart::hourly_steps(plot, "DA ex-post", &t.da, skin.series(1));
             if !t.da_tomorrow.is_empty() {
                 chart::forecast_steps(plot, "DA tomorrow", &t.da_tomorrow, skin.series(1));
@@ -437,4 +476,18 @@ pub(crate) fn history_notes(
             );
         }
     });
+}
+
+/// A GP Today panel with the yesterday overlay on, for the smoke tests.
+#[cfg(test)]
+pub(crate) fn with_yesterday(node: &str) -> Box<dyn Panel> {
+    Box::new(Gp {
+        node: Some(node.to_owned()),
+        days: 0,
+        picker: NodePicker::default(),
+        view: View::Today,
+        component: Component::Lmp,
+        heat: Heat::Rt,
+        yesterday: true,
+    })
 }

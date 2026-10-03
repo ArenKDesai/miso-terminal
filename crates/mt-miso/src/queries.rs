@@ -99,6 +99,13 @@ impl Miso {
         }
     }
 
+    /// Yesterday's five-minute RT prices at every CP node.
+    pub fn rt_previous_day(&self) -> RtPreviousDayQuery {
+        RtPreviousDayQuery {
+            endpoints: self.endpoints.clone(),
+        }
+    }
+
     /// One daily report. `None` inside the result means "not published yet".
     pub fn day_report(&self, kind: DayReportKind, day: NaiveDate) -> DayReportQuery {
         DayReportQuery {
@@ -277,6 +284,40 @@ impl Query for RtIntradayQuery {
         let mut next = Arc::unwrap_or_clone(prev);
         next.merge_rows(rows);
         Ok(next)
+    }
+}
+
+/// The previous market day's five-minute RT prices (MISO's `Previous` feed).
+/// Keyed by today's date, so it is fetched once per day and only on demand.
+#[derive(Clone, Debug)]
+pub struct RtPreviousDayQuery {
+    endpoints: Arc<MisoEndpoints>,
+}
+
+impl Query for RtPreviousDayQuery {
+    type Output = RtIntraday;
+
+    fn key(&self) -> String {
+        format!("miso/rt-previous/{}", market_today())
+    }
+
+    fn label(&self) -> String {
+        "RT five-minute LMPs, yesterday".into()
+    }
+
+    fn freshness(&self, _: &RtIntraday) -> Freshness {
+        Freshness::Forever
+    }
+
+    async fn fetch(
+        &self,
+        ctx: FetchCtx,
+        _prev: Option<Arc<RtIntraday>>,
+    ) -> Result<RtIntraday, FetchError> {
+        let body = ctx
+            .get_text(&self.endpoints.api(paths::RT_FIVE_MIN_PREVIOUS))
+            .await?;
+        Ok(RtIntraday::from_rows(parse::parse_rt_five_min(&body)?))
     }
 }
 

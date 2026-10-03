@@ -8,7 +8,7 @@ mod asm;
 mod capacity;
 mod cons;
 mod fuel;
-mod gp;
+pub(crate) mod gp;
 mod help;
 mod home;
 mod lmp;

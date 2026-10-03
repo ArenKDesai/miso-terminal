@@ -148,8 +148,9 @@ Roughly in priority order within each area. The architecture docs explain where
 each piece plugs in.
 
 ### Data
+- [x] Yesterday's five-minute RT alongside today's in GP (MISO's `Previous` feed, on demand).
 - [ ] **Persist intraday history** across restarts (SQLite or Parquet under the
-      cache dir), so 5-min charts span days, not just today.
+      cache dir), so 5-min charts span more than two days.
 - [ ] **Long history from a local archive:** a `Query` source backed by the
       Energy-Pricing-Journalist DuckDB (DA/RT nodal LMPs since 2023-01-01), or a
       Parquet export of it. GP then gets `90d`, `1y` and more.

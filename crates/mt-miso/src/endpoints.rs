@@ -48,6 +48,8 @@ pub mod paths {
     pub const EXANTE_HUBS: &str = "MarketPricing/GetExAnteLmp";
     pub const RT_FIVE_MIN_CURRENT: &str = "MarketPricing/GetRealTimeFiveMinExPost/Current";
     pub const RT_FIVE_MIN_ROLLING: &str = "MarketPricing/GetRealTimeFiveMinExPost/Rolling";
+    /// The whole previous market day, every CP node (~11 MB gzipped).
+    pub const RT_FIVE_MIN_PREVIOUS: &str = "MarketPricing/GetRealTimeFiveMinExPost/Previous";
     pub const ANCILLARY_MCP: &str = "MarketPricing/GetAncillaryServicesMcp";
     pub const FUEL_MIX: &str = "FuelMix";
     pub const FUEL_MIX_TODAY: &str = "FuelMix/Today";
@@ -68,6 +70,7 @@ pub mod paths {
         EXANTE_HUBS,
         RT_FIVE_MIN_CURRENT,
         RT_FIVE_MIN_ROLLING,
+        RT_FIVE_MIN_PREVIOUS,
         ANCILLARY_MCP,
         FUEL_MIX,
         FUEL_MIX_TODAY,

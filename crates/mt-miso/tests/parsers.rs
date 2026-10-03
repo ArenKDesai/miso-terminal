@@ -98,6 +98,19 @@ fn rt_five_min_current_and_rolling() {
 }
 
 #[test]
+fn rt_five_min_previous_day_is_one_whole_day() {
+    let rows = parse_rt_five_min(&api("MarketPricing/GetRealTimeFiveMinExPost/Previous")).unwrap();
+    let store = mt_core::RtIntraday::from_rows(rows);
+    let t = store.intervals();
+    assert!(t.len() >= 280, "{} intervals", t.len());
+    assert!(
+        t.iter().all(|i| i.date() == t[0].date()),
+        "a single market day"
+    );
+    assert!(store.contains("MINN.HUB"));
+}
+
+#[test]
 fn ancillary() {
     let a = parse_ancillary(&api("MarketPricing/GetAncillaryServicesMcp")).unwrap();
     assert!(a.interval.is_some());
