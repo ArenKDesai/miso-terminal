@@ -131,6 +131,8 @@ pub struct AppPaths {
     pub log_dir: PathBuf,
     /// Window geometry and workspace layout (written by eframe).
     pub state_file: PathBuf,
+    /// Where "Save panel as PNG" writes.
+    pub exports_dir: PathBuf,
 }
 
 impl AppPaths {
@@ -143,6 +145,7 @@ impl AppPaths {
             cache_dir: root.join("cache"),
             log_dir: root.join("logs"),
             state_file: root.join("state.ron"),
+            exports_dir: root.join("exports"),
         }
     }
 }

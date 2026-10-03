@@ -69,6 +69,9 @@ pub struct TerminalApp {
     last_theme_poll: Instant,
     last_gc: Instant,
     pending: Vec<AppCommand>,
+    /// A capture to request at the start of the next frame, once the menu that
+    /// asked for it has closed.
+    capture_next: Option<crate::capture::Request>,
 }
 
 impl TerminalApp {
@@ -117,6 +120,7 @@ impl TerminalApp {
                 .map(AppCommand::Run)
                 .collect(),
             alerts: AlertEngine::default(),
+            capture_next: None,
             config: deps.config,
             paths: deps.paths,
         };
@@ -237,6 +241,10 @@ impl TerminalApp {
                     }
                 }
                 AppCommand::AlertsSeen => self.alerts.unseen = 0,
+                AppCommand::Capture(req) => {
+                    self.capture_next = Some(req);
+                    ctx.request_repaint();
+                }
                 AppCommand::SetThemeFollow {
                     follow,
                     light,
@@ -719,6 +727,15 @@ impl eframe::App for TerminalApp {
         let ctx = ui.ctx().clone();
         self.background_work(&ctx);
         let mut commands = std::mem::take(&mut self.pending);
+        if let Some(req) = self.capture_next.take() {
+            crate::capture::send(&ctx, req);
+        }
+        for result in crate::capture::deliver(&ctx, &self.paths.exports_dir) {
+            match result {
+                Ok(msg) => self.feedback(msg, false),
+                Err(msg) => self.feedback(msg, true),
+            }
+        }
         self.shortcuts(&ctx, &mut commands);
         self.check_alerts(&ctx);
 

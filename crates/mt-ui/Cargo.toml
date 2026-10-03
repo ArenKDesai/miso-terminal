@@ -20,6 +20,8 @@ egui_dock.workspace = true
 egui_extras.workspace = true
 egui_plot.workspace = true
 fontdb.workspace = true
+# Already built by eframe; used to write PNG exports.
+image = { version = "0.25", default-features = false, features = ["png"] }
 parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true

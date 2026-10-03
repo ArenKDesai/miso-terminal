@@ -75,6 +75,9 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
 | `HELP` | Help | Functions, keyboard shortcuts, data notes |
 
+Right-click a tab title to copy the panel as an image or save it as a PNG (to
+`Pictures\MISO Terminal`).
+
 Keyboard: `Ctrl+K` or `Esc` focuses the command line, `Enter` runs it, `Tab`/`↑`/`↓`
 pick a suggestion, `F1` opens help, `F5` refreshes every open feed, and
 `Ctrl+Shift+L` resets the layout.
@@ -186,7 +189,7 @@ each piece plugs in.
 - [ ] Pop a tab out into its own OS window (egui_dock windows + eframe viewports)
       for multi-monitor desks.
 - [x] Copy tables as CSV (LMP, WL, GP and SPRD history).
-- [ ] Save a chart as PNG.
+- [x] Copy a panel to the clipboard as an image, or save it as PNG (right-click its tab).
 - [x] `SET`: edit `config.toml` values in-app.
 - [x] Command line: usage hints for the function being typed.
 - [ ] Command line: fuzzy matching and Bloomberg-style function-key menus.

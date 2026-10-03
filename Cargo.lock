@@ -2385,6 +2385,7 @@ dependencies = [
  "egui_extras",
  "egui_plot",
  "fontdb",
+ "image",
  "mt-core",
  "mt-data",
  "mt-miso",

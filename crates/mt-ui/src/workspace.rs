@@ -29,6 +29,9 @@ pub struct Tab {
     /// Set when the panel panicked; cleared by "Reload".
     #[serde(skip)]
     crashed: Option<String>,
+    /// Where the panel was last drawn, for "copy as image".
+    #[serde(skip)]
+    body_rect: Option<egui::Rect>,
 }
 
 impl Tab {
@@ -38,6 +41,7 @@ impl Tab {
             route,
             panel: None,
             crashed: None,
+            body_rect: None,
         }
     }
 
@@ -217,7 +221,28 @@ impl TabViewer for Viewer<'_, '_> {
     }
 
     fn ui(&mut self, ui: &mut Ui, tab: &mut Tab) {
+        // Include the tab body's padding so exported images are not cropped flush.
+        tab.body_rect = Some(ui.max_rect().expand(self.cx.skin.theme.style.padding));
         draw_tab(ui, self.cx, tab);
+    }
+
+    fn context_menu(&mut self, ui: &mut Ui, tab: &mut Tab, _path: egui_dock::NodePath) {
+        let Some(rect) = tab.body_rect else { return };
+        for (label, action) in [
+            ("Copy panel as image", crate::capture::Action::Copy),
+            ("Save panel as PNG", crate::capture::Action::SavePng),
+        ] {
+            if ui.button(label).clicked() {
+                self.cx.send(crate::context::AppCommand::Capture(
+                    crate::capture::Request {
+                        rect,
+                        action,
+                        name: tab.route.to_string(),
+                    },
+                ));
+                ui.close();
+            }
+        }
     }
 
     fn scroll_bars(&self, _tab: &Tab) -> [bool; 2] {

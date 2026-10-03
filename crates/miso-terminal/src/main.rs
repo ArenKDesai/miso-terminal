@@ -93,6 +93,9 @@ fn resolve_paths(home: Option<PathBuf>) -> Result<AppPaths> {
         cache_dir: dirs.cache_dir().to_path_buf(),
         log_dir: local.join("logs"),
         state_file: local.join("state.ron"),
+        exports_dir: directories::UserDirs::new()
+            .and_then(|u| u.picture_dir().map(|p| p.join(APP_NAME)))
+            .unwrap_or_else(|| local.join("exports")),
     })
 }
 
