@@ -9,9 +9,11 @@ pub mod geo;
 pub mod grid;
 pub mod num;
 pub mod prices;
+pub mod seams;
 pub mod time;
 pub mod weather;
 
 pub use grid::*;
 pub use prices::*;
+pub use seams::*;
 pub use weather::*;

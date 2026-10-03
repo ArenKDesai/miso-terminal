@@ -75,10 +75,11 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), N days of hourly DA vs RT with stats, an hour × day heatmap (`GP MINN.HUB 14 HEAT`), price duration curves (`… DUR`), or five-minute RT over past days from the local archive (`… 5MIN`). Switch between LMP, energy, congestion and loss |
 | `SPRD` | Node spread | A − B between any two nodes: today at 5 minutes, hourly DA and RT spreads over N days with stats, or five-minute spreads from the archive. Use the congestion component for an FTR-style view |
 | `CMP` | Compare nodes | Up to eight nodes on one chart: today's 5-minute RT, or hourly RT or DA over N days, with a latest/average/range row each (`CMP MINN.HUB MICHIGAN.HUB 7`) |
+| `SEAM` | Seams & interfaces | PJM's CTS forecast at the PJM interface against MISO's price there (with the spread and which way it favours flows), and RT and DA prices at all 22 interface nodes (PJM, SPP, TVA, Ontario…) |
 | `WL` | Watchlist | Your favourite nodes: RT vs DA, 5-min change and today's sparkline. Add from here, with `WL <node>`, or with ☆ in GP. Saved to config |
 | `ASM` | Ancillary MCPs | Regulation, spinning, supplemental, short-term reserve and ramp MCPs by zone |
 | `LOAD` | System load | 5-min actual vs MTLF forecast vs DA cleared, with forecast error |
-| `CAP` | Capacity & headroom | Committed capacity vs demand, forecasts, available capacity |
+| `CAP` | Capacity & headroom | Committed capacity vs demand, forecasts, available capacity, real-time RSG commitments and tomorrow's short-term reserve requirement |
 | `FUEL` | Fuel mix | Generation by fuel now, plus a stacked chart of the day |
 | `RENEW` | Wind & solar | Hourly forecast vs actual for today and tomorrow, with forecast bias |
 | `NSI` | Interchange | Net scheduled interchange by neighbour, actual (metered) interchange and the inadvertent gap, plus 5-min history |
@@ -189,14 +190,15 @@ each piece plugs in.
 - [x] Hub **ex-ante LMPs** (next interval) on HOME.
 - [x] New MISO feeds: `ACE` and `RDT` (regional directional transfer vs limits).
 - [x] Net actual interchange (NSI) and reserve / sub-regional constraints (CONS).
-- [ ] More MISO feeds: RSG commitments, short-term reserve requirements.
+- [x] More MISO feeds: RSG commitments and the next-day STR requirement (CAP), CTS (SEAM).
 - [ ] More market reports: DA ex-ante LMPs, DA/RT binding-constraint history,
       MCP history, load-zone summaries.
 - [ ] **Node metadata** beyond the 317 mapped nodes: type, zone and LBA for every
       CP node, for filtering (`geo.rs` already carries type and position for the mapped ones).
 - [x] Weather by MISO zone (`WX`, National Weather Service): the first non-MISO source (`mt-nws`).
-- [ ] More context sources: gas prices (EIA, needs a free key), neighbouring ISO
-      prices at the seams (PJM, SPP).
+- [x] Prices at the seams: every interface node, and PJM's CTS forecast at the PJM interface (`SEAM`).
+- [ ] More context sources: gas prices (EIA, needs a free key), and neighbouring ISOs'
+      own prices (SPP's public marketplace files; PJM Data Miner needs a key).
 - [x] Disk-cache size cap with least-recently-used pruning (`data.cache_max_mb`); the
       five-minute archive is exempt and kept for `data.archive_days` (default 90).
 - [ ] An in-app switch between live data and offline replay.

@@ -13,7 +13,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Capacity & headroom",
     category: Category::Grid,
     usage: "CAP",
-    description: "Committed capacity vs demand through the day, with forecasts and available capacity.",
+    description: "Committed capacity vs demand through the day, with forecasts, available capacity, RSG commitments and tomorrow's STR requirement.",
     takes_node: false,
     open,
 };
@@ -39,6 +39,7 @@ impl Panel for Capacity {
         widgets::title_bar(ui, skin, "Capacity & headroom", |ui| {
             widgets::freshness(ui, skin, &cap)
         });
+        reliability(ui, cx);
         widgets::with_data(ui, skin, &cap, |ui, c| {
             let series =
                 |f: fn(&mt_core::CapacityPoint) -> Option<f64>| -> Vec<(NaiveDateTime, f64)> {
@@ -111,6 +112,65 @@ impl Panel for Capacity {
                         .style(egui_plot::LineStyle::dotted_loose()),
                 );
             });
+        });
+    }
+}
+
+/// Out-of-market commitments right now, and tomorrow's reserve requirement.
+fn reliability(ui: &mut Ui, cx: &PanelCx<'_>) {
+    let skin = cx.skin;
+    let rsg = cx.hub.watch(&cx.miso.rsg_commitments());
+    let str_req = cx.hub.watch(&cx.miso.str_requirement());
+    ui.horizontal_wrapped(|ui| {
+        widgets::label(ui, skin, "RSG commitments");
+        match rsg.data() {
+            None => {
+                ui.label(RichText::new(fmt::DASH).color(skin.text_muted));
+            }
+            Some(r) if r.active().count() == 0 => {
+                let when = r.as_of.map(|t| format!(" (interval {} EST)", fmt::hm(t)));
+                ui.label(
+                    RichText::new(format!("none{}", when.unwrap_or_default()))
+                        .color(skin.text_muted),
+                );
+            }
+            Some(r) => {
+                for c in r.active() {
+                    ui.label(
+                        RichText::new(format!(
+                            "{} resource(s) · {} MW · {}",
+                            c.resources.map_or_else(|| "?".into(), |n| n.to_string()),
+                            c.econ_max_mw.map_or_else(|| fmt::DASH.into(), fmt::mw),
+                            c.reason.as_deref().unwrap_or("reason not given"),
+                        ))
+                        .color(skin.warning),
+                    )
+                    .on_hover_text(
+                        "Resource sufficiency guarantee: units MISO committed outside the market for reliability",
+                    );
+                }
+            }
+        }
+    });
+    if let Some(s) = str_req.data().filter(|s| !s.regions.is_empty()) {
+        ui.horizontal_wrapped(|ui| {
+            widgets::label(ui, skin, "Tomorrow's STR requirement");
+            for r in &s.regions {
+                let mw = r.requirement_mw.map_or_else(|| fmt::DASH.into(), fmt::mw);
+                let over = r
+                    .overwrite_mw
+                    .filter(|v| *v != 0.0)
+                    .map(|v| format!(" (override {})", fmt::mw(v)))
+                    .unwrap_or_default();
+                let peak = r
+                    .peak_hour
+                    .map(|t| format!(" · peak {} EST", fmt::hm(t)))
+                    .unwrap_or_default();
+                ui.label(
+                    RichText::new(format!("{}: {mw} MW{over}{peak}", r.region)).color(skin.text),
+                );
+                ui.add_space(8.0);
+            }
         });
     }
 }

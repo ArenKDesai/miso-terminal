@@ -837,6 +837,112 @@ pub fn parse_ace(body: &str) -> Result<Ace, FetchError> {
     Ok(Ace { points })
 }
 
+// --- RSG commitments, STR requirement, CTS -------------------------------------
+
+/// MISO writes the string "None" for empty fields in some feeds.
+fn text(s: Option<String>) -> Option<String> {
+    s.map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("none"))
+}
+
+#[derive(Deserialize)]
+struct RsgRaw {
+    #[serde(rename = "RefId")]
+    ref_id: Option<String>,
+    #[serde(rename = "Commitment", default)]
+    commitments: Vec<RsgRowRaw>,
+}
+
+#[derive(Deserialize)]
+struct RsgRowRaw {
+    #[serde(rename = "MKT_INT_END_EST")]
+    interval_end: Option<String>,
+    #[serde(rename = "COMMIT_REASON")]
+    reason: Option<String>,
+    #[serde(rename = "TOTAL_ECON_MAX")]
+    econ_max: Option<Num>,
+    #[serde(rename = "NUM_RESOURCES")]
+    resources: Option<Num>,
+}
+
+pub fn parse_rsg(body: &str) -> Result<RsgCommitments, FetchError> {
+    let raw: RsgRaw = json("RSG commitments", body)?;
+    Ok(RsgCommitments {
+        as_of: raw.ref_id.as_deref().and_then(parse_ref_id),
+        commitments: raw
+            .commitments
+            .into_iter()
+            .map(|c| RsgCommitment {
+                interval_end: dt(c.interval_end.as_deref()),
+                reason: text(c.reason),
+                econ_max_mw: num(&c.econ_max),
+                resources: num(&c.resources).map(|n| n.max(0.0).round() as u32),
+            })
+            .collect(),
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StrRaw {
+    region: Option<String>,
+    forecast_peak_hour_est: Option<String>,
+    forecast_created_time: Option<String>,
+    str_req: Option<Num>,
+    str_overwrite: Option<Num>,
+}
+
+pub fn parse_str_requirement(body: &str) -> Result<StrRequirements, FetchError> {
+    let raw: Vec<StrRaw> = json("STR requirement", body)?;
+    Ok(StrRequirements {
+        regions: raw
+            .into_iter()
+            .filter_map(|r| {
+                Some(StrRequirement {
+                    region: text(r.region)?,
+                    peak_hour: dt(r.forecast_peak_hour_est.as_deref()),
+                    created: dt(r.forecast_created_time.as_deref()),
+                    requirement_mw: num(&r.str_req),
+                    overwrite_mw: num(&r.str_overwrite),
+                })
+            })
+            .collect(),
+    })
+}
+
+#[derive(Deserialize)]
+struct CtsRaw {
+    #[serde(rename = "Interval", default)]
+    intervals: Vec<CtsRowRaw>,
+}
+
+#[derive(Deserialize)]
+struct CtsRowRaw {
+    #[serde(rename = "CASEAPPROVALDATE")]
+    case_time: Option<String>,
+    #[serde(rename = "SOLUTIONTIME")]
+    time: Option<String>,
+    #[serde(rename = "PJMFORECASTEDLMP")]
+    lmp: Option<Num>,
+}
+
+pub fn parse_cts(body: &str) -> Result<Cts, FetchError> {
+    let raw: CtsRaw = json("CTS forecasts", body)?;
+    let mut forecasts: Vec<CtsForecast> = raw
+        .intervals
+        .into_iter()
+        .filter_map(|r| {
+            Some(CtsForecast {
+                case_time: dt(r.case_time.as_deref())?,
+                time: dt(r.time.as_deref())?,
+                lmp: num(&r.lmp)?,
+            })
+        })
+        .collect();
+    forecasts.sort_by_key(|f| (f.case_time, f.time));
+    Ok(Cts { forecasts })
+}
+
 // --- Daily market report CSVs -------------------------------------------------
 
 /// Parse a daily LMP report (`<yyyymmdd>_da_expost_lmp.csv` and friends).

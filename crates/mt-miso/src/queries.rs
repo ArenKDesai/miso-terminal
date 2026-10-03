@@ -101,6 +101,15 @@ impl Miso {
     pub fn ace(&self) -> ApiQuery<Ace> {
         self.api(&ACE)
     }
+    pub fn rsg_commitments(&self) -> ApiQuery<RsgCommitments> {
+        self.api(&RSG)
+    }
+    pub fn str_requirement(&self) -> ApiQuery<StrRequirements> {
+        self.api(&STR_REQUIREMENT)
+    }
+    pub fn cts(&self) -> ApiQuery<Cts> {
+        self.api(&CTS)
+    }
 
     /// Five-minute RT prices for every CP node, today so far.
     pub fn rt_intraday(&self) -> RtIntradayQuery {
@@ -196,6 +205,24 @@ api_spec!(
     paths::SUBREGIONAL_CONSTRAINTS,
     parse::parse_binding_constraints
 );
+
+api_spec!(RSG: RsgCommitments = "rsg", "RT RSG commitments", paths::RSG_COMMITMENTS, parse::parse_rsg);
+/// Set once a day for the next day; no need to poll every minute.
+static STR_REQUIREMENT: ApiSpec<StrRequirements> = ApiSpec {
+    key: "miso/str-requirement",
+    label: "Next-day STR requirement",
+    path: paths::STR_REQUIREMENT,
+    refresh: Duration::from_secs(15 * 60),
+    parse: parse::parse_str_requirement,
+};
+/// PJM approves a new CTS case about every 15 minutes.
+static CTS: ApiSpec<Cts> = ApiSpec {
+    key: "miso/cts",
+    label: "CTS: PJM interface forecast",
+    path: paths::CTS,
+    refresh: Duration::from_secs(5 * 60),
+    parse: parse::parse_cts,
+};
 
 /// A query for one [`ApiSpec`] dataset.
 pub struct ApiQuery<T: 'static> {

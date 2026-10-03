@@ -66,6 +66,10 @@ pub mod paths {
     pub const SNAPSHOT: &str = "Snapshot";
     pub const REGIONAL_TRANSFER: &str = "RegionalDirectionalTransfer";
     pub const ACE: &str = "Ace";
+    pub const RSG_COMMITMENTS: &str = "RealTimeRSGCommitments";
+    pub const STR_REQUIREMENT: &str = "CsatNextDayShortTermReserveRequirement";
+    /// PJM's forecast LMP at the MISO interface (coordinated transaction scheduling).
+    pub const CTS: &str = "CoordinatedTransactionScheduling";
 
     /// Every JSON path, for the fixture recorder.
     pub const ALL: &[&str] = &[
@@ -90,6 +94,9 @@ pub mod paths {
         SNAPSHOT,
         REGIONAL_TRANSFER,
         ACE,
+        RSG_COMMITMENTS,
+        STR_REQUIREMENT,
+        CTS,
     ];
 }
 

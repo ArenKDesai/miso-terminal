@@ -20,6 +20,7 @@ mod map;
 mod nsi;
 mod outages;
 mod renew;
+mod seam;
 mod settings;
 mod spread;
 mod theme;
@@ -38,6 +39,7 @@ pub fn all() -> Vec<FunctionSpec> {
         gp::SPEC,
         spread::SPEC,
         compare::SPEC,
+        seam::SPEC,
         watchlist::SPEC,
         asm::SPEC,
         load::SPEC,

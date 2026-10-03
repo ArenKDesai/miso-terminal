@@ -297,6 +297,56 @@ impl GridSnapshot {
     }
 }
 
+/// Real-time resource sufficiency guarantee (RSG) commitments: units MISO
+/// committed out of market for reliability, for the latest interval.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RsgCommitments {
+    /// The interval MISO reports on.
+    pub as_of: Option<NaiveDateTime>,
+    pub commitments: Vec<RsgCommitment>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RsgCommitment {
+    pub interval_end: Option<NaiveDateTime>,
+    /// Why MISO committed them (e.g. capacity, voltage, transmission); `None`
+    /// when nothing is committed.
+    pub reason: Option<String>,
+    /// Total economic maximum of the committed resources, MW.
+    pub econ_max_mw: Option<f64>,
+    pub resources: Option<u32>,
+}
+
+impl RsgCommitments {
+    /// Commitments that actually committed something.
+    pub fn active(&self) -> impl Iterator<Item = &RsgCommitment> {
+        self.commitments
+            .iter()
+            .filter(|c| c.resources.unwrap_or(0) > 0 || c.econ_max_mw.unwrap_or(0.0) > 0.0)
+    }
+
+    pub fn total_mw(&self) -> f64 {
+        self.active().filter_map(|c| c.econ_max_mw).sum()
+    }
+}
+
+/// Tomorrow's short-term reserve (STR) requirement by reserve zone.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct StrRequirements {
+    pub regions: Vec<StrRequirement>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StrRequirement {
+    pub region: String,
+    /// The forecast peak hour the requirement is set for (hour beginning).
+    pub peak_hour: Option<NaiveDateTime>,
+    pub created: Option<NaiveDateTime>,
+    pub requirement_mw: Option<f64>,
+    /// An operator override of the requirement, MW (0 when none).
+    pub overwrite_mw: Option<f64>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

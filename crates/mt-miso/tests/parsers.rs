@@ -269,3 +269,54 @@ fn day_reports() {
     }
     assert!(parse_day_report(DayReportKind::DaExPost, NaiveDate::MIN, "garbage").is_err());
 }
+
+#[test]
+fn rsg_commitments() {
+    let r = parse_rsg(&api("RealTimeRSGCommitments")).unwrap();
+    assert!(r.as_of.is_some());
+    assert!(!r.commitments.is_empty());
+    // MISO spells "nothing committed" as the string "None".
+    let quiet = parse_rsg(
+        r#"{"Commitment":[{"MKT_INT_END_EST":"2026-10-02 11:45:00 PM","COMMIT_REASON":"None","TOTAL_ECON_MAX":"0.00","NUM_RESOURCES":"None"}],"RefId":"02-Oct-2026 - Interval 23:45 EST"}"#,
+    )
+    .unwrap();
+    assert_eq!(quiet.commitments[0].reason, None);
+    assert_eq!(quiet.active().count(), 0);
+    let busy = parse_rsg(
+        r#"{"Commitment":[{"MKT_INT_END_EST":"2026-10-02 5:00:00 PM","COMMIT_REASON":"Capacity","TOTAL_ECON_MAX":"412.5","NUM_RESOURCES":"3"}],"RefId":"02-Oct-2026 - Interval 17:00 EST"}"#,
+    )
+    .unwrap();
+    assert_eq!(busy.commitments[0].reason.as_deref(), Some("Capacity"));
+    assert_eq!(busy.commitments[0].resources, Some(3));
+    assert!((busy.total_mw() - 412.5).abs() < 1e-9);
+}
+
+#[test]
+fn str_requirement() {
+    let r = parse_str_requirement(&api("CsatNextDayShortTermReserveRequirement")).unwrap();
+    assert!(!r.regions.is_empty());
+    assert!(r.regions.iter().any(|x| x.region == "Systemwide"));
+    assert!(
+        r.regions
+            .iter()
+            .all(|x| x.peak_hour.is_some() && x.requirement_mw.is_some())
+    );
+}
+
+#[test]
+fn cts_forecasts() {
+    let c = parse_cts(&api("CoordinatedTransactionScheduling")).unwrap();
+    assert!(c.forecasts.len() > 50, "a day of cases");
+    let latest = c.latest_case();
+    assert!(
+        (2..=20).contains(&latest.len()),
+        "one case covers a couple of hours"
+    );
+    assert!(latest.windows(2).all(|w| w[0].0 < w[1].0));
+    assert!(c.freshest().len() >= latest.len());
+    assert!(
+        c.forecasts
+            .iter()
+            .all(|f| (-500.0..5000.0).contains(&f.lmp))
+    );
+}
