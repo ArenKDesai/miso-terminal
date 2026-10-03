@@ -26,7 +26,22 @@ and never submits anything to MISO.
 
 ![MAP: real-time congestion across the footprint](docs/screenshots/map.png)
 
-## Quick start (Windows)
+## Install (Windows)
+
+Download `miso-terminal-<version>-windows-x64.zip` from the Releases page, unzip
+it, and run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1           # Start Menu shortcut
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Desktop  # plus a desktop shortcut
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall
+```
+
+It installs for the current user only (no administrator rights needed) to
+`%LOCALAPPDATA%\Programs\MISO Terminal`. Or skip the script and run
+`miso-terminal.exe` straight from the folder; it is a single portable file.
+
+## Build from source (Windows)
 
 ```powershell
 # Rust stable (https://rustup.rs) and the MSVC build tools are required.
@@ -204,7 +219,8 @@ each piece plugs in.
       (per its port policy) instead of the sync example here.
 
 ### Windows distribution
-- [ ] Installer (MSI via `cargo-wix`, or MSIX for winget).
+- [x] Per-user install script in the release zip (`packaging/install.ps1`).
+- [ ] A proper installer (MSI via `cargo-wix`, or MSIX for winget).
 - [ ] **Code signing.** Unsigned executables trip SmartScreen and Smart App Control.
 - [ ] Single instance, plus jump-list entries for favourite functions.
 - [ ] An update check against GitHub releases.
