@@ -63,6 +63,8 @@ pub struct PanelCx<'a> {
     pub miso: &'a Miso,
     /// Weather (National Weather Service).
     pub nws: &'a mt_nws::Nws,
+    /// Fuel prices (EIA).
+    pub eia: &'a mt_eia::Eia,
     pub skin: &'a Skin,
     pub config: &'a AppConfig,
     pub paths: &'a AppPaths,

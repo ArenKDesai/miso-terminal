@@ -60,6 +60,7 @@ pub struct TerminalApp {
     hub: DataHub,
     miso: Miso,
     nws: mt_nws::Nws,
+    eia: mt_eia::Eia,
     config: AppConfig,
     pub(crate) paths: AppPaths,
     registry: Registry,
@@ -110,6 +111,7 @@ impl TerminalApp {
         let mut app = Self {
             miso: Miso::new(deps.config.endpoints.clone()),
             nws: mt_nws::Nws::default(),
+            eia: mt_eia::Eia::default(),
             hub: deps.hub,
             registry: Registry::builtin(),
             skin: Skin::new(themes.resolve(&deps.config.theme).clone()),
@@ -907,6 +909,7 @@ impl eframe::App for TerminalApp {
             hub: &self.hub,
             miso: &self.miso,
             nws: &self.nws,
+            eia: &self.eia,
             skin: &self.skin,
             config: &self.config,
             paths: &self.paths,

@@ -7,6 +7,7 @@
 
 pub mod archive;
 pub mod constraints;
+pub mod fuels;
 pub mod geo;
 pub mod grid;
 pub mod num;
@@ -17,6 +18,7 @@ pub mod weather;
 
 pub use archive::*;
 pub use constraints::*;
+pub use fuels::*;
 pub use grid::*;
 pub use prices::*;
 pub use seams::*;

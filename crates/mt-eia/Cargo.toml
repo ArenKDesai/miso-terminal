@@ -1,0 +1,19 @@
+[package]
+name = "mt-eia"
+description = "U.S. Energy Information Administration source: Henry Hub natural gas spot prices."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+mt-core.workspace = true
+mt-data.workspace = true
+calamine.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

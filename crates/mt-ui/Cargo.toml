@@ -11,6 +11,7 @@ mt-core.workspace = true
 mt-data.workspace = true
 mt-miso.workspace = true
 mt-nws.workspace = true
+mt-eia.workspace = true
 mt-theme.workspace = true
 anyhow.workspace = true
 chrono.workspace = true

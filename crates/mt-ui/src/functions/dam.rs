@@ -54,12 +54,12 @@ struct Dam {
 }
 
 /// One hub's 24 hours for the chosen day (and the change from the day before).
-struct HubDay {
-    hub: &'static str,
-    hours: [Option<f64>; 24],
+pub(crate) struct HubDay {
+    pub(crate) hub: &'static str,
+    pub(crate) hours: [Option<f64>; 24],
 }
 
-fn hub_days(report: Option<&DayLmpReport>, component: Component) -> Vec<HubDay> {
+pub(crate) fn hub_days(report: Option<&DayLmpReport>, component: Component) -> Vec<HubDay> {
     TRADING_HUBS
         .iter()
         .map(|hub| HubDay {
@@ -82,7 +82,7 @@ fn on_peak(day: NaiveDate, he_index: usize) -> bool {
 }
 
 /// On-peak, off-peak and all-hours averages of one hub's day.
-fn blocks(day: NaiveDate, hours: &[Option<f64>; 24]) -> [Option<f64>; 3] {
+pub(crate) fn blocks(day: NaiveDate, hours: &[Option<f64>; 24]) -> [Option<f64>; 3] {
     let pick = |f: &dyn Fn(usize) -> bool| {
         series::mean(
             hours

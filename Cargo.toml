@@ -16,6 +16,7 @@ mt-core = { path = "crates/mt-core" }
 mt-data = { path = "crates/mt-data" }
 mt-miso = { path = "crates/mt-miso" }
 mt-nws = { path = "crates/mt-nws" }
+mt-eia = { path = "crates/mt-eia" }
 mt-theme = { path = "crates/mt-theme" }
 mt-ui = { path = "crates/mt-ui" }
 
@@ -86,6 +87,8 @@ opt-level = 2
 [profile.dev.package.mt-miso]
 opt-level = 2
 [profile.dev.package.mt-nws]
+opt-level = 2
+[profile.dev.package.mt-eia]
 opt-level = 2
 
 # egui and wgpu are painfully slow unoptimized; optimize dependencies even in dev builds.

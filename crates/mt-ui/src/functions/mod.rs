@@ -11,6 +11,7 @@ mod compare;
 mod cons;
 mod dam;
 mod fuel;
+mod gas;
 pub(crate) mod gp;
 mod help;
 mod home;
@@ -48,6 +49,7 @@ pub fn all() -> Vec<FunctionSpec> {
         load::SPEC,
         capacity::SPEC,
         fuel::SPEC,
+        gas::SPEC,
         renew::SPEC,
         nsi::SPEC,
         transfer::SPEC,

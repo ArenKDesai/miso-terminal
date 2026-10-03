@@ -82,6 +82,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `LOAD` | System load | 5-min actual vs MTLF forecast vs DA cleared, with forecast error |
 | `CAP` | Capacity & headroom | Committed capacity vs demand, forecasts, available capacity, real-time RSG commitments and tomorrow's short-term reserve requirement |
 | `FUEL` | Fuel mix | Generation by fuel now, plus a stacked chart of the day |
+| `GAS` | Natural gas | Henry Hub spot (EIA, no key needed) with its recent change and range, and for each hub the market heat rate and spark spread its DA on-peak price implies (`HH`) |
 | `RENEW` | Wind & solar | Hourly forecast vs actual for today and tomorrow, with forecast bias |
 | `NSI` | Interchange | Net scheduled interchange by neighbour, actual (metered) interchange and the inadvertent gap, plus 5-min history |
 | `RDT` | Regional transfer | North-South regional directional transfer over the last day against its limits, with utilisation |
@@ -208,8 +209,9 @@ each piece plugs in.
       `geo.rs` carries positions for the 317 mapped ones).
 - [x] Weather by MISO zone (`WX`, National Weather Service): the first non-MISO source (`mt-nws`).
 - [x] Prices at the seams: every interface node, and PJM's CTS forecast at the PJM interface (`SEAM`).
-- [ ] More context sources: gas prices (EIA, needs a free key), and neighbouring ISOs'
-      own prices (SPP's public marketplace files; PJM Data Miner needs a key).
+- [x] Gas prices: Henry Hub daily spot from EIA's public workbook (`GAS`, `mt-eia`).
+- [ ] Neighbouring ISOs' own prices (SPP's public marketplace files; PJM Data Miner
+      needs a key), and delivered gas at MISO hubs (Chicago, MichCon) if a free source exists.
 - [x] Disk-cache size cap with least-recently-used pruning (`data.cache_max_mb`); the
       five-minute archive is exempt and kept for `data.archive_days` (default 90).
 - [ ] An in-app switch between live data and offline replay.

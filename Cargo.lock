@@ -2495,6 +2495,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mt-eia"
+version = "0.1.0"
+dependencies = [
+ "calamine",
+ "chrono",
+ "mt-core",
+ "mt-data",
+ "tokio",
+]
+
+[[package]]
 name = "mt-miso"
 version = "0.1.0"
 dependencies = [
@@ -2548,6 +2559,7 @@ dependencies = [
  "image",
  "mt-core",
  "mt-data",
+ "mt-eia",
  "mt-miso",
  "mt-nws",
  "mt-theme",
