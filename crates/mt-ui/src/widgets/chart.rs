@@ -115,6 +115,39 @@ pub fn time_plot_bare<'a>(id: &str, skin: &Skin) -> Plot<'a> {
         .allow_double_click_reset(true)
 }
 
+/// A plot for price duration curves: x is the share of hours, 0-100%.
+pub fn duration_plot<'a>(id: &str, skin: &Skin) -> Plot<'a> {
+    Plot::new(id)
+        .legend(
+            Legend::default()
+                .position(egui_plot::Corner::RightTop)
+                .background_alpha(0.8),
+        )
+        .grid_color(skin.grid)
+        .include_x(0.0)
+        .include_x(100.0)
+        .x_axis_formatter(|m, _| format!("{:.0}%", m.value))
+        .x_axis_label("share of hours at or above")
+        .y_axis_min_width(48.0)
+        .label_formatter(|pos: &HoverPosition<'_>| {
+            let (name, p) = match pos {
+                HoverPosition::NearDataPoint {
+                    plot_name,
+                    position,
+                    ..
+                } => (*plot_name, position),
+                HoverPosition::Elsewhere { position } => ("", position),
+            };
+            Some(format!(
+                "{name}
+{:.0}% of hours at or above {:.2}",
+                p.x.clamp(0.0, 100.0),
+                p.y
+            ))
+        })
+        .allow_scroll(false)
+}
+
 pub fn points(pts: &[(NaiveDateTime, f64)]) -> Vec<[f64; 2]> {
     pts.iter().map(|(t, v)| [chart_x(*t), *v]).collect()
 }

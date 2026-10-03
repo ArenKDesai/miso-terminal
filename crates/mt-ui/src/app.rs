@@ -25,6 +25,8 @@ const WORKSPACE_KEY: &str = "workspace";
 const THEME_POLL: Duration = Duration::from_secs(2);
 const GC_EVERY: Duration = Duration::from_secs(60);
 const GC_IDLE: Duration = Duration::from_secs(15 * 60);
+/// Space kept free on the right of the top bar for Functions / Theme / Reset layout.
+const MENU_BUTTONS_WIDTH: f32 = 290.0;
 
 /// What the binary hands the UI.
 pub struct Deps {
@@ -506,13 +508,34 @@ impl TerminalApp {
                     });
                 });
         }
-        if let Some((msg, error)) = &self.cmd.feedback {
-            ui.label(RichText::new(msg).small().color(if *error {
-                skin.negative
-            } else {
-                skin.text_muted
-            }));
-        }
+        // While typing a known code, show how to use it; otherwise the last result.
+        // Bounded so long text truncates instead of running under the menu buttons.
+        let typing = focused
+            .then(|| command::hint(&self.cmd.text, &self.registry))
+            .flatten();
+        let room = (ui.available_width() - MENU_BUTTONS_WIDTH).max(0.0);
+        let height = ui.spacing().interact_size.y;
+        ui.allocate_ui_with_layout(
+            egui::vec2(room, height),
+            Layout::left_to_right(Align::Center),
+            |ui| {
+                ui.set_max_width(room);
+                if let Some((usage, description)) = typing {
+                    ui.label(RichText::new(usage).monospace().small().color(skin.warning));
+                    ui.add(
+                        egui::Label::new(RichText::new(description).small().color(skin.text_muted))
+                            .truncate(),
+                    );
+                } else if let Some((msg, error)) = &self.cmd.feedback {
+                    let color = if *error {
+                        skin.negative
+                    } else {
+                        skin.text_muted
+                    };
+                    ui.add(egui::Label::new(RichText::new(msg).small().color(color)).truncate());
+                }
+            },
+        );
     }
 
     /// The strip of hub prices under the command line.

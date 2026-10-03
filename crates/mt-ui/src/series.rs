@@ -217,6 +217,28 @@ impl Stats {
     }
 }
 
+/// The `p` quantile (0-1) of `values`, nearest-rank.
+pub fn percentile(values: &[f64], p: f64) -> Option<f64> {
+    let mut v: Vec<f64> = values.iter().copied().filter(|v| v.is_finite()).collect();
+    if v.is_empty() {
+        return None;
+    }
+    v.sort_by(f64::total_cmp);
+    Some(v[((v.len() - 1) as f64 * p.clamp(0.0, 1.0)).round() as usize])
+}
+
+/// A price duration curve: values sorted high to low against the share of
+/// hours (0-100%) at or above each value.
+pub fn duration_curve(values: impl IntoIterator<Item = f64>) -> Vec<[f64; 2]> {
+    let mut v: Vec<f64> = values.into_iter().filter(|v| v.is_finite()).collect();
+    v.sort_by(|a, b| b.total_cmp(a));
+    let last = v.len().saturating_sub(1).max(1) as f64;
+    v.into_iter()
+        .enumerate()
+        .map(|(i, y)| [i as f64 / last * 100.0, y])
+        .collect()
+}
+
 /// CSV rows `time, DA, RT, RT − DA` over the union of hours, for export.
 pub fn hourly_rows(da: &[(NaiveDateTime, f64)], rt: &[(NaiveDateTime, f64)]) -> Vec<Vec<String>> {
     let da_map: HashMap<NaiveDateTime, f64> = da.iter().copied().collect();
@@ -277,6 +299,22 @@ mod tests {
         let a = [(t(0, 0), 10.0), (t(0, 5), 12.0), (t(0, 10), 9.0)];
         let b = [(t(0, 0), 4.0), (t(0, 10), 10.0)];
         assert_eq!(subtract(&a, &b), vec![(t(0, 0), 6.0), (t(0, 10), -1.0)]);
+    }
+
+    #[test]
+    fn percentiles() {
+        let v: Vec<f64> = (0..=100).map(f64::from).collect();
+        assert_eq!(percentile(&v, 0.99), Some(99.0));
+        assert_eq!(percentile(&v, 0.0), Some(0.0));
+        assert_eq!(percentile(&[], 0.5), None);
+    }
+
+    #[test]
+    fn duration_curve_runs_high_to_low_over_0_to_100() {
+        let c = duration_curve([3.0, 1.0, f64::NAN, 2.0]);
+        assert_eq!(c, vec![[0.0, 3.0], [50.0, 2.0], [100.0, 1.0]]);
+        assert_eq!(duration_curve([5.0]), vec![[0.0, 5.0]]);
+        assert!(duration_curve(Vec::new()).is_empty());
     }
 
     #[test]

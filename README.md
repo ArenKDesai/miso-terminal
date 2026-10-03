@@ -53,7 +53,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices (RT, next-interval ex-ante, DA) with 5-min sparklines, fuel mix, top constraints |
 | `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable and filterable. `LMP ALL` lists all ~2,600 CP nodes |
 | `MAP` | Price map | Every node MISO plots, on a map of the footprint, coloured by RT LMP, congestion, loss, DA or RT − DA. Hover for the breakdown, click to graph |
-| `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), N days of hourly DA vs RT with stats, or an hour × day heatmap (`GP MINN.HUB 14 HEAT`). Switch between LMP, energy, congestion and loss |
+| `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), N days of hourly DA vs RT with stats, an hour × day heatmap (`GP MINN.HUB 14 HEAT`), or price duration curves (`… DUR`). Switch between LMP, energy, congestion and loss |
 | `SPRD` | Node spread | A − B between any two nodes: today at 5 minutes, or hourly DA and RT spreads over N days, with stats. Use the congestion component for an FTR-style view |
 | `WL` | Watchlist | Your favourite nodes: RT vs DA, 5-min change and today's sparkline. Add from here, with `WL <node>`, or with ☆ in GP. Saved to config |
 | `ASM` | Ancillary MCPs | Regulation, spinning, supplemental, short-term reserve and ramp MCPs by zone |
@@ -171,7 +171,7 @@ each piece plugs in.
 - [ ] MAP: an interpolated price surface and transmission lines (3D-MISO-Map has both).
 - [x] `SPRD A B`: node-to-node spreads (today at 5 minutes, hourly history, by component).
 - [x] Hour × day heatmap for a node or a spread (`GP <node> 14 HEAT`, `SPRD A B 14 HEAT`).
-- [ ] Price duration curve for a node.
+- [x] Price duration curves for a node or spread (`GP <node> 30 DUR`).
 - [x] **Alerts** (`ALRT`): per-node price thresholds and constraint conditions,
       edge-triggered, with a taskbar flash and an in-app badge.
 - [ ] More alert kinds (load forecast miss, RDT near limit, spread thresholds) and
@@ -182,8 +182,8 @@ each piece plugs in.
 - [x] Copy tables as CSV (LMP, WL, GP and SPRD history).
 - [ ] Save a chart as PNG.
 - [x] `SET`: edit `config.toml` values in-app.
-- [ ] Command line: fuzzy matching, inline argument hints, Bloomberg-style
-      function-key menus.
+- [x] Command line: usage hints for the function being typed.
+- [ ] Command line: fuzzy matching and Bloomberg-style function-key menus.
 - [x] Contain panel panics to their tab (logged, with a *Reload panel* button).
 
 ### Themes

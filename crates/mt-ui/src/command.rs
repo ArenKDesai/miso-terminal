@@ -45,6 +45,14 @@ pub fn parse(input: &str, registry: &Registry, is_node: impl Fn(&str) -> bool) -
     Parsed::Unknown(input.trim().to_owned())
 }
 
+/// Usage and description of the function being typed, once its code is
+/// recognised: `GP <node> [days] [HEAT] — Price chart for one node…`.
+pub fn hint(input: &str, registry: &Registry) -> Option<(&'static str, &'static str)> {
+    let first = input.split_whitespace().next()?;
+    let spec = registry.find(first)?;
+    Some((spec.usage, spec.description))
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Suggestion {
     /// Full command-line text to run when chosen.
@@ -180,6 +188,16 @@ mod tests {
         assert_eq!(s[0].command, "GP ALTE.ALTE");
         assert!(suggest("", &r, &nodes, 10).is_empty());
         assert!(suggest("gp", &r, &nodes, 3).len() <= 3);
+    }
+
+    #[test]
+    fn hints_follow_the_typed_code() {
+        let r = reg();
+        let gp = r.find("GP").unwrap().usage;
+        assert_eq!(hint("gp min", &r).map(|h| h.0), Some(gp));
+        assert_eq!(hint("graph", &r).map(|h| h.0), Some(gp), "aliases too");
+        assert!(hint("", &r).is_none());
+        assert!(hint("nonsense", &r).is_none());
     }
 
     #[test]

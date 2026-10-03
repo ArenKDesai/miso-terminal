@@ -15,7 +15,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     aliases: &["GRAPH", "CHART"],
     name: "Graph price",
     category: Category::Prices,
-    usage: "GP <node> [days] [HEAT]",
+    usage: "GP <node> [days] [HEAT|DUR]",
     description: "Price chart for one node: today's 5-minute RT vs DA, or hourly DA vs RT over N days, by component.",
     takes_node: true,
     open,
@@ -54,15 +54,26 @@ pub(crate) enum View {
     Today,
     History,
     Heatmap,
+    Duration,
 }
 
 impl View {
-    /// A day count asks for history; a trailing `HEAT` asks for the heatmap.
+    /// A day count asks for history; a trailing `HEAT` or `DUR` picks that view.
     pub(crate) fn from_args(days: u32, flag: Option<&String>) -> Self {
-        match flag {
-            Some(f) if f.eq_ignore_ascii_case("HEAT") => Self::Heatmap,
+        match flag.map(|f| f.to_ascii_uppercase()).as_deref() {
+            Some("HEAT") => Self::Heatmap,
+            Some("DUR") => Self::Duration,
             _ if days > 0 => Self::History,
             _ => Self::Today,
+        }
+    }
+
+    /// The route flag that reopens this view, if it needs one.
+    pub(crate) fn flag(self) -> Option<&'static str> {
+        match self {
+            Self::Heatmap => Some("HEAT"),
+            Self::Duration => Some("DUR"),
+            Self::Today | Self::History => None,
         }
     }
 }
@@ -96,9 +107,7 @@ impl Panel for Gp {
         let mut args: Vec<String> = self.node.iter().cloned().collect();
         if !args.is_empty() && (self.days > 0 || self.view != View::Today) {
             args.push(self.days.max(1).to_string());
-            if self.view == View::Heatmap {
-                args.push("HEAT".into());
-            }
+            args.extend(self.view.flag().map(String::from));
         }
         Route::new("GP", args)
     }
@@ -122,6 +131,21 @@ impl Panel for Gp {
             View::Today => self.today(ui, cx, &node),
             View::History => self.history(ui, cx, &node),
             View::Heatmap => self.heatmap(ui, cx, &node),
+            View::Duration => {
+                let h = series::node_history(cx, &node, self.component, self.days);
+                history_notes(ui, cx, &h, || {
+                    csv::to_csv(
+                        &["hour_start_est", "da", "rt", "rt_minus_da"],
+                        series::hourly_rows(&h.da, &h.rt),
+                    )
+                });
+                duration_view(
+                    ui,
+                    cx,
+                    &format!("gp-dur-{node}"),
+                    [("DA ex-post", &h.da), ("RT", &h.rt)],
+                );
+            }
         }
     }
 }
@@ -133,10 +157,11 @@ pub(crate) fn view_controls(
     component: &mut Component,
     days: &mut u32,
 ) {
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         ui.selectable_value(view, View::Today, "Today · 5-min");
         ui.selectable_value(view, View::History, "History · hourly");
         ui.selectable_value(view, View::Heatmap, "Heatmap");
+        ui.selectable_value(view, View::Duration, "Duration");
         ui.separator();
         for c in Component::ALL {
             ui.selectable_value(component, c, c.label());
@@ -153,7 +178,8 @@ pub(crate) fn view_controls(
 impl Gp {
     fn header(&mut self, ui: &mut Ui, cx: &mut PanelCx<'_>) {
         let skin = cx.skin;
-        ui.horizontal(|ui| {
+        // Wrap, so a long favourites row never widens the panel past its pane.
+        ui.horizontal_wrapped(|ui| {
             if let Some(n) = &self.node {
                 ui.label(RichText::new(n).heading().color(skin.text_strong));
                 let watched = cx.config.ui.favorite_nodes.contains(n);
@@ -312,6 +338,74 @@ impl Gp {
         });
         widgets::heatmap::hour_day(ui, cx.skin, &points, zero_centred);
     }
+}
+
+/// Price duration curves (share of hours at or above each price) for a DA and
+/// an RT series, with RT percentile tiles. Shared with SPRD.
+pub(crate) fn duration_view(
+    ui: &mut Ui,
+    cx: &PanelCx<'_>,
+    id: &str,
+    series: [(&str, &series::Points); 2],
+) {
+    let skin = cx.skin;
+    let [(da_name, da), (rt_name, rt)] = series;
+    let rt_curve = series::duration_curve(rt.iter().map(|p| p.1));
+    ui.horizontal_wrapped(|ui| {
+        // The curve is sorted high to low, so x = 10% is the 90th percentile.
+        let at = |pct: f64| rt_curve.iter().find(|p| p[0] >= pct).map(|p| p[1]);
+        let signed = |v: Option<f64>| v.map_or_else(|| fmt::DASH.into(), fmt::price);
+        widgets::stat_tile(
+            ui,
+            skin,
+            &format!("{rt_name} top 10% ≥"),
+            &signed(at(10.0)),
+            None,
+        );
+        widgets::stat_tile(
+            ui,
+            skin,
+            &format!("{rt_name} median"),
+            &signed(at(50.0)),
+            None,
+        );
+        widgets::stat_tile(
+            ui,
+            skin,
+            &format!("{rt_name} bottom 10% ≤"),
+            &signed(at(90.0)),
+            None,
+        );
+    });
+    // Frame the 1st-99th percentile so one scarcity hour does not flatten the
+    // curve; double-click the plot to see the full range.
+    let all: Vec<f64> = da
+        .iter()
+        .chain(rt.iter())
+        .map(|p| p.1)
+        .filter(|v| v.is_finite())
+        .collect();
+    let mut plot = chart::duration_plot(id, skin);
+    if let (Some(lo), Some(hi)) = (
+        series::percentile(&all, 0.01),
+        series::percentile(&all, 0.99),
+    ) {
+        let pad = ((hi - lo) * 0.08).max(1.0);
+        plot = plot.default_y_bounds(lo - pad, hi + pad);
+    }
+    plot.show(ui, |plot| {
+        let line = |name: &str, pts: Vec<[f64; 2]>, color| {
+            egui_plot::Line::new(name, egui_plot::PlotPoints::from(pts))
+                .color(color)
+                .width(1.6)
+        };
+        plot.line(line(
+            da_name,
+            series::duration_curve(da.iter().map(|p| p.1)),
+            skin.series(1),
+        ));
+        plot.line(line(rt_name, rt_curve.clone(), skin.series(0)));
+    });
 }
 
 /// Loading progress, the preliminary-RT note and a Copy CSV button.

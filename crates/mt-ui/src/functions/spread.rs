@@ -17,7 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     aliases: &["SPREAD", "BASIS"],
     name: "Node spread",
     category: Category::Prices,
-    usage: "SPRD <node A> <node B> [days] [HEAT]",
+    usage: "SPRD <node A> <node B> [days] [HEAT|DUR]",
     description: "A − B price spread between two nodes: today at 5 minutes, or hourly DA and RT spreads over N days.",
     takes_node: true,
     open,
@@ -71,9 +71,7 @@ impl Panel for Spread {
                 args.push(b.clone());
                 if self.days > 0 || self.view != View::Today {
                     args.push(self.days.max(1).to_string());
-                    if self.view == View::Heatmap {
-                        args.push("HEAT".into());
-                    }
+                    args.extend(self.view.flag().map(String::from));
                 }
             }
         }
@@ -117,6 +115,22 @@ impl Panel for Spread {
         match self.view {
             View::Today => self.today(ui, cx, &a, &b),
             View::History => self.history(ui, cx, &a, &b),
+            View::Duration => {
+                let (ha, hb) = (
+                    series::node_history(cx, &a, self.component, self.days),
+                    series::node_history(cx, &b, self.component, self.days),
+                );
+                let (da, rt) = (
+                    series::subtract(&ha.da, &hb.da),
+                    series::subtract(&ha.rt, &hb.rt),
+                );
+                super::gp::duration_view(
+                    ui,
+                    cx,
+                    &format!("sprd-dur-{a}-{b}"),
+                    [("DA spread", &da), ("RT spread", &rt)],
+                );
+            }
             View::Heatmap => {
                 ui.horizontal(|ui| {
                     widgets::label(ui, cx.skin, "Colour by");
