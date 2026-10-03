@@ -79,11 +79,23 @@ impl Transport for HttpTransport {
 /// the recorded day.
 pub struct FixtureTransport {
     root: PathBuf,
+    /// Shown in the status bar instead of the directory.
+    label: Option<String>,
 }
 
 impl FixtureTransport {
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+        Self {
+            root: root.into(),
+            label: None,
+        }
+    }
+
+    /// Describe the replay as `label` rather than by its path (renders and
+    /// screenshots should not depend on, or reveal, where the checkout is).
+    pub fn labelled(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
     }
 
     pub fn path_for(&self, url: &str) -> PathBuf {
@@ -137,7 +149,10 @@ impl Transport for FixtureTransport {
     }
 
     fn describe(&self) -> String {
-        format!("replaying {}", self.root.display())
+        match &self.label {
+            Some(label) => format!("replaying {label}"),
+            None => format!("replaying {}", self.root.display()),
+        }
     }
 
     fn is_live(&self) -> bool {

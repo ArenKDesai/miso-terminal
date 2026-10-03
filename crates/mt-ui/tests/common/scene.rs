@@ -62,7 +62,7 @@ pub fn offline_hub(runtime: &tokio::runtime::Runtime, fixtures: &Path) -> DataHu
     DataHub::new(
         runtime.handle().clone(),
         FetchCtx::new(
-            Arc::new(FixtureTransport::new(fixtures)),
+            Arc::new(FixtureTransport::new(fixtures).labelled("recorded MISO data")),
             None,
             FetchCtxOptions {
                 max_concurrent: 8,
@@ -83,6 +83,8 @@ pub fn render(hub: &DataHub, scene: &Scene<'_>) -> Result<image::RgbaImage, Stri
             .map_or(0, |d| d.as_nanos())
     ));
     let mut config = AppConfig::default();
+    // The machine's time zone would make renders differ between machines.
+    config.ui.show_local_clock = false;
     if let Some(theme) = scene.theme {
         config.theme = theme.to_owned();
     }

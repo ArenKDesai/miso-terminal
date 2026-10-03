@@ -786,15 +786,17 @@ impl TerminalApp {
                 );
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                let local = mt_core::time::now_utc()
-                    .with_timezone(&chrono::Local)
-                    .format("%H:%M:%S");
                 let market = now_market().format("%a %b %d  %H:%M:%S");
-                ui.label(
-                    RichText::new(format!("local {local}"))
-                        .small()
-                        .color(skin.text_muted),
-                );
+                if self.config.ui.show_local_clock {
+                    let local = mt_core::time::now_utc()
+                        .with_timezone(&chrono::Local)
+                        .format("%H:%M:%S");
+                    ui.label(
+                        RichText::new(format!("local {local}"))
+                            .small()
+                            .color(skin.text_muted),
+                    );
+                }
                 ui.label(
                     RichText::new(format!("{market} {MARKET_TZ_LABEL}"))
                         .monospace()

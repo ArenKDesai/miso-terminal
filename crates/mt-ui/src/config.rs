@@ -55,6 +55,8 @@ pub struct UiConfig {
     /// Show a system notification (a Windows toast) when an alert fires while
     /// the terminal is not the focused window.
     pub notify_alerts: bool,
+    /// Show the local time next to market time in the status bar.
+    pub show_local_clock: bool,
 }
 
 /// The default function-key bar.
@@ -89,6 +91,7 @@ impl Default for UiConfig {
             dark_theme: mt_theme::DEFAULT_THEME_ID.into(),
             hotkeys: default_hotkeys(),
             notify_alerts: true,
+            show_local_clock: true,
         }
     }
 }
