@@ -69,7 +69,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | Code | Name | What it shows |
 |---|---|---|
 | `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices (RT, next-interval ex-ante, DA) with 5-min sparklines, fuel mix, top constraints |
-| `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable and filterable. `LMP ALL` lists all ~2,600 CP nodes |
+| `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable, and filterable by name, region and node type (hub, load zone, interface, generator). `LMP ALL` lists all ~2,600 CP nodes with this hour's DA and RT − DA |
 | `HUBS` | Hub statistics | All eight trading hubs over N days: DA, RT and DART averages, on-peak and off-peak blocks, RT volatility, extremes and how often RT beat DA |
 | `DAM` | Day-ahead strip | Hourly DA prices at the eight hubs for one day (tomorrow once posted, else today), with on-peak, off-peak and all-hours averages, by component, or as the change from the day before (`DAM TOMORROW`) |
 | `MAP` | Price map | Every node MISO plots, over an interpolated price surface of the footprint, coloured by RT LMP, congestion, loss, DA or RT − DA. Hover for the breakdown, click to graph |
@@ -197,8 +197,9 @@ each piece plugs in.
 - [x] More MISO feeds: RSG commitments and the next-day STR requirement (CAP), CTS (SEAM).
 - [ ] More market reports: DA ex-ante LMPs, DA/RT binding-constraint history,
       MCP history, load-zone summaries.
-- [ ] **Node metadata** beyond the 317 mapped nodes: type, zone and LBA for every
-      CP node, for filtering (`geo.rs` already carries type and position for the mapped ones).
+- [x] Node types for every CP node (hub, load zone, interface, generator), from the DA report, in LMP.
+- [ ] More node metadata: zone and LBA for every CP node (MISO publishes no feed for it;
+      `geo.rs` carries positions for the 317 mapped ones).
 - [x] Weather by MISO zone (`WX`, National Weather Service): the first non-MISO source (`mt-nws`).
 - [x] Prices at the seams: every interface node, and PJM's CTS forecast at the PJM interface (`SEAM`).
 - [ ] More context sources: gas prices (EIA, needs a free key), and neighbouring ISOs'

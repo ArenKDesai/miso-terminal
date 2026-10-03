@@ -1,9 +1,12 @@
 //! LMP: the price monitor. Every key pricing node with RT and DA side by side,
-//! or the latest five-minute price at all ~2,600 CP nodes.
+//! or the latest five-minute price at all ~2,600 CP nodes. Node types (hub,
+//! load zone, interface, generator) come from today's DA report.
 
+use chrono::Timelike;
 use egui::{RichText, Ui};
 use egui_extras::{Column, TableBuilder};
-use mt_core::is_trading_hub;
+use mt_core::time::market_today;
+use mt_core::{DayReportKind, is_trading_hub};
 
 use crate::context::PanelCx;
 use crate::function::{Category, FunctionSpec, Panel, Route};
@@ -27,6 +30,7 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
         all_nodes: all,
         filter: String::new(),
         region: None,
+        kind: None,
         hubs_only: false,
         sort: Sort::new(0, false),
     }))
@@ -36,14 +40,31 @@ struct Lmp {
     all_nodes: bool,
     filter: String,
     region: Option<String>,
+    /// Show only nodes of this type (a `type_label`).
+    kind: Option<&'static str>,
     hubs_only: bool,
     sort: Sort,
 }
+
+/// MISO's report `Type` column, in words. Note that "Hub" covers ~445
+/// commercial nodes, not just the eight trading hubs.
+fn type_label(t: &str) -> &'static str {
+    match t {
+        "Hub" => "Hub",
+        "Loadzone" => "Load zone",
+        "Interface" => "Interface",
+        "Gennode" => "Generator",
+        _ => "Other",
+    }
+}
+
+const TYPES: [&str; 4] = ["Hub", "Load zone", "Interface", "Generator"];
 
 /// One table row, whichever source it came from.
 struct Row {
     node: String,
     region: String,
+    kind: &'static str,
     rt: Option<f64>,
     rt_hourly: Option<f64>,
     da_exante: Option<f64>,
@@ -62,6 +83,7 @@ impl Row {
 const KEY_COLUMNS: &[(&str, bool)] = &[
     ("Node", false),
     ("Region", false),
+    ("Type", false),
     ("RT 5-min", true),
     ("RT hour", true),
     ("DA ex-ante", true),
@@ -73,28 +95,49 @@ const KEY_COLUMNS: &[(&str, bool)] = &[
 
 const ALL_COLUMNS: &[(&str, bool)] = &[
     ("Node", false),
+    ("Type", false),
     ("RT 5-min", true),
     ("Δ 5-min", true),
+    ("DA ex-post", true),
+    ("RT − DA", true),
     ("MCC", true),
     ("MLC", true),
 ];
 
 impl Lmp {
     fn rows(&self, cx: &PanelCx<'_>) -> (Vec<Row>, mt_data::Snapshot<()>) {
+        let da = cx
+            .hub
+            .watch(&cx.miso.day_report(DayReportKind::DaExPost, market_today()));
+        let da = da.data().and_then(Option::as_ref);
+        let kind = |node: &str| {
+            da.and_then(|r| r.node(node))
+                .map_or("", |r| type_label(&r.node_type))
+        };
         if self.all_nodes {
             let snap = cx.hub.watch(&cx.miso.rt_intraday());
             let rows = snap
                 .data()
                 .map(|d| {
+                    // DA for the hour the latest RT interval falls in, so RT - DA compares like with like.
+                    let hour = d.latest_interval().map(|t| t.hour() as usize);
                     d.latest_all()
                         .into_iter()
                         .map(|(node, p)| Row {
                             node: node.to_owned(),
                             region: String::new(),
+                            kind: kind(node),
                             rt: Some(p.lmp),
                             rt_hourly: None,
                             da_exante: None,
-                            da_expost: None,
+                            da_expost: hour.zip(da.and_then(|r| r.node(node))).and_then(
+                                |(h, r)| {
+                                    r.lmp
+                                        .get(h)
+                                        .filter(|v| v.is_finite())
+                                        .map(|v| f64::from(*v))
+                                },
+                            ),
                             mcc: Some(p.mcc),
                             mlc: Some(p.mlc),
                             change: d.previous(node).map(|prev| p.lmp - prev.lmp),
@@ -113,6 +156,7 @@ impl Lmp {
                         .map(|r| Row {
                             node: r.node.clone(),
                             region: r.region.clone(),
+                            kind: kind(&r.node),
                             rt: r.rt_5min.map(|p| p.lmp),
                             rt_hourly: r.rt_hourly.map(|p| p.lmp),
                             da_exante: r.da_exante.map(|p| p.lmp),
@@ -132,14 +176,14 @@ impl Lmp {
         let s = self.sort;
         let key = |r: &Row, col: usize| -> Option<f64> {
             match (self.all_nodes, col) {
-                (false, 2) | (true, 1) => r.rt,
-                (false, 3) => r.rt_hourly,
-                (false, 4) => r.da_exante,
-                (false, 5) => r.da_expost,
-                (false, 6) => r.dart(),
-                (false, 7) | (true, 3) => r.mcc,
-                (false, 8) | (true, 4) => r.mlc,
-                (true, 2) => r.change,
+                (false, 3) | (true, 2) => r.rt,
+                (false, 4) => r.rt_hourly,
+                (false, 5) => r.da_exante,
+                (false, 6) | (true, 4) => r.da_expost,
+                (false, 7) | (true, 5) => r.dart(),
+                (false, 8) | (true, 6) => r.mcc,
+                (false, 9) | (true, 7) => r.mlc,
+                (true, 3) => r.change,
                 _ => None,
             }
         };
@@ -147,6 +191,9 @@ impl Lmp {
             (_, 0) => s.apply(a.node.cmp(&b.node)),
             (false, 1) => s
                 .apply(a.region.cmp(&b.region))
+                .then_with(|| a.node.cmp(&b.node)),
+            (false, 2) | (true, 1) => s
+                .apply(a.kind.cmp(b.kind))
                 .then_with(|| a.node.cmp(&b.node)),
             (_, c) => cmp_opt(key(a, c), key(b, c), &s).then_with(|| a.node.cmp(&b.node)),
         });
@@ -196,6 +243,16 @@ impl Panel for Lmp {
                         }
                     });
             }
+            egui::ComboBox::from_id_salt("lmp-type")
+                .selected_text(self.kind.unwrap_or("All types"))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.kind, None, "All types");
+                    for t in TYPES {
+                        ui.selectable_value(&mut self.kind, Some(t), t);
+                    }
+                })
+                .response
+                .on_hover_text("MISO's node type. \"Hub\" is ~445 commercial nodes; tick Hubs for the eight trading hubs.");
             ui.checkbox(&mut self.hubs_only, "Hubs");
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 widgets::freshness(ui, skin, &snap);
@@ -207,6 +264,7 @@ impl Panel for Lmp {
             (needle.is_empty() || r.node.contains(&needle))
                 && (!self.hubs_only || is_trading_hub(&r.node))
                 && self.region.as_ref().is_none_or(|reg| &r.region == reg)
+                && self.kind.is_none_or(|k| r.kind == k)
         });
         self.sort_rows(&mut rows);
 
@@ -232,9 +290,27 @@ impl Panel for Lmp {
                 let c = |v: Option<f64>| v.map_or_else(String::new, |v| format!("{v:.2}"));
                 if all {
                     csv::to_csv(
-                        &["node", "rt_5min", "change_5min", "mcc", "mlc"],
+                        &[
+                            "node",
+                            "type",
+                            "rt_5min",
+                            "change_5min",
+                            "da_expost",
+                            "rt_minus_da",
+                            "mcc",
+                            "mlc",
+                        ],
                         rows.iter().map(|r| {
-                            vec![r.node.clone(), c(r.rt), c(r.change), c(r.mcc), c(r.mlc)]
+                            vec![
+                                r.node.clone(),
+                                r.kind.to_owned(),
+                                c(r.rt),
+                                c(r.change),
+                                c(r.da_expost),
+                                c(r.dart()),
+                                c(r.mcc),
+                                c(r.mlc),
+                            ]
                         }),
                     )
                 } else {
@@ -242,6 +318,7 @@ impl Panel for Lmp {
                         &[
                             "node",
                             "region",
+                            "type",
                             "rt_5min",
                             "rt_hourly",
                             "da_exante",
@@ -254,6 +331,7 @@ impl Panel for Lmp {
                             vec![
                                 r.node.clone(),
                                 r.region.clone(),
+                                r.kind.to_owned(),
                                 c(r.rt),
                                 c(r.rt_hourly),
                                 c(r.da_exante),
@@ -313,15 +391,22 @@ impl Panel for Lmp {
                         RichText::new(v.map_or_else(|| fmt::DASH.into(), fmt::signed))
                             .color(v.map_or(skin.text_muted, |v| skin.delta(v)))
                     };
+                    let kind = |ui: &mut Ui| {
+                        ui.label(RichText::new(r.kind).color(skin.text_muted));
+                    };
                     if self.all_nodes {
+                        row.col(kind);
                         row.col(|ui| num_cell(ui, price(r.rt)));
                         row.col(|ui| num_cell(ui, signed(r.change)));
+                        row.col(|ui| num_cell(ui, price(r.da_expost)));
+                        row.col(|ui| num_cell(ui, signed(r.dart())));
                         row.col(|ui| num_cell(ui, fmt::price_opt(r.mcc)));
                         row.col(|ui| num_cell(ui, fmt::price_opt(r.mlc)));
                     } else {
                         row.col(|ui| {
                             ui.label(RichText::new(&r.region).color(skin.text_muted));
                         });
+                        row.col(kind);
                         row.col(|ui| num_cell(ui, price(r.rt)));
                         row.col(|ui| num_cell(ui, price(r.rt_hourly)));
                         row.col(|ui| num_cell(ui, price(r.da_exante)));
