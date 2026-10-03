@@ -122,6 +122,35 @@ impl FetchCtx {
         Ok(body)
     }
 
+    /// Read something the app stored itself (e.g. `local://intraday/<day>`)
+    /// from the disk cache, off the async workers. `None` without a cache.
+    pub async fn local_get(&self, key: &str) -> Option<Bytes> {
+        let cache = self.inner.cache.clone()?;
+        let key = key.to_owned();
+        tokio::task::spawn_blocking(move || cache.get(&key))
+            .await
+            .ok()
+            .flatten()
+    }
+
+    /// Store something under a local key. Failures are logged, not returned:
+    /// the cache is an optimisation.
+    pub async fn local_put(&self, key: &str, data: Vec<u8>) -> bool {
+        let Some(cache) = self.inner.cache.clone() else {
+            return false;
+        };
+        let (key, events) = (key.to_owned(), self.events().clone());
+        tokio::task::spawn_blocking(move || match cache.put(&key, &data) {
+            Ok(()) => true,
+            Err(e) => {
+                events.warn(format!("could not store {key}: {e}"));
+                false
+            }
+        })
+        .await
+        .unwrap_or(false)
+    }
+
     pub async fn get_text(&self, url: &str) -> Result<String, FetchError> {
         Ok(text(self.get(url).await?))
     }

@@ -1,6 +1,7 @@
 //! GP: graph a node's price. Today's five-minute RT against the DA ex-post
 //! staircase, or N days of hourly DA against RT with summary statistics.
 
+use chrono::Timelike;
 use egui::{RichText, Ui};
 
 use crate::context::{AppCommand, PanelCx};
@@ -15,8 +16,8 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     aliases: &["GRAPH", "CHART"],
     name: "Graph price",
     category: Category::Prices,
-    usage: "GP <node> [days] [HEAT|DUR]",
-    description: "Price chart for one node: today's 5-minute RT vs DA, or hourly DA vs RT over N days, by component.",
+    usage: "GP <node> [days] [HEAT|DUR|5MIN]",
+    description: "Price chart for one node: today's 5-minute RT vs DA, hourly DA vs RT over N days, or five-minute RT from the local archive, by component.",
     takes_node: true,
     open,
 };
@@ -54,6 +55,8 @@ pub(crate) fn parse_days(arg: Option<&String>) -> Result<u32, String> {
 pub(crate) enum View {
     Today,
     History,
+    /// Five-minute RT over N days, from the local archive.
+    FiveMinute,
     Heatmap,
     Duration,
 }
@@ -64,6 +67,7 @@ impl View {
         match flag.map(|f| f.to_ascii_uppercase()).as_deref() {
             Some("HEAT") => Self::Heatmap,
             Some("DUR") => Self::Duration,
+            Some("5MIN") => Self::FiveMinute,
             _ if days > 0 => Self::History,
             _ => Self::Today,
         }
@@ -74,6 +78,7 @@ impl View {
         match self {
             Self::Heatmap => Some("HEAT"),
             Self::Duration => Some("DUR"),
+            Self::FiveMinute => Some("5MIN"),
             Self::Today | Self::History => None,
         }
     }
@@ -133,6 +138,10 @@ impl Panel for Gp {
         match self.view {
             View::Today => self.today(ui, cx, &node),
             View::History => self.history(ui, cx, &node),
+            View::FiveMinute => {
+                let f = series::node_five_minute(cx, &node, self.component, self.days);
+                five_minute_view(ui, cx, &format!("gp-5min-{node}"), &f, &f.rt, &f.da);
+            }
             View::Heatmap => self.heatmap(ui, cx, &node),
             View::Duration => {
                 let h = series::node_history(cx, &node, self.component, self.days);
@@ -163,6 +172,8 @@ pub(crate) fn view_controls(
     ui.horizontal_wrapped(|ui| {
         ui.selectable_value(view, View::Today, "Today · 5-min");
         ui.selectable_value(view, View::History, "History · hourly");
+        ui.selectable_value(view, View::FiveMinute, "History · 5-min")
+            .on_hover_text("Five-minute RT for past days, from prices saved while MISO Terminal runs (plus MISO's previous-day feed for yesterday)");
         ui.selectable_value(view, View::Heatmap, "Heatmap");
         ui.selectable_value(view, View::Duration, "Duration");
         ui.separator();
@@ -377,6 +388,114 @@ impl Gp {
         });
         widgets::heatmap::hour_day(ui, cx.skin, &points, zero_centred);
     }
+}
+
+/// Five-minute RT over N days against the hourly DA staircase, with notes on
+/// which days the archive has. `rt` and `da` may be spreads. Shared with SPRD.
+pub(crate) fn five_minute_view(
+    ui: &mut Ui,
+    cx: &PanelCx<'_>,
+    id: &str,
+    f: &series::FiveMinute,
+    rt: &series::Points,
+    da: &series::Points,
+) {
+    let skin = cx.skin;
+    let rt_vals: Vec<f64> = rt.iter().map(|p| p.1).collect();
+    // Compare like with like: DA over the hours that have five-minute RT.
+    let rt_hours: std::collections::HashSet<_> = rt
+        .iter()
+        .filter_map(|(t, _)| t.date().and_hms_opt(t.hour(), 0, 0))
+        .collect();
+    let da_matched = series::mean(da.iter().filter(|(t, _)| rt_hours.contains(t)).map(|p| p.1));
+    ui.horizontal_wrapped(|ui| {
+        widgets::stat_tile(
+            ui,
+            skin,
+            "RT avg",
+            &fmt::price_opt(series::mean(rt_vals.iter().copied())),
+            Some(RichText::new(format!("{} intervals", rt_vals.len())).color(skin.text_muted)),
+        );
+        widgets::stat_tile(
+            ui,
+            skin,
+            "DA avg",
+            &fmt::price_opt(da_matched),
+            Some(RichText::new("same hours as RT").color(skin.text_muted)),
+        );
+        widgets::stat_tile(
+            ui,
+            skin,
+            "RT max",
+            &fmt::price_opt(rt_vals.iter().copied().max_by(f64::total_cmp)),
+            Some(
+                RichText::new(format!(
+                    "min {}",
+                    fmt::price_opt(rt_vals.iter().copied().min_by(f64::total_cmp))
+                ))
+                .color(skin.text_muted),
+            ),
+        );
+        widgets::stat_tile(
+            ui,
+            skin,
+            "RT std dev",
+            &fmt::price_opt(series::std_dev(&rt_vals)),
+            Some(
+                RichText::new(format!(
+                    "{} negative intervals",
+                    rt_vals.iter().filter(|v| **v < 0.0).count()
+                ))
+                .color(skin.text_muted),
+            ),
+        );
+    });
+    ui.horizontal_wrapped(|ui| {
+        if f.pending > 0 {
+            ui.spinner();
+        }
+        let mut note = String::from(
+            "Past days come from prices saved while MISO Terminal runs; yesterday also from MISO's previous-day feed.",
+        );
+        if f.partial > 0 {
+            note += &format!(" {} day(s) only partly saved.", f.partial);
+        }
+        if !f.missing.is_empty() {
+            let days: Vec<String> = f
+                .missing
+                .iter()
+                .map(|d| d.format("%b %-d").to_string())
+                .collect();
+            note += &format!(" Not saved: {}.", days.join(", "));
+        }
+        ui.label(RichText::new(note).small().color(skin.text_muted));
+        csv::copy_button(ui, skin, || {
+            let da_at: std::collections::HashMap<_, _> = da.iter().copied().collect();
+            csv::to_csv(
+                &["interval_start_est", "rt", "da_hour"],
+                rt.iter().map(|(t, v)| {
+                    let hour = t.date().and_hms_opt(t.hour(), 0, 0).unwrap_or(*t);
+                    vec![
+                        t.format("%Y-%m-%d %H:%M").to_string(),
+                        format!("{v:.2}"),
+                        da_at
+                            .get(&hour)
+                            .map_or_else(String::new, |d: &f64| format!("{d:.2}")),
+                    ]
+                }),
+            )
+        });
+    });
+    if rt.is_empty() && da.is_empty() {
+        if f.pending == 0 {
+            ui.label(RichText::new("No prices saved for this span yet.").color(skin.warning));
+        }
+        return;
+    }
+    chart::time_plot(id, skin).show(ui, |plot| {
+        chart::hourly_steps(plot, "DA ex-post", da, skin.series(1));
+        chart::gapped_line(plot, "RT 5-min", rt, skin.series(0), 10.0 * 60.0);
+    });
 }
 
 /// Price duration curves (share of hours at or above each price) for a DA and

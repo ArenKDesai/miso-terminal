@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use chrono::{Duration, NaiveDate, NaiveDateTime, Timelike};
 use mt_core::time::market_today;
-use mt_core::{DayLmpReport, DayNodeRow, DayReportKind, NodeSeries};
+use mt_core::{DayLmpReport, DayNodeRow, DayReportKind, NodeSeries, RtIntraday};
 use mt_miso::parse::hourly_points;
 
 use crate::context::PanelCx;
@@ -201,6 +201,85 @@ pub fn node_history(cx: &PanelCx<'_>, node: &str, component: Component, days: u3
         h.rt.extend(hourly_average(&component.intraday(&s)));
     }
     h
+}
+
+/// Five-minute RT at a node over the last `days` days, with hourly DA for the
+/// same span. Past days come from the local archive (saved while the app
+/// runs) and, for yesterday, MISO's previous-day feed; today from the live feed.
+pub struct FiveMinute {
+    pub rt: Points,
+    pub da: Points,
+    /// Past days in the window with nothing saved.
+    pub missing: Vec<NaiveDate>,
+    /// Past days with only part of the day saved.
+    pub partial: usize,
+    /// Archive reads or downloads still in progress.
+    pub pending: usize,
+}
+
+pub fn node_five_minute(
+    cx: &PanelCx<'_>,
+    node: &str,
+    component: Component,
+    days: u32,
+) -> FiveMinute {
+    let today = market_today();
+    let first = today - Duration::days(i64::from(days.max(1)) - 1);
+    let mut out = FiveMinute {
+        rt: Vec::new(),
+        da: Vec::new(),
+        missing: Vec::new(),
+        partial: 0,
+        pending: 0,
+    };
+    let points = |s: &RtIntraday| {
+        s.series(node)
+            .map(|s| component.intraday(&s))
+            .unwrap_or_default()
+    };
+    let mut day = first;
+    while day <= today {
+        let da = cx
+            .hub
+            .watch(&cx.miso.day_report(DayReportKind::DaExPost, day));
+        out.pending += usize::from(da.data.is_none() && da.error.is_none());
+        out.da
+            .extend(report_points(da.data(), node, component, day));
+        if day < today {
+            let saved = cx.hub.watch(&cx.miso.rt_archive_day(day));
+            let mut waiting = saved.data.is_none() && saved.error.is_none();
+            let mut best = saved
+                .data()
+                .and_then(Option::as_ref)
+                .map(|s| (points(s), s.intervals().len()));
+            // Yesterday is still on MISO's previous-day feed, which fills the
+            // archive in as a side effect.
+            if day == today - Duration::days(1)
+                && best
+                    .as_ref()
+                    .is_none_or(|(_, n)| *n < mt_miso::INTERVALS_PER_DAY)
+            {
+                let prev = cx.hub.watch(&cx.miso.rt_previous_day());
+                waiting |= prev.data.is_none() && prev.error.is_none();
+                if let Some(s) = prev.data().filter(|s| s.market_day == Some(day)) {
+                    best = Some((points(s), s.intervals().len()));
+                }
+            }
+            out.pending += usize::from(waiting);
+            match best {
+                Some((pts, n)) if !pts.is_empty() => {
+                    out.partial += usize::from(n < mt_miso::INTERVALS_PER_DAY);
+                    out.rt.extend(pts);
+                }
+                _ if !waiting => out.missing.push(day),
+                _ => {}
+            }
+        } else if let Some(s) = cx.hub.watch(&cx.miso.rt_intraday()).data() {
+            out.rt.extend(points(s));
+        }
+        day += Duration::days(1);
+    }
+    out
 }
 
 /// Summary statistics for a pair of hourly series (DA and RT, or two spreads).

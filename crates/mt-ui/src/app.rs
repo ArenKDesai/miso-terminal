@@ -889,9 +889,7 @@ impl eframe::App for TerminalApp {
 }
 
 /// Disk-cache key for a market day's five-minute store.
-pub(crate) fn intraday_key(day: chrono::NaiveDate) -> String {
-    format!("local://intraday/{day}")
-}
+pub(crate) use mt_miso::intraday_archive_key as intraday_key;
 
 /// Open a folder in the platform file manager.
 fn reveal(path: &std::path::Path) {

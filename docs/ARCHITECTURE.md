@@ -70,6 +70,17 @@ late in the day. The shell saves today's five-minute store to the disk cache
 age (so freshness labels stay honest), and makes it due at once. The first
 refresh then builds on it as `prev`.
 
+### The five-minute archive
+
+Each day's store stays in the cache under `local://intraday/<day>`, so the
+saved days accumulate into a five-minute archive. `RtArchiveQuery` reads one
+day back (no network), and `RtPreviousDayQuery` writes yesterday's complete
+day into it whenever MISO's previous-day feed is fetched, replacing a partial
+day. Queries reach the store through `FetchCtx::local_get` / `local_put`, which
+keep the disk work off the async workers; any source can keep its own data the
+same way. `series::node_five_minute` stitches archive days, yesterday and today
+together for GP and SPRD (`… 5MIN`).
+
 ### Feeds with memory
 
 `Query::fetch` receives the previous value. `RtIntradayQuery` uses that to seed
@@ -137,7 +148,7 @@ with a grid that snaps to market midnight.
 |---|---|
 | `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces |
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; transports; disk cache |
-| `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green) |
+| `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
 | `mt-ui` | Command parsing, completion and hints; alert engine; series maths; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart |

@@ -4,7 +4,7 @@
 use egui::{RichText, Ui};
 use egui_plot::HLine;
 
-use super::gp::{Heat, View, history_notes, parse_days, view_controls};
+use super::gp::{Heat, View, five_minute_view, history_notes, parse_days, view_controls};
 use crate::context::PanelCx;
 use crate::function::{Category, FunctionSpec, Panel, Route};
 use crate::series::{self, Component, Stats};
@@ -17,7 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     aliases: &["SPREAD", "BASIS"],
     name: "Node spread",
     category: Category::Prices,
-    usage: "SPRD <node A> <node B> [days] [HEAT|DUR]",
+    usage: "SPRD <node A> <node B> [days] [HEAT|DUR|5MIN]",
     description: "A − B price spread between two nodes: today at 5 minutes, or hourly DA and RT spreads over N days.",
     takes_node: true,
     open,
@@ -115,6 +115,18 @@ impl Panel for Spread {
         match self.view {
             View::Today => self.today(ui, cx, &a, &b),
             View::History => self.history(ui, cx, &a, &b),
+            View::FiveMinute => {
+                let fa = series::node_five_minute(cx, &a, self.component, self.days);
+                let fb = series::node_five_minute(cx, &b, self.component, self.days);
+                five_minute_view(
+                    ui,
+                    cx,
+                    &format!("sprd-5min-{a}-{b}"),
+                    &fa,
+                    &series::subtract(&fa.rt, &fb.rt),
+                    &series::subtract(&fa.da, &fb.da),
+                );
+            }
             View::Duration => {
                 let (ha, hb) = (
                     series::node_history(cx, &a, self.component, self.days),

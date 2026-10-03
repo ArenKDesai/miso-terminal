@@ -66,7 +66,17 @@ fn axis_label(mark: GridMark, range: &std::ops::RangeInclusive<f64>) -> String {
         return String::new();
     };
     let span = range.end() - range.start();
-    if mark.step_size >= DAY || span > 3.0 * DAY {
+    let midnight = t.time() == chrono::NaiveTime::MIN;
+    if span > 3.0 * DAY {
+        // Dates at midnight; times in between only while they still fit.
+        if midnight {
+            t.format("%b %d").to_string()
+        } else if span <= 7.0 * DAY {
+            t.format("%H:%M").to_string()
+        } else {
+            String::new()
+        }
+    } else if mark.step_size >= DAY {
         t.format("%b %d").to_string()
     } else if span > DAY {
         t.format("%a %H:%M").to_string()
@@ -198,6 +208,41 @@ fn steps(
     }
 }
 
+/// A line that breaks wherever consecutive points are more than `max_gap_secs`
+/// apart (missing days in the five-minute archive), sharing one legend entry.
+pub fn gapped_line(
+    plot: &mut PlotUi<'_>,
+    name: &str,
+    pts: &[(NaiveDateTime, f64)],
+    color: Color32,
+    max_gap_secs: f64,
+) {
+    for run in gap_runs(pts, max_gap_secs) {
+        plot.line(
+            Line::new(name, PlotPoints::from(run))
+                .color(color)
+                .width(1.4),
+        );
+    }
+}
+
+/// Split points into runs at gaps longer than `max_gap_secs`.
+pub fn gap_runs(pts: &[(NaiveDateTime, f64)], max_gap_secs: f64) -> Vec<Vec<[f64; 2]>> {
+    let mut runs: Vec<Vec<[f64; 2]>> = Vec::new();
+    let mut prev: Option<f64> = None;
+    for (t, v) in pts.iter().filter(|(_, v)| v.is_finite()) {
+        let x = chart_x(*t);
+        if prev.is_none_or(|p| x - p > max_gap_secs) {
+            runs.push(Vec::new());
+        }
+        if let Some(run) = runs.last_mut() {
+            run.push([x, *v]);
+        }
+        prev = Some(x);
+    }
+    runs
+}
+
 /// Expand `(start, value)` points into staircase segments, starting a new
 /// segment wherever consecutive points are more than one period apart.
 /// (egui cannot draw NaN, so gaps are separate segments, not NaN markers.)
@@ -221,6 +266,41 @@ pub fn step_runs(pts: &[(NaiveDateTime, f64)], period_secs: f64) -> Vec<Vec<[f64
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn multi_day_axes_label_dates_at_midnight_only() {
+        let day = chrono::NaiveDate::from_ymd_opt(2026, 9, 30).unwrap();
+        let x = |h: u32| chart_x(day.and_hms_opt(h, 0, 0).unwrap());
+        let mark = |h: u32, step: f64| GridMark {
+            value: x(h),
+            step_size: step,
+        };
+        let five_days = x(0)..=x(0) + 5.0 * DAY;
+        assert_eq!(axis_label(mark(0, DAY), &five_days), "Sep 30");
+        assert_eq!(axis_label(mark(12, DAY / 2.0), &five_days), "12:00");
+        let month = x(0)..=x(0) + 30.0 * DAY;
+        assert_eq!(axis_label(mark(12, DAY / 2.0), &month), "");
+    }
+
+    #[test]
+    fn lines_break_at_gaps() {
+        let day = chrono::NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
+        let t = |d: i64, m: u32| {
+            (day + chrono::Duration::days(d))
+                .and_hms_opt(0, m, 0)
+                .unwrap()
+        };
+        let pts = [
+            (t(0, 0), 1.0),
+            (t(0, 5), 2.0),
+            (t(2, 0), 3.0),
+            (t(2, 5), f64::NAN),
+        ];
+        let runs = gap_runs(&pts, 600.0);
+        assert_eq!(runs.len(), 2, "a missing day starts a new run");
+        assert_eq!(runs[0].len(), 2);
+        assert_eq!(runs[1].len(), 1, "NaN is dropped");
+    }
 
     #[test]
     fn grid_aligns_to_market_hours() {

@@ -338,7 +338,7 @@ impl RtIntraday {
     }
 }
 
-const INTRADAY_MAGIC: &[u8] = b"MTRT1 ";
+const INTRADAY_MAGIC: &[u8] = b"MTRT1\0";
 
 /// A bounds-checked little-endian cursor.
 struct Reader<'a> {

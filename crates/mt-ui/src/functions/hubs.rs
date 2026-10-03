@@ -104,7 +104,7 @@ const HEADERS: [&str; 11] = [
     "RT on-peak",
     "DA off-peak",
     "RT off-peak",
-    "RT σ",
+    "RT std dev",
     "RT max",
     "RT min",
     "RT > DA",

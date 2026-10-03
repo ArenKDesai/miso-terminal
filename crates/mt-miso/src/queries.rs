@@ -115,6 +115,12 @@ impl Miso {
         }
     }
 
+    /// One past day's five-minute RT prices from the local archive (`None`
+    /// when that day was never saved). Nothing is downloaded.
+    pub fn rt_archive_day(&self, day: NaiveDate) -> RtArchiveQuery {
+        RtArchiveQuery { day }
+    }
+
     /// One daily report. `None` inside the result means "not published yet".
     pub fn day_report(&self, kind: DayReportKind, day: NaiveDate) -> DayReportQuery {
         DayReportQuery {
@@ -339,7 +345,71 @@ impl Query for RtPreviousDayQuery {
         let body = ctx
             .get_text(&self.endpoints.api(paths::RT_FIVE_MIN_PREVIOUS))
             .await?;
-        Ok(RtIntraday::from_rows(parse::parse_rt_five_min(&body)?))
+        let store = RtIntraday::from_rows(parse::parse_rt_five_min(&body)?);
+        // A complete day fills in the archive, which may only have the part of
+        // the day the app was running for.
+        if let Some(day) = store.market_day {
+            let key = intraday_archive_key(day);
+            let have = store.intervals().len();
+            let saved = ctx
+                .local_get(&key)
+                .await
+                .and_then(|b| RtIntraday::from_bytes(&b))
+                .map_or(0, |s| s.intervals().len());
+            if have > saved && ctx.local_put(&key, store.to_bytes()).await {
+                ctx.events()
+                    .info(format!("archived {have} five-minute intervals for {day}"));
+            }
+        }
+        Ok(store)
+    }
+}
+
+/// Where a market day's five-minute store lives in the disk cache. Today's is
+/// written every few minutes while the app runs; earlier days form the archive.
+pub fn intraday_archive_key(day: NaiveDate) -> String {
+    format!("local://intraday/{day}")
+}
+
+/// Five-minute intervals in a complete market day.
+pub const INTERVALS_PER_DAY: usize = 288;
+
+/// A past day's five-minute store, read from the local archive. Days the app
+/// saw only part of are re-read now and then, in case the previous-day feed
+/// has since completed them.
+#[derive(Clone, Debug)]
+pub struct RtArchiveQuery {
+    day: NaiveDate,
+}
+
+impl Query for RtArchiveQuery {
+    type Output = Option<RtIntraday>;
+
+    fn key(&self) -> String {
+        format!("archive/rt/{}", self.day)
+    }
+
+    fn label(&self) -> String {
+        format!("RT five-minute archive, {}", self.day)
+    }
+
+    fn freshness(&self, value: &Option<RtIntraday>) -> Freshness {
+        match value {
+            Some(s) if s.intervals().len() >= INTERVALS_PER_DAY => Freshness::Forever,
+            _ => Freshness::Every(Duration::from_secs(5 * 60)),
+        }
+    }
+
+    async fn fetch(
+        &self,
+        ctx: FetchCtx,
+        _prev: Option<Arc<Option<RtIntraday>>>,
+    ) -> Result<Option<RtIntraday>, FetchError> {
+        Ok(ctx
+            .local_get(&intraday_archive_key(self.day))
+            .await
+            .and_then(|b| RtIntraday::from_bytes(&b))
+            .filter(|s| s.market_day == Some(self.day)))
     }
 }
 

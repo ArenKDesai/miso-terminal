@@ -71,8 +71,8 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable and filterable. `LMP ALL` lists all ~2,600 CP nodes |
 | `HUBS` | Hub statistics | All eight trading hubs over N days: DA, RT and DART averages, on-peak and off-peak blocks, RT volatility, extremes and how often RT beat DA |
 | `MAP` | Price map | Every node MISO plots, over an interpolated price surface of the footprint, coloured by RT LMP, congestion, loss, DA or RT − DA. Hover for the breakdown, click to graph |
-| `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), N days of hourly DA vs RT with stats, an hour × day heatmap (`GP MINN.HUB 14 HEAT`), or price duration curves (`… DUR`). Switch between LMP, energy, congestion and loss |
-| `SPRD` | Node spread | A − B between any two nodes: today at 5 minutes, or hourly DA and RT spreads over N days, with stats. Use the congestion component for an FTR-style view |
+| `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), N days of hourly DA vs RT with stats, an hour × day heatmap (`GP MINN.HUB 14 HEAT`), price duration curves (`… DUR`), or five-minute RT over past days from the local archive (`… 5MIN`). Switch between LMP, energy, congestion and loss |
+| `SPRD` | Node spread | A − B between any two nodes: today at 5 minutes, hourly DA and RT spreads over N days with stats, or five-minute spreads from the archive. Use the congestion component for an FTR-style view |
 | `CMP` | Compare nodes | Up to eight nodes on one chart: today's 5-minute RT, or hourly RT or DA over N days, with a latest/average/range row each (`CMP MINN.HUB MICHIGAN.HUB 7`) |
 | `WL` | Watchlist | Your favourite nodes: RT vs DA, 5-min change and today's sparkline. Add from here, with `WL <node>`, or with ☆ in GP. Saved to config |
 | `ASM` | Ancillary MCPs | Regulation, spinning, supplemental, short-term reserve and ramp MCPs by zone |
@@ -178,7 +178,10 @@ each piece plugs in.
 - [x] Yesterday's five-minute RT alongside today's in GP (MISO's `Previous` feed, on demand).
 - [x] Keep today's five-minute prices across restarts (sparklines in seconds instead
       of waiting up to a minute for MISO's rolling feed).
-- [ ] A five-minute archive over many days, built from the saved daily stores.
+- [x] A five-minute archive over many days (`GP <node> 7 5MIN`), built from the daily stores
+      saved while the app runs, with yesterday completed from MISO's previous-day feed.
+- [ ] Backfill the five-minute archive for days the app was not running (MISO only
+      publishes today and yesterday at five minutes; older days would need another source).
 - [ ] **Long history from a local archive:** a `Query` source backed by the
       Energy-Pricing-Journalist DuckDB (DA/RT nodal LMPs since 2023-01-01), or a
       Parquet export of it. GP then gets `90d`, `1y` and more.
