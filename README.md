@@ -69,7 +69,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `WX` | Weather | Now, today's and tomorrow's high/low, dew point, wind and the 48-hour trend for a city in each MISO zone (National Weather Service); hourly chart for all or one |
 | `CONS` | Binding constraints | RT binding constraints, shadow prices, and how long each has bound |
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
-| `ALRT` | Alerts | Price (any node, above/below) and constraint alerts: add rules, see which hold, and what fired. A firing rule flashes the taskbar and shows a ⚠ badge |
+| `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast and ACE: add rules, see which hold, and what fired. A firing rule flashes the taskbar and shows a ⚠ badge |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, fetch activity, cache and file locations |
 | `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits and MISO endpoints, saved to config.toml |
 | `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
@@ -183,8 +183,8 @@ each piece plugs in.
 - [x] Price duration curves for a node or spread (`GP <node> 30 DUR`).
 - [x] **Alerts** (`ALRT`): per-node price thresholds and constraint conditions,
       edge-triggered, with a taskbar flash and an in-app badge.
-- [ ] More alert kinds (load forecast miss, RDT near limit, spread thresholds) and
-      Windows toast notifications.
+- [x] More alert kinds: spreads, RDT near its limit, load above forecast, ACE.
+- [ ] Windows toast notifications for alerts (today: taskbar flash and in-app badge).
 - [x] `WL` watchlist of favourite nodes, editable in-app (☆ in GP) and saved to config.
 - [ ] Pop a tab out into its own OS window (egui_dock windows + eframe viewports)
       for multi-monitor desks.

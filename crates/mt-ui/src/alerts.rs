@@ -8,7 +8,8 @@
 use std::collections::{HashMap, VecDeque};
 
 use chrono::NaiveDateTime;
-use mt_core::BindingConstraints;
+use chrono::Timelike;
+use mt_core::{Ace, BindingConstraints, RegionalTransfer, SystemLoad};
 use serde::{Deserialize, Serialize};
 
 use crate::widgets::fmt;
@@ -27,6 +28,36 @@ pub enum AlertRule {
     ConstraintBinds { contains: String },
     /// Any binding constraint with |shadow price| at or above `value` ($/MWh).
     ShadowPriceAbove { value: f64 },
+    /// RT price at `a` minus RT price at `b` at or above `value` ($/MWh).
+    SpreadAbove { a: String, b: String, value: f64 },
+    /// North-South regional transfer at or above `pct`% of its limit.
+    TransferAbove { pct: f64 },
+    /// Actual load at least `pct`% above the medium-term forecast for the hour.
+    LoadAboveForecast { pct: f64 },
+    /// |Area control error| at or above `mw`.
+    AceAbove { mw: f64 },
+}
+
+/// Which feeds a rule reads, so the shell only watches what is needed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Feeds {
+    pub prices: bool,
+    pub constraints: bool,
+    pub transfer: bool,
+    pub load: bool,
+    pub ace: bool,
+}
+
+impl Feeds {
+    pub fn union(self, o: Self) -> Self {
+        Self {
+            prices: self.prices || o.prices,
+            constraints: self.constraints || o.constraints,
+            transfer: self.transfer || o.transfer,
+            load: self.load || o.load,
+            ace: self.ace || o.ace,
+        }
+    }
 }
 
 impl AlertRule {
@@ -39,11 +70,45 @@ impl AlertRule {
             Self::ShadowPriceAbove { value } => {
                 format!("any |shadow price| ≥ {}", fmt::price(*value))
             }
+            Self::SpreadAbove { a, b, value } => format!("{a} − {b} RT ≥ {}", fmt::signed(*value)),
+            Self::TransferAbove { pct } => format!("N–S transfer ≥ {pct:.0}% of limit"),
+            Self::LoadAboveForecast { pct } => format!("load ≥ {pct:.1}% above forecast"),
+            Self::AceAbove { mw } => format!("|ACE| ≥ {} MW", fmt::mw(*mw)),
         }
     }
 
-    pub fn needs_prices(&self) -> bool {
-        matches!(self, Self::PriceAbove { .. } | Self::PriceBelow { .. })
+    pub fn feeds(&self) -> Feeds {
+        match self {
+            Self::PriceAbove { .. } | Self::PriceBelow { .. } | Self::SpreadAbove { .. } => Feeds {
+                prices: true,
+                ..Feeds::default()
+            },
+            Self::ConstraintBinds { .. } | Self::ShadowPriceAbove { .. } => Feeds {
+                constraints: true,
+                ..Feeds::default()
+            },
+            Self::TransferAbove { .. } => Feeds {
+                transfer: true,
+                ..Feeds::default()
+            },
+            Self::LoadAboveForecast { .. } => Feeds {
+                load: true,
+                ..Feeds::default()
+            },
+            Self::AceAbove { .. } => Feeds {
+                ace: true,
+                ..Feeds::default()
+            },
+        }
+    }
+
+    /// Pricing nodes the rule reads.
+    pub fn nodes(&self) -> Vec<&str> {
+        match self {
+            Self::PriceAbove { node, .. } | Self::PriceBelow { node, .. } => vec![node],
+            Self::SpreadAbove { a, b, .. } => vec![a, b],
+            _ => Vec::new(),
+        }
     }
 
     /// Whether the condition holds now, with a detail line; `None` when the
@@ -96,15 +161,88 @@ impl AlertRule {
                     _ => (false, String::new()),
                 })
             }
+            Self::SpreadAbove { a, b, value } => {
+                let ((at, pa), (_, pb)) = ((data.price)(a)?, (data.price)(b)?);
+                let spread = pa - pb;
+                Some((
+                    spread >= *value,
+                    format!("{a} − {b} at {} EST: {}", fmt::hm(at), fmt::signed(spread)),
+                ))
+            }
+            Self::TransferAbove { pct } => {
+                let p = data
+                    .transfer?
+                    .points
+                    .iter()
+                    .rev()
+                    .find(|p| p.flow.is_some())?;
+                let used = p.utilization()? * 100.0;
+                let flow = p.flow.unwrap_or_default();
+                Some((
+                    used >= *pct,
+                    format!(
+                        "{} MW at {} EST = {used:.0}% of limit",
+                        fmt::mw_signed(flow),
+                        fmt::hm(p.time)
+                    ),
+                ))
+            }
+            Self::LoadAboveForecast { pct } => {
+                let load = data.load?;
+                let (at, actual) = load.latest()?;
+                // Five-minute stamps are interval-beginning; HE = hour + 1.
+                let he = u8::try_from(at.hour() + 1).ok()?;
+                let forecast = load.forecast.iter().find(|(h, _)| *h == he)?.1;
+                let miss = (actual - forecast) / forecast * 100.0;
+                Some((
+                    miss >= *pct,
+                    format!(
+                        "{} MW vs {} forecast HE{he} ({miss:+.1}%)",
+                        fmt::mw(actual),
+                        fmt::mw(forecast)
+                    ),
+                ))
+            }
+            Self::AceAbove { mw } => {
+                let &(at, ace) = data.ace?.points.last()?;
+                Some((
+                    ace.abs() >= *mw,
+                    format!(
+                        "ACE {} MW at {}",
+                        fmt::mw_signed(ace),
+                        at.format("%H:%M:%S")
+                    ),
+                ))
+            }
         }
     }
 }
 
-/// What the rules can see.
+/// What the rules can see. Feeds a rule needs but that have not loaded are
+/// `None`, and that rule is skipped until they arrive.
 pub struct AlertData<'a> {
     /// Latest RT price and its interval for a node.
     pub price: &'a dyn Fn(&str) -> Option<(NaiveDateTime, f64)>,
     pub constraints: Option<&'a BindingConstraints>,
+    pub transfer: Option<&'a RegionalTransfer>,
+    pub load: Option<&'a SystemLoad>,
+    pub ace: Option<&'a Ace>,
+}
+
+impl<'a> AlertData<'a> {
+    /// Only prices (and constraints), for callers that have nothing else.
+    pub fn prices(
+        price: &'a dyn Fn(&str) -> Option<(NaiveDateTime, f64)>,
+        constraints: Option<&'a BindingConstraints>,
+    ) -> Self {
+        Self {
+            price,
+            constraints,
+            transfer: None,
+            load: None,
+            ace: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -184,15 +322,7 @@ mod tests {
         let at = |p: f64| move |_: &str| Some((t(), p));
         let run = |engine: &mut AlertEngine, p: f64| {
             let f = at(p);
-            engine
-                .evaluate(
-                    &rules,
-                    &AlertData {
-                        price: &f,
-                        constraints: None,
-                    },
-                )
-                .len()
+            engine.evaluate(&rules, &AlertData::prices(&f, None)).len()
         };
         assert_eq!(run(&mut engine, 50.0), 0);
         assert_eq!(run(&mut engine, 120.0), 1, "crossing fires");
@@ -214,13 +344,7 @@ mod tests {
         let none = |_: &str| None;
         assert!(
             engine
-                .evaluate(
-                    &rules,
-                    &AlertData {
-                        price: &none,
-                        constraints: None
-                    }
-                )
+                .evaluate(&rules, &AlertData::prices(&none, None))
                 .is_empty()
         );
         assert_eq!(engine.is_active(&rules[0]), None);
@@ -244,14 +368,76 @@ mod tests {
             AlertRule::ShadowPriceAbove { value: 1000.0 },
         ];
         let none = |_: &str| None;
-        let fired = AlertEngine::default().evaluate(
-            &rules,
-            &AlertData {
-                price: &none,
-                constraints: Some(&c),
-            },
-        );
+        let fired = AlertEngine::default().evaluate(&rules, &AlertData::prices(&none, Some(&c)));
         assert_eq!(fired.len(), 2);
+    }
+
+    #[test]
+    fn spread_transfer_load_and_ace_alerts() {
+        use mt_core::TransferPoint;
+        let price = |n: &str| Some((t(), if n == "A" { 50.0 } else { 30.0 }));
+        let transfer = RegionalTransfer {
+            points: vec![TransferPoint {
+                time: t(),
+                flow: Some(2_300.0),
+                raw: None,
+                north_south_limit: Some(-3_000.0),
+                south_north_limit: Some(2_500.0),
+            }],
+        };
+        // 16:30 EST is HE17; actual 3% over forecast.
+        let load = SystemLoad {
+            actual_5min: vec![(t(), 103_000.0)],
+            forecast: vec![(17, 100_000.0)],
+            ..Default::default()
+        };
+        let ace = Ace {
+            points: vec![(t(), -1_200.0)],
+        };
+        let data = AlertData {
+            price: &price,
+            constraints: None,
+            transfer: Some(&transfer),
+            load: Some(&load),
+            ace: Some(&ace),
+        };
+        let rules = vec![
+            AlertRule::SpreadAbove {
+                a: "A".into(),
+                b: "B".into(),
+                value: 15.0,
+            },
+            AlertRule::SpreadAbove {
+                a: "A".into(),
+                b: "B".into(),
+                value: 25.0,
+            },
+            AlertRule::TransferAbove { pct: 90.0 },
+            AlertRule::TransferAbove { pct: 95.0 },
+            AlertRule::LoadAboveForecast { pct: 2.5 },
+            AlertRule::LoadAboveForecast { pct: 5.0 },
+            AlertRule::AceAbove { mw: 1_000.0 },
+            AlertRule::AceAbove { mw: 1_500.0 },
+        ];
+        let fired: Vec<String> = AlertEngine::default()
+            .evaluate(&rules, &data)
+            .into_iter()
+            .map(|e| e.rule)
+            .collect();
+        assert_eq!(
+            fired,
+            vec![
+                rules[0].describe(),
+                rules[2].describe(),
+                rules[4].describe(),
+                rules[6].describe()
+            ]
+        );
+        let feeds = rules
+            .iter()
+            .fold(Feeds::default(), |f, r| f.union(r.feeds()));
+        assert!(feeds.prices && feeds.transfer && feeds.load && feeds.ace && !feeds.constraints);
+        assert_eq!(rules[0].nodes(), vec!["A", "B"]);
     }
 
     #[test]

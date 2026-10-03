@@ -11,7 +11,7 @@ use mt_data::{DataHub, EntryState};
 use mt_miso::Miso;
 use mt_theme::{ThemeRegistry, dir_fingerprint};
 
-use crate::alerts::{AlertData, AlertEngine, AlertRule};
+use crate::alerts::{AlertData, AlertEngine, AlertRule, Feeds};
 use crate::command::{self, Parsed, Suggestion};
 use crate::config::{AppConfig, AppPaths};
 use crate::context::{AppCommand, PanelCx};
@@ -299,16 +299,23 @@ impl TerminalApp {
         }
         let board = self.hub.watch(&self.miso.lmp_board());
         let rules = &self.config.alerts;
+        let feeds = rules
+            .iter()
+            .fold(Feeds::default(), |f, r| f.union(r.feeds()));
         // Only pull the all-node feed if a rule watches a node the board lacks.
-        let needs_intraday = rules.iter().any(|r| match r {
-            AlertRule::PriceAbove { node, .. } | AlertRule::PriceBelow { node, .. } => {
-                board.data().is_none_or(|b| b.row(node).is_none())
-            }
-            _ => false,
-        });
+        let needs_intraday = rules
+            .iter()
+            .flat_map(AlertRule::nodes)
+            .any(|n| board.data().is_none_or(|b| b.row(n).is_none()));
         let intraday = needs_intraday.then(|| self.hub.watch(&self.miso.rt_intraday()));
-        let needs_constraints = rules.iter().any(|r| !r.needs_prices());
-        let cons = needs_constraints.then(|| self.hub.watch(&self.miso.binding_constraints()));
+        let cons = feeds
+            .constraints
+            .then(|| self.hub.watch(&self.miso.binding_constraints()));
+        let transfer = feeds
+            .transfer
+            .then(|| self.hub.watch(&self.miso.regional_transfer()));
+        let load = feeds.load.then(|| self.hub.watch(&self.miso.load()));
+        let ace = feeds.ace.then(|| self.hub.watch(&self.miso.ace()));
         let price = |node: &str| -> Option<(chrono::NaiveDateTime, f64)> {
             if let Some(b) = board.data()
                 && let Some(p) = b.row(node).and_then(|r| r.rt_5min)
@@ -321,6 +328,9 @@ impl TerminalApp {
         let data = AlertData {
             price: &price,
             constraints: cons.as_ref().and_then(|c| c.data()),
+            transfer: transfer.as_ref().and_then(|c| c.data()),
+            load: load.as_ref().and_then(|c| c.data()),
+            ace: ace.as_ref().and_then(|c| c.data()),
         };
         let fired = self.alerts.evaluate(rules, &data);
         if let Some(last) = fired.last() {

@@ -15,7 +15,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Alerts",
     category: Category::System,
     usage: "ALRT",
-    description: "Price and constraint alerts: add rules, see which hold now, and the history of what fired.",
+    description: "Alerts on prices, spreads, constraints, N–S transfer, load vs forecast and ACE: add rules, see which hold now, and what fired.",
     takes_node: false,
     open,
 };
@@ -25,6 +25,8 @@ fn open(_: &[String]) -> Result<Box<dyn Panel>, String> {
         kind: Kind::PriceAbove,
         node: None,
         picker: NodePicker::default(),
+        node_b: None,
+        picker_b: NodePicker::default(),
         value: 100.0,
         contains: String::new(),
     }))
@@ -34,24 +36,49 @@ fn open(_: &[String]) -> Result<Box<dyn Panel>, String> {
 enum Kind {
     PriceAbove,
     PriceBelow,
+    SpreadAbove,
     ConstraintBinds,
     ShadowPriceAbove,
+    TransferAbove,
+    LoadAboveForecast,
+    AceAbove,
 }
 
 impl Kind {
-    const ALL: [Self; 4] = [
+    const ALL: [Self; 8] = [
         Self::PriceAbove,
         Self::PriceBelow,
+        Self::SpreadAbove,
         Self::ConstraintBinds,
         Self::ShadowPriceAbove,
+        Self::TransferAbove,
+        Self::LoadAboveForecast,
+        Self::AceAbove,
     ];
 
     fn label(self) -> &'static str {
         match self {
             Self::PriceAbove => "RT price at or above",
             Self::PriceBelow => "RT price at or below",
+            Self::SpreadAbove => "RT spread A − B at or above",
             Self::ConstraintBinds => "Constraint binds",
             Self::ShadowPriceAbove => "Any |shadow price| at or above",
+            Self::TransferAbove => "N–S transfer at or above % of limit",
+            Self::LoadAboveForecast => "Load above forecast by at least %",
+            Self::AceAbove => "|ACE| at or above MW",
+        }
+    }
+
+    /// A sensible starting value when the kind is picked.
+    fn default_value(self) -> f64 {
+        match self {
+            Self::PriceAbove | Self::ShadowPriceAbove => 100.0,
+            Self::PriceBelow => 0.0,
+            Self::SpreadAbove => 20.0,
+            Self::TransferAbove => 90.0,
+            Self::LoadAboveForecast => 3.0,
+            Self::AceAbove => 1_000.0,
+            Self::ConstraintBinds => 0.0,
         }
     }
 }
@@ -60,6 +87,9 @@ struct Alrt {
     kind: Kind,
     node: Option<String>,
     picker: NodePicker,
+    /// Second node, for spreads.
+    node_b: Option<String>,
+    picker_b: NodePicker,
     value: f64,
     contains: String,
 }
@@ -84,6 +114,18 @@ impl Alrt {
             Kind::ConstraintBinds => return None,
             Kind::ShadowPriceAbove => AlertRule::ShadowPriceAbove {
                 value: self.value.abs(),
+            },
+            Kind::SpreadAbove => AlertRule::SpreadAbove {
+                a: node()?,
+                b: self.node_b.clone()?,
+                value: self.value,
+            },
+            Kind::TransferAbove => AlertRule::TransferAbove {
+                pct: self.value.abs(),
+            },
+            Kind::LoadAboveForecast => AlertRule::LoadAboveForecast { pct: self.value },
+            Kind::AceAbove => AlertRule::AceAbove {
+                mw: self.value.abs(),
             },
         })
     }
@@ -142,7 +184,9 @@ impl Panel for Alrt {
                     .selected_text(self.kind.label())
                     .show_ui(ui, |ui| {
                         for k in Kind::ALL {
-                            ui.selectable_value(&mut self.kind, k, k.label());
+                            if ui.selectable_value(&mut self.kind, k, k.label()).changed() {
+                                self.value = k.default_value();
+                            }
                         }
                     });
                 match self.kind {
@@ -165,6 +209,27 @@ impl Panel for Alrt {
                     }
                     Kind::ShadowPriceAbove => {
                         ui.add(egui::DragValue::new(&mut self.value).speed(5.0).prefix("$"));
+                    }
+                    Kind::SpreadAbove => {
+                        ui.add(egui::DragValue::new(&mut self.value).speed(1.0).prefix("$"));
+                        for (label, node, picker, id) in [
+                            ("A", &mut self.node, &mut self.picker, "alrt-a"),
+                            ("B", &mut self.node_b, &mut self.picker_b, "alrt-b"),
+                        ] {
+                            ui.label(label);
+                            if let Some(n) = node.as_ref() {
+                                ui.label(RichText::new(n).strong().color(skin.text_strong));
+                            }
+                            if let Some(n) = picker.show(ui, cx, id, "node…") {
+                                *node = Some(n);
+                            }
+                        }
+                    }
+                    Kind::TransferAbove | Kind::LoadAboveForecast => {
+                        ui.add(egui::DragValue::new(&mut self.value).speed(0.5).suffix("%"));
+                    }
+                    Kind::AceAbove => {
+                        ui.add(egui::DragValue::new(&mut self.value).speed(25.0).suffix(" MW"));
                     }
                 }
                 let rule = self.rule();
