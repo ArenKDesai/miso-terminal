@@ -22,6 +22,16 @@ pub struct GeoNode {
     pub lat: f64,
 }
 
+/// One transmission line of the 230 kV-and-up backbone (HIFLD), simplified.
+#[derive(Debug, Deserialize)]
+pub struct GeoLine {
+    /// Nominal voltage, kV: 230, 345, 500 or 765.
+    pub kv: u16,
+    /// `lon, lat, lon, lat, ...`
+    #[serde(rename = "p")]
+    pub points: Vec<f64>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct MapData {
     pub source: String,
@@ -30,6 +40,9 @@ pub struct MapData {
     pub footprint: Vec<Vec<[f64; 2]>>,
     /// State outlines clipped to the footprint's surroundings.
     pub states: Vec<Vec<[f64; 2]>>,
+    /// The transmission backbone, lowest voltage first.
+    #[serde(default)]
+    pub lines: Vec<GeoLine>,
     #[serde(skip)]
     index: HashMap<String, usize>,
 }
@@ -52,6 +65,27 @@ pub fn map() -> &'static MapData {
             .map(|(i, n)| (n.node.clone(), i))
             .collect();
         m
+    })
+}
+
+/// Transmission lines in projected coordinates, `(kV, points)`, computed once.
+pub fn lines_xy() -> &'static [(u16, Vec<[f64; 2]>)] {
+    static LINES: OnceLock<Vec<(u16, Vec<[f64; 2]>)>> = OnceLock::new();
+    LINES.get_or_init(|| {
+        map()
+            .lines
+            .iter()
+            .map(|l| {
+                let pts = l
+                    .points
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|[lon, lat]| project(*lon, *lat))
+                    .collect();
+                (l.kv, pts)
+            })
+            .collect()
     })
 }
 
@@ -103,6 +137,10 @@ mod tests {
             8
         );
         assert!(m.node("MINN.HUB").is_some());
+        assert!(m.lines.len() > 1000, "the transmission backbone");
+        assert!(m.lines.iter().all(|l| [230, 345, 500, 765].contains(&l.kv)
+            && l.points.len() >= 4
+            && l.points.len() % 2 == 0));
         for n in &m.nodes {
             assert!(
                 // Interfaces sit in neighbouring regions (CPLE is in the Carolinas).

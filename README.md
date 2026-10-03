@@ -72,7 +72,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable, and filterable by name, region and node type (hub, load zone, interface, generator). `LMP ALL` lists all ~2,600 CP nodes with this hour's DA and RT − DA |
 | `HUBS` | Hub statistics | All eight trading hubs over N days: DA, RT and DART averages, on-peak and off-peak blocks, RT volatility, extremes and how often RT beat DA |
 | `DAM` | Day-ahead strip | Hourly DA prices at the eight hubs for one day (tomorrow once posted, else today), with on-peak, off-peak and all-hours averages, by component, or as the change from the day before (`DAM TOMORROW`) |
-| `MAP` | Price map | Every node MISO plots, over an interpolated price surface of the footprint, coloured by RT LMP, congestion, loss, DA or RT − DA. Hover for the breakdown, click to graph |
+| `MAP` | Price map | Every node MISO plots, over an interpolated price surface of the footprint and the 230 kV-and-up transmission backbone, coloured by RT LMP, congestion, loss, DA or RT − DA. Hover for the breakdown, click to graph |
 | `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), N days of hourly DA vs RT with stats, an hour × day heatmap (`GP MINN.HUB 14 HEAT`), price duration curves (`… DUR`), or five-minute RT over past days from the local archive (`… 5MIN`). Switch between LMP, energy, congestion and loss |
 | `SPRD` | Node spread | A − B between any two nodes: today at 5 minutes, hourly DA and RT spreads over N days with stats, or five-minute spreads from the archive. Use the congestion component for an FTR-style view |
 | `CMP` | Compare nodes | Up to eight nodes on one chart: today's 5-minute RT, or hourly RT or DA over N days, with a latest/average/range row each (`CMP MINN.HUB MICHIGAN.HUB 7`) |
@@ -219,7 +219,7 @@ each piece plugs in.
 ### Functions and UI
 - [x] `MAP`: node price map (LMP, congestion, loss, DA, DART) built from MISO's own node positions; click to GP.
 - [x] MAP: an interpolated price surface over the footprint.
-- [ ] MAP: transmission lines (3D-MISO-Map has them; needs a much-simplified asset).
+- [x] MAP: the transmission backbone (HIFLD, 230 kV and up, simplified to ~1.5 km).
 - [x] `SPRD A B`: node-to-node spreads (today at 5 minutes, hourly history, by component).
 - [x] Hour × day heatmap for a node or a spread (`GP <node> 14 HEAT`, `SPRD A B 14 HEAT`).
 - [x] Price duration curves for a node or spread (`GP <node> 30 DUR`).

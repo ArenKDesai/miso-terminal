@@ -90,6 +90,7 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
         metric,
         show_generators: true,
         labels: true,
+        lines: true,
         surface: true,
         mask: None,
         texture: None,
@@ -100,6 +101,8 @@ struct MapPanel {
     metric: Metric,
     show_generators: bool,
     labels: bool,
+    /// Draw the 230 kV-and-up transmission backbone.
+    lines: bool,
     /// Draw the interpolated price surface under the markers.
     surface: bool,
     /// Which grid cells fall inside the footprint (computed once).
@@ -200,6 +203,9 @@ impl Panel for MapPanel {
             ui.separator();
             ui.checkbox(&mut self.show_generators, "Generators");
             ui.checkbox(&mut self.labels, "Hub labels");
+            ui.checkbox(&mut self.lines, "Lines").on_hover_text(
+                "Transmission lines, 230 kV and up (HIFLD); heavier for higher voltage",
+            );
             ui.checkbox(&mut self.surface, "Surface").on_hover_text(
                 "Interpolated price field over the footprint (inverse-distance weighting)",
             );
@@ -272,6 +278,27 @@ impl Panel for MapPanel {
         // Markers are painted in screen space over the plot so each can have its
         // own colour and shape, and so hover hit-testing is exact.
         let painter = ui.painter_at(resp.response.rect);
+        if self.lines {
+            // Over the surface, under the markers; heavier and brighter with voltage.
+            for (kv, pts) in geo::lines_xy() {
+                let (width, alpha) = match kv {
+                    765 | 500 => (1.6, 0.85),
+                    345 => (1.0, 0.6),
+                    _ => (0.6, 0.4),
+                };
+                let screen: Vec<Pos2> = pts
+                    .iter()
+                    .map(|p| {
+                        resp.transform
+                            .position_from_point(&PlotPoint::new(p[0], p[1]))
+                    })
+                    .collect();
+                painter.add(Shape::line(
+                    screen,
+                    Stroke::new(width, skin.text.gamma_multiply(alpha)),
+                ));
+            }
+        }
         let hover = resp.response.hover_pos();
         let mut nearest: Option<(f32, usize)> = None;
         // Generators first so hubs and zones sit on top.
