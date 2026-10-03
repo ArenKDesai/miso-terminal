@@ -17,6 +17,8 @@ pub struct AppConfig {
     pub ui: UiConfig,
     pub data: DataConfig,
     pub endpoints: MisoEndpoints,
+    /// Alert rules (see the ALRT function), as `[[alerts]]` tables.
+    pub alerts: Vec<crate::alerts::AlertRule>,
 }
 
 impl Default for AppConfig {
@@ -26,6 +28,7 @@ impl Default for AppConfig {
             ui: UiConfig::default(),
             data: DataConfig::default(),
             endpoints: MisoEndpoints::default(),
+            alerts: Vec::new(),
         }
     }
 }

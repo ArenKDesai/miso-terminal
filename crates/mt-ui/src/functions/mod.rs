@@ -3,6 +3,7 @@
 //! persistence and the smoke tests pick it up from this list.
 
 mod ace;
+mod alrt;
 mod asm;
 mod capacity;
 mod cons;
@@ -42,6 +43,7 @@ pub fn all() -> Vec<FunctionSpec> {
         ace::SPEC,
         cons::SPEC,
         outages::SPEC,
+        alrt::SPEC,
         log::SPEC,
         theme::SPEC,
         help::SPEC,

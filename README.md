@@ -66,6 +66,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `ACE` | Area control error | 30-second ACE over the last two hours: how far generation is from balancing load |
 | `CONS` | Binding constraints | RT binding constraints, shadow prices, and how long each has bound |
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
+| `ALRT` | Alerts | Price (any node, above/below) and constraint alerts: add rules, see which hold, and what fired. A firing rule flashes the taskbar and shows a ⚠ badge |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, fetch activity, cache and file locations |
 | `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
 | `HELP` | Help | Functions, keyboard shortcuts, data notes |
@@ -170,8 +171,10 @@ each piece plugs in.
 - [x] `SPRD A B`: node-to-node spreads (today at 5 minutes, hourly history, by component).
 - [x] Hour × day heatmap for a node or a spread (`GP <node> 14 HEAT`, `SPRD A B 14 HEAT`).
 - [ ] Price duration curve for a node.
-- [ ] **Alerts:** per-node price thresholds, a constraint starting to bind, a load
-      forecast miss. Shown in-app and as Windows toast notifications.
+- [x] **Alerts** (`ALRT`): per-node price thresholds and constraint conditions,
+      edge-triggered, with a taskbar flash and an in-app badge.
+- [ ] More alert kinds (load forecast miss, RDT near limit, spread thresholds) and
+      Windows toast notifications.
 - [x] `WL` watchlist of favourite nodes, editable in-app (☆ in GP) and saved to config.
 - [ ] Pop a tab out into its own OS window (egui_dock windows + eframe viewports)
       for multi-monitor desks.

@@ -11,6 +11,7 @@ use mt_data::{DataHub, EntryState};
 use mt_miso::Miso;
 use mt_theme::{ThemeRegistry, dir_fingerprint};
 
+use crate::alerts::{AlertData, AlertEngine, AlertRule};
 use crate::command::{self, Parsed, Suggestion};
 use crate::config::{AppConfig, AppPaths};
 use crate::context::{AppCommand, PanelCx};
@@ -58,6 +59,7 @@ pub struct TerminalApp {
     skin: Skin,
     fonts: FontLibrary,
     notices: Vec<String>,
+    pub(crate) alerts: AlertEngine,
     workspace: Workspace,
     cmd: CommandLine,
     themes_fingerprint: u64,
@@ -110,6 +112,7 @@ impl TerminalApp {
                 .into_iter()
                 .map(AppCommand::Run)
                 .collect(),
+            alerts: AlertEngine::default(),
             config: deps.config,
             paths: deps.paths,
         };
@@ -217,6 +220,19 @@ impl TerminalApp {
                 AppCommand::Open(route) => self.workspace.open(route, &self.registry),
                 AppCommand::Run(text) => self.run_command(ctx, &text),
                 AppCommand::SetTheme(id) => self.set_theme(ctx, &id),
+                AppCommand::AddAlert(rule) => {
+                    if !self.config.alerts.contains(&rule) {
+                        self.config.alerts.push(rule);
+                        self.save_config();
+                    }
+                }
+                AppCommand::RemoveAlert(i) => {
+                    if i < self.config.alerts.len() {
+                        self.config.alerts.remove(i);
+                        self.save_config();
+                    }
+                }
+                AppCommand::AlertsSeen => self.alerts.unseen = 0,
                 AppCommand::SetThemeFollow {
                     follow,
                     light,
@@ -250,6 +266,48 @@ impl TerminalApp {
                 }
                 AppCommand::RevealPath(path) => reveal(&path),
             }
+        }
+    }
+
+    /// Evaluate alert rules against the latest data; flash the taskbar when one fires.
+    fn check_alerts(&mut self, ctx: &egui::Context) {
+        if self.config.alerts.is_empty() {
+            return;
+        }
+        let board = self.hub.watch(&self.miso.lmp_board());
+        let rules = &self.config.alerts;
+        // Only pull the all-node feed if a rule watches a node the board lacks.
+        let needs_intraday = rules.iter().any(|r| match r {
+            AlertRule::PriceAbove { node, .. } | AlertRule::PriceBelow { node, .. } => {
+                board.data().is_none_or(|b| b.row(node).is_none())
+            }
+            _ => false,
+        });
+        let intraday = needs_intraday.then(|| self.hub.watch(&self.miso.rt_intraday()));
+        let needs_constraints = rules.iter().any(|r| !r.needs_prices());
+        let cons = needs_constraints.then(|| self.hub.watch(&self.miso.binding_constraints()));
+        let price = |node: &str| -> Option<(chrono::NaiveDateTime, f64)> {
+            if let Some(b) = board.data()
+                && let Some(p) = b.row(node).and_then(|r| r.rt_5min)
+            {
+                return Some((b.interval?, p.lmp));
+            }
+            let (t, p) = intraday.as_ref()?.data()?.latest(node)?;
+            Some((t, p.lmp))
+        };
+        let data = AlertData {
+            price: &price,
+            constraints: cons.as_ref().and_then(|c| c.data()),
+        };
+        let fired = self.alerts.evaluate(rules, &data);
+        if let Some(last) = fired.last() {
+            for e in &fired {
+                tracing::info!("alert: {} ({})", e.rule, e.detail);
+            }
+            self.feedback(format!("⚠ {}: {}", last.rule, last.detail), false);
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                egui::UserAttentionType::Informational,
+            ));
         }
     }
 
@@ -509,7 +567,7 @@ impl TerminalApp {
         });
     }
 
-    fn status_bar(&self, ui: &mut Ui) {
+    fn status_bar(&self, ui: &mut Ui, commands: &mut Vec<AppCommand>) {
         let skin = &self.skin;
         let status = self.hub.status();
         let count = |s: EntryState| status.iter().filter(|e| e.watched && e.state == s).count();
@@ -528,6 +586,14 @@ impl TerminalApp {
             };
             widgets::lamp(ui, lamp);
             ui.label(RichText::new(text).text_style(label_style()).color(lamp));
+            if self.alerts.unseen > 0 {
+                let label = RichText::new(format!("⚠ {} alert(s)", self.alerts.unseen))
+                    .text_style(label_style())
+                    .color(skin.warning);
+                if ui.add(egui::Button::new(label).small()).clicked() {
+                    commands.push(AppCommand::Open(Route::code("ALRT")));
+                }
+            }
             ui.label(
                 RichText::new(format!("· {}", self.hub.ctx().transport_description()))
                     .small()
@@ -618,6 +684,7 @@ impl eframe::App for TerminalApp {
         self.background_work(&ctx);
         let mut commands = std::mem::take(&mut self.pending);
         self.shortcuts(&ctx, &mut commands);
+        self.check_alerts(&ctx);
 
         let bar = Frame::new()
             .fill(self.skin.surface)
@@ -631,7 +698,7 @@ impl eframe::App for TerminalApp {
                     .fill(self.skin.surface)
                     .inner_margin(Margin::symmetric(10, 3)),
             )
-            .show(ui, |ui| self.status_bar(ui));
+            .show(ui, |ui| self.status_bar(ui, &mut commands));
 
         let dock_style = self.dock_style(ui);
         egui::CentralPanel::default()
@@ -650,6 +717,7 @@ impl eframe::App for TerminalApp {
                     registry: &self.registry,
                     themes: &self.themes,
                     notices: &self.notices,
+                    alerts: &self.alerts,
                     commands: &mut commands,
                 };
                 DockArea::new(&mut self.workspace.dock)

@@ -2,6 +2,7 @@ use mt_data::DataHub;
 use mt_miso::Miso;
 use mt_theme::ThemeRegistry;
 
+use crate::alerts::{AlertEngine, AlertRule};
 use crate::config::{AppConfig, AppPaths};
 use crate::function::{Registry, Route};
 use crate::skin::Skin;
@@ -27,6 +28,11 @@ pub enum AppCommand {
     RefreshWatched,
     SetPaused(bool),
     ClearCache,
+    AddAlert(AlertRule),
+    /// Remove the alert rule at this index in `config.alerts`.
+    RemoveAlert(usize),
+    /// The ALRT function has shown the latest alerts.
+    AlertsSeen,
     /// Open a folder in the system file manager.
     RevealPath(std::path::PathBuf),
 }
@@ -42,6 +48,8 @@ pub struct PanelCx<'a> {
     pub themes: &'a ThemeRegistry,
     /// Problems worth showing in LOG (config parse errors, missing fonts).
     pub notices: &'a [String],
+    /// Alert state and the history of fired alerts.
+    pub alerts: &'a AlertEngine,
     pub(crate) commands: &'a mut Vec<AppCommand>,
 }
 

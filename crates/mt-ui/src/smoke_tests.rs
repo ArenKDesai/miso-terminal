@@ -87,6 +87,7 @@ struct Harness {
     paths: AppPaths,
     registry: Registry,
     themes: ThemeRegistry,
+    alerts: crate::alerts::AlertEngine,
 }
 
 impl Harness {
@@ -99,6 +100,7 @@ impl Harness {
             paths: temp_paths("panels"),
             registry: Registry::builtin(),
             themes: ThemeRegistry::load(None),
+            alerts: crate::alerts::AlertEngine::default(),
         }
     }
 
@@ -143,6 +145,7 @@ impl Harness {
                     registry: &self.registry,
                     themes: &self.themes,
                     notices: &[],
+                    alerts: &self.alerts,
                     commands: &mut commands,
                 };
                 f(ui, &mut cx);
@@ -245,13 +248,21 @@ fn routes_round_trip_through_panels() {
 fn app_shell_runs_frames_and_executes_commands() {
     let rt = runtime();
     let ctx = egui::Context::default();
+    // An always-true alert, to check rules are evaluated against live (fixture) data.
+    let config = AppConfig {
+        alerts: vec![crate::alerts::AlertRule::PriceAbove {
+            node: "MINN.HUB".into(),
+            value: -10_000.0,
+        }],
+        ..AppConfig::default()
+    };
     let deps = Deps {
         hub: hub(&rt),
-        config: AppConfig::default(),
+        config,
         config_error: Some("example config problem".into()),
         paths: temp_paths("shell"),
         reset_layout: true,
-        startup_commands: vec!["FUEL".into(), "GP INDIANA.HUB".into()],
+        startup_commands: vec!["FUEL".into(), "GP INDIANA.HUB".into(), "ALRT".into()],
     };
     let mut app = TerminalApp::headless(&ctx, deps);
     let mut frame = eframe::Frame::_new_kittest();
@@ -268,6 +279,20 @@ fn app_shell_runs_frames_and_executes_commands() {
     for _ in 0..3 {
         run(&mut app);
     }
+    let routes = app.workspace_mut().routes();
+    for code in ["GP", "ALRT"] {
+        assert!(
+            routes.iter().any(|r| r.code == code),
+            "startup command {code} did not open: {routes:?}"
+        );
+    }
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while app.alerts.history.is_empty() {
+        assert!(Instant::now() < deadline, "the alert never fired");
+        std::thread::sleep(Duration::from_millis(50));
+        run(&mut app);
+    }
+    assert!(app.alerts.history[0].rule.contains("MINN.HUB"));
     let before = app.workspace_mut().routes().len();
     app.apply_commands(
         &ctx,

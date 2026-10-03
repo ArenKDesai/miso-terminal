@@ -7,6 +7,7 @@
 //! - [`skin`] + [`fonts`]: applying an `mt_theme::Theme` to egui.
 //! - [`widgets`]: shared building blocks (tiles, tables, charts, formatting).
 
+pub mod alerts;
 pub mod app;
 pub mod command;
 pub mod config;
