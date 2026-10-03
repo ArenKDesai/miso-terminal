@@ -23,6 +23,11 @@ tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+# Toast notifications for alerts, and the per-user key that names them.
+tauri-winrt-notification = "0.8"
+windows-registry = "0.6"
+
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"
 

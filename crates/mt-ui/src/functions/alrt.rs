@@ -151,6 +151,23 @@ impl Panel for Alrt {
         }
         ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             widgets::title_bar(ui, skin, "Alerts", |_| {});
+            if cx.can_notify {
+                ui.horizontal_wrapped(|ui| {
+                    let mut on = cx.config.ui.notify_alerts;
+                    if ui
+                        .checkbox(&mut on, "Windows notifications")
+                        .on_hover_text(
+                            "Show a notification when an alert fires while the terminal is not the active window",
+                        )
+                        .changed()
+                    {
+                        cx.send(AppCommand::SetNotifyAlerts(on));
+                    }
+                    if ui.small_button("Send a test").clicked() {
+                        cx.send(AppCommand::TestNotification);
+                    }
+                });
+            }
             widgets::section(ui, skin, "Rules");
             if cx.config.alerts.is_empty() {
                 ui.label(RichText::new("No rules yet. Add one below.").color(skin.text_muted));

@@ -101,6 +101,7 @@ fn main() -> Result<()> {
         reset_layout: true,
         startup_commands: args.run.clone(),
         remote: None,
+        notifier: None,
     };
     let mut harness = Harness::builder()
         .with_size(egui::vec2(args.size.0, args.size.1))

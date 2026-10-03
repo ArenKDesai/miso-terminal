@@ -33,6 +33,9 @@ if ($Uninstall) {
         foreach ($link in $startMenu, $desktopLink) {
             if (Test-Path $link) { Remove-Item $link }
         }
+        # Written by the app the first time it shows a notification.
+        $toastKey = 'HKCU:\Software\Classes\AppUserModelId\MisoTerminal.Desktop'
+        if (Test-Path $toastKey) { Remove-Item $toastKey -Recurse }
     }
     if (Test-Path $Destination) { Remove-Item $Destination -Recurse -Force }
     Write-Host "Removed $name. Your settings in $env:APPDATA\$name were kept."

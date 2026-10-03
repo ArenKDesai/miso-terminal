@@ -42,6 +42,8 @@ pub struct Deps {
     pub startup_commands: Vec<String>,
     /// Commands forwarded by later launches of the app.
     pub remote: Option<crate::remote::RemoteInbox>,
+    /// System notifications (Windows toasts), where the platform has them.
+    pub notifier: Option<std::sync::Arc<dyn crate::notify::Notifier>>,
 }
 
 #[derive(Default)]
@@ -79,6 +81,7 @@ pub struct TerminalApp {
     /// Generation of the intraday store last written to disk.
     intraday_saved: u64,
     remote: Option<crate::remote::RemoteInbox>,
+    notifier: Option<std::sync::Arc<dyn crate::notify::Notifier>>,
 }
 
 impl TerminalApp {
@@ -131,6 +134,7 @@ impl TerminalApp {
             last_intraday_save: Instant::now(),
             intraday_saved: 0,
             remote: deps.remote,
+            notifier: deps.notifier,
             config: deps.config,
             paths: deps.paths,
         };
@@ -307,6 +311,18 @@ impl TerminalApp {
                     }
                 }
                 AppCommand::AlertsSeen => self.alerts.unseen = 0,
+                AppCommand::SetNotifyAlerts(on) => {
+                    self.config.ui.notify_alerts = on;
+                    self.save_config();
+                }
+                AppCommand::TestNotification => {
+                    if let Some(n) = &self.notifier {
+                        n.notify(
+                            "MISO Terminal",
+                            "Alert notifications are working. This is a test.",
+                        );
+                    }
+                }
                 AppCommand::Capture(req) => {
                     self.capture_next = Some(req);
                     ctx.request_repaint();
@@ -411,6 +427,14 @@ impl TerminalApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
                 egui::UserAttentionType::Informational,
             ));
+            // In-app feedback is enough while the terminal has focus.
+            let focused = ctx.input(|i| i.viewport().focused).unwrap_or(false);
+            if let (Some(n), true, false) = (&self.notifier, self.config.ui.notify_alerts, focused)
+            {
+                for (title, body) in crate::notify::for_alerts(&fired) {
+                    n.notify(&title, &body);
+                }
+            }
         }
     }
 
@@ -891,6 +915,7 @@ impl eframe::App for TerminalApp {
                     themes: &self.themes,
                     notices: &self.notices,
                     alerts: &self.alerts,
+                    can_notify: self.notifier.is_some(),
                     commands: &mut commands,
                 };
                 if let Some(tab) = self.workspace.zoomed_tab() {

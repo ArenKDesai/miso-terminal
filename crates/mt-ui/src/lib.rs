@@ -17,6 +17,7 @@ pub mod fonts;
 pub mod function;
 pub mod functions;
 pub mod geo;
+pub mod notify;
 pub mod remote;
 pub mod series;
 pub mod skin;

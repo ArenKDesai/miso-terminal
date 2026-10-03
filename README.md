@@ -88,7 +88,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `WX` | Weather | Now, today's and tomorrow's high/low, dew point, wind and the 48-hour trend for a city in each MISO zone (National Weather Service); hourly chart for all or one |
 | `CONS` | Binding constraints | RT binding constraints, shadow prices and how long each has bound; reserve and sub-regional constraints |
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
-| `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast and ACE: add rules, see which hold, and what fired. A firing rule flashes the taskbar and shows a ⚠ badge |
+| `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast and ACE: add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, fetch activity, cache and file locations |
 | `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits and MISO endpoints, saved to config.toml |
 | `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
@@ -185,9 +185,11 @@ each piece plugs in.
       saved while the app runs, with yesterday completed from MISO's previous-day feed.
 - [ ] Backfill the five-minute archive for days the app was not running (MISO only
       publishes today and yesterday at five minutes; older days would need another source).
-- [ ] **Long history from a local archive:** a `Query` source backed by the
-      Energy-Pricing-Journalist DuckDB (DA/RT nodal LMPs since 2023-01-01), or a
-      Parquet export of it. GP then gets `90d`, `1y` and more.
+- [ ] **Long history from a local archive:** the Energy-Pricing-Journalist DuckDB
+      (DA/RT nodal LMPs since 2023-01-01). Linking DuckDB itself means a large C++
+      build; lighter: a `uv` script that exports chosen nodes (hubs, zones,
+      interfaces, the watchlist) to a compact file the terminal reads as a local
+      `Query` source. GP then gets `90d`, `1y` and more.
 - [x] Hub **ex-ante LMPs** (next interval) on HOME.
 - [x] New MISO feeds: `ACE` and `RDT` (regional directional transfer vs limits).
 - [x] Net actual interchange (NSI) and reserve / sub-regional constraints (CONS).
@@ -214,7 +216,7 @@ each piece plugs in.
 - [x] **Alerts** (`ALRT`): per-node price thresholds and constraint conditions,
       edge-triggered, with a taskbar flash and an in-app badge.
 - [x] More alert kinds: spreads, RDT near its limit, load above forecast, ACE.
-- [ ] Windows toast notifications for alerts (today: taskbar flash and in-app badge).
+- [x] Windows toast notifications for alerts (toggle and a test button in ALRT).
 - [x] `WL` watchlist of favourite nodes, editable in-app (☆ in GP) and saved to config.
 - [ ] Pop a tab out into its own OS window (egui_dock windows + eframe viewports)
       for multi-monitor desks.

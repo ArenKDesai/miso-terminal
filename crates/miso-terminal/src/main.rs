@@ -15,6 +15,7 @@ use mt_data::{
 use mt_ui::{AppConfig, AppPaths, Deps, TerminalApp};
 
 mod instance;
+mod toast;
 
 const APP_NAME: &str = "MISO Terminal";
 const USAGE: &str = "\
@@ -258,6 +259,7 @@ fn main() -> Result<()> {
         persistence_path: Some(paths.state_file.clone()),
         ..Default::default()
     };
+    let notifier = paths.state_file.parent().and_then(toast::notifier);
     let (remote, inbox) = mt_ui::remote::channel_pair();
     let _instance_lock = primary.map(|p| p.serve(remote));
     let deps = Deps {
@@ -268,6 +270,7 @@ fn main() -> Result<()> {
         reset_layout: args.reset_layout,
         startup_commands: args.run,
         remote: Some(inbox),
+        notifier,
     };
     eframe::run_native(
         APP_NAME,

@@ -162,6 +162,8 @@ impl Harness {
                     themes: &self.themes,
                     notices: &[],
                     alerts: &self.alerts,
+                    // Exercise the notification controls too.
+                    can_notify: true,
                     commands: &mut commands,
                 };
                 f(ui, &mut cx);
@@ -283,6 +285,7 @@ fn app_shell_runs_frames_and_executes_commands() {
         reset_layout: true,
         startup_commands: vec!["FUEL".into(), "GP INDIANA.HUB".into(), "ALRT".into()],
         remote: Some(inbox),
+        notifier: None,
     };
     let mut app = TerminalApp::headless(&ctx, deps);
     let mut frame = eframe::Frame::_new_kittest();
@@ -426,6 +429,7 @@ fn intraday_prices_survive_a_restart() {
         reset_layout: true,
         startup_commands: Vec::new(),
         remote: None,
+        notifier: None,
     };
     let mut app = TerminalApp::headless(&egui::Context::default(), deps);
 
@@ -456,6 +460,7 @@ fn double_clicking_a_tab_zooms_it() {
         reset_layout: true,
         startup_commands: Vec::new(),
         remote: None,
+        notifier: None,
     };
     let mut app = TerminalApp::headless(&ctx, deps);
     let mut frame = eframe::Frame::_new_kittest();

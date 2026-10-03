@@ -52,6 +52,9 @@ pub struct UiConfig {
     /// Function keys that run commands, e.g. `F2 = "HOME"`, `F9 = "GP ALTE.ALTE"`.
     /// F1 (help) and F5 (refresh) are fixed.
     pub hotkeys: std::collections::BTreeMap<String, String>,
+    /// Show a system notification (a Windows toast) when an alert fires while
+    /// the terminal is not the focused window.
+    pub notify_alerts: bool,
 }
 
 /// The default function-key bar.
@@ -85,6 +88,7 @@ impl Default for UiConfig {
             light_theme: "everforge-light".into(),
             dark_theme: mt_theme::DEFAULT_THEME_ID.into(),
             hotkeys: default_hotkeys(),
+            notify_alerts: true,
         }
     }
 }

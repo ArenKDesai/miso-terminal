@@ -41,6 +41,10 @@ pub enum AppCommand {
     RemoveAlert(usize),
     /// The ALRT function has shown the latest alerts.
     AlertsSeen,
+    /// Turn system notifications for alerts on or off (saved to config).
+    SetNotifyAlerts(bool),
+    /// Show a sample system notification.
+    TestNotification,
     /// Copy or save a panel as an image (captured on the next frame).
     Capture(crate::capture::Request),
     /// Replace and save the whole configuration (the SET function).
@@ -64,6 +68,8 @@ pub struct PanelCx<'a> {
     pub notices: &'a [String],
     /// Alert state and the history of fired alerts.
     pub alerts: &'a AlertEngine,
+    /// Whether system notifications are available on this platform.
+    pub can_notify: bool,
     pub(crate) commands: &'a mut Vec<AppCommand>,
 }
 
