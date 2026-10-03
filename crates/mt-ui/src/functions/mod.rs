@@ -2,6 +2,7 @@
 //! `Panel`, then list it below. The command line, menus, HELP, layout
 //! persistence and the smoke tests pick it up from this list.
 
+mod ace;
 mod asm;
 mod capacity;
 mod cons;
@@ -17,6 +18,7 @@ mod outages;
 mod renew;
 mod spread;
 mod theme;
+mod transfer;
 mod watchlist;
 
 use crate::function::FunctionSpec;
@@ -34,6 +36,8 @@ pub fn all() -> Vec<FunctionSpec> {
         fuel::SPEC,
         renew::SPEC,
         nsi::SPEC,
+        transfer::SPEC,
+        ace::SPEC,
         cons::SPEC,
         outages::SPEC,
         log::SPEC,

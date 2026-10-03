@@ -41,6 +41,7 @@ impl Panel for Home {
         let intraday = cx.hub.watch(&cx.miso.rt_intraday());
         let fuel = cx.hub.watch(&cx.miso.fuel_mix());
         let cons = cx.hub.watch(&cx.miso.binding_constraints());
+        let exante = cx.hub.watch(&cx.miso.exante_hubs());
 
         ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             widgets::title_bar(ui, skin, "MISO at a glance", |ui| {
@@ -132,13 +133,14 @@ impl Panel for Home {
                     .map_or(String::new(), |h| format!(" HE{h}"));
                 Grid::new("home-hubs")
                     .striped(true)
-                    .num_columns(7)
+                    .num_columns(8)
                     .spacing([14.0, 4.0])
                     .show(ui, |ui| {
                         for h in [
                             "Hub",
                             "RT 5-min",
                             "Δ 5-min",
+                            "Next (ex-ante)",
                             &format!("RT{he}"),
                             "DA ex-post",
                             "RT − DA",
@@ -178,6 +180,15 @@ impl Panel for Home {
                                     ui.label(RichText::new(fmt::DASH).color(skin.text_muted));
                                 }
                             }
+                            // Ex-ante: the price RT dispatch expects for the coming interval.
+                            let next = exante
+                                .data()
+                                .and_then(|x| x.hubs.iter().find(|(n, _)| n == hub))
+                                .map(|(_, p)| p.lmp);
+                            ui.label(
+                                RichText::new(fmt::price_opt(next))
+                                    .color(next.map_or(skin.text_muted, |v| cx.price_color(v))),
+                            );
                             ui.label(fmt::price_opt(row.rt_hourly.map(|p| p.lmp)));
                             ui.label(fmt::price_opt(row.da_expost.map(|p| p.lmp)));
                             let dart = row.dart();

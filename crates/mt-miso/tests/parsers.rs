@@ -201,6 +201,23 @@ fn snapshot() {
 }
 
 #[test]
+fn regional_transfer() {
+    let r = parse_regional_transfer(&api("RegionalDirectionalTransfer")).unwrap();
+    assert!(r.points.len() > 100, "{} points", r.points.len());
+    assert!(r.points.windows(2).all(|w| w[0].time <= w[1].time));
+    let last = r.points.last().unwrap();
+    assert!(last.north_south_limit.unwrap() < 0.0 && last.south_north_limit.unwrap() > 0.0);
+    assert!(last.utilization().is_some());
+}
+
+#[test]
+fn ace() {
+    let a = parse_ace(&api("Ace")).unwrap();
+    assert!(a.points.len() > 50);
+    assert!(a.points.iter().all(|(_, v)| v.abs() < 10_000.0));
+}
+
+#[test]
 fn day_reports() {
     for (suffix, kind) in [
         ("da_expost_lmp", DayReportKind::DaExPost),

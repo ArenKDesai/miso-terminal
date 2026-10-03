@@ -59,6 +59,8 @@ pub mod paths {
     pub const OUTAGES: &str = "GenerationOutages/GetGenerationOutagesPlusMinusFiveDays";
     pub const CAPACITY: &str = "CsatSupplyDemand";
     pub const SNAPSHOT: &str = "Snapshot";
+    pub const REGIONAL_TRANSFER: &str = "RegionalDirectionalTransfer";
+    pub const ACE: &str = "Ace";
 
     /// Every JSON path, for the fixture recorder.
     pub const ALL: &[&str] = &[
@@ -77,6 +79,8 @@ pub mod paths {
         OUTAGES,
         CAPACITY,
         SNAPSHOT,
+        REGIONAL_TRANSFER,
+        ACE,
     ];
 }
 

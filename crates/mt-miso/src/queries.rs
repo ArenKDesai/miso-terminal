@@ -85,6 +85,12 @@ impl Miso {
     pub fn snapshot(&self) -> ApiQuery<GridSnapshot> {
         self.api(&SNAPSHOT)
     }
+    pub fn regional_transfer(&self) -> ApiQuery<RegionalTransfer> {
+        self.api(&REGIONAL_TRANSFER)
+    }
+    pub fn ace(&self) -> ApiQuery<Ace> {
+        self.api(&ACE)
+    }
 
     /// Five-minute RT prices for every CP node, today so far.
     pub fn rt_intraday(&self) -> RtIntradayQuery {
@@ -147,6 +153,13 @@ api_spec!(RENEWABLES: Renewables = "wind-solar", "Wind and solar", paths::WIND_S
 api_spec!(OUTAGES: Outages = "outages", "Generation outages", paths::OUTAGES, parse::parse_outages);
 api_spec!(CAPACITY: Capacity = "capacity", "Supply and demand", paths::CAPACITY, parse::parse_capacity);
 api_spec!(SNAPSHOT: GridSnapshot = "snapshot", "Grid snapshot", paths::SNAPSHOT, parse::parse_snapshot);
+api_spec!(
+    REGIONAL_TRANSFER: RegionalTransfer = "regional-transfer",
+    "Regional directional transfer",
+    paths::REGIONAL_TRANSFER,
+    parse::parse_regional_transfer
+);
+api_spec!(ACE: Ace = "ace", "Area control error", paths::ACE, parse::parse_ace);
 
 /// A query for one [`ApiSpec`] dataset.
 pub struct ApiQuery<T: 'static> {

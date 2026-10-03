@@ -210,6 +210,45 @@ pub struct Capacity {
     pub points: Vec<CapacityPoint>,
 }
 
+/// North-South regional directional transfer (the MISO Midwest/South
+/// interface), five-minute. Positive flow is South to North.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TransferPoint {
+    pub time: NaiveDateTime,
+    /// Flow as seen by the dispatch engine (UDS), MW.
+    pub flow: Option<f64>,
+    /// Raw measured flow, MW.
+    pub raw: Option<f64>,
+    /// Limit for North-to-South flow (negative), MW.
+    pub north_south_limit: Option<f64>,
+    /// Limit for South-to-North flow (positive), MW.
+    pub south_north_limit: Option<f64>,
+}
+
+impl TransferPoint {
+    /// Share of the limit in the direction of flow, 0-1 (or above, if violated).
+    pub fn utilization(&self) -> Option<f64> {
+        let flow = self.flow?;
+        let limit = if flow >= 0.0 {
+            self.south_north_limit?
+        } else {
+            self.north_south_limit?
+        };
+        (limit.abs() > 0.0).then(|| flow.abs() / limit.abs())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RegionalTransfer {
+    pub points: Vec<TransferPoint>,
+}
+
+/// Area control error: MISO's real-time generation/load imbalance, MW.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Ace {
+    pub points: Vec<TimePoint>,
+}
+
 /// One headline figure from MISO's real-time snapshot.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SnapshotItem {
@@ -263,6 +302,23 @@ mod tests {
         assert_eq!(fuel_key("Hydro"), "hydro");
         assert_eq!(fuel_key("Something New"), "other");
         assert!(FUEL_KEYS.iter().all(|k| fuel_key(k) == *k || *k == "other"));
+    }
+
+    #[test]
+    fn transfer_utilization_uses_the_limit_in_the_flow_direction() {
+        let t = chrono::NaiveDate::from_ymd_opt(2026, 10, 2)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let p = |flow| TransferPoint {
+            time: t,
+            flow: Some(flow),
+            raw: None,
+            north_south_limit: Some(-3000.0),
+            south_north_limit: Some(2500.0),
+        };
+        assert_eq!(p(1250.0).utilization(), Some(0.5));
+        assert_eq!(p(-1500.0).utilization(), Some(0.5));
     }
 
     #[test]

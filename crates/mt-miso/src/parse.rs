@@ -738,6 +738,73 @@ pub fn parse_snapshot(body: &str) -> Result<GridSnapshot, FetchError> {
     Ok(GridSnapshot { items })
 }
 
+// --- Regional directional transfer ---------------------------------------------
+
+#[derive(Deserialize)]
+struct TransferRaw {
+    #[serde(rename = "Interval", default)]
+    points: Vec<TransferPointRaw>,
+}
+
+#[derive(Deserialize)]
+struct TransferPointRaw {
+    #[serde(rename = "instantEST")]
+    time: Option<String>,
+    #[serde(rename = "NORTH_SOUTH_LIMIT")]
+    ns_limit: Option<Num>,
+    #[serde(rename = "SOUTH_NORTH_LIMIT")]
+    sn_limit: Option<Num>,
+    #[serde(rename = "RAW_MW")]
+    raw: Option<Num>,
+    #[serde(rename = "UDSFLOW_MW")]
+    flow: Option<Num>,
+}
+
+pub fn parse_regional_transfer(body: &str) -> Result<RegionalTransfer, FetchError> {
+    let raw: TransferRaw = json("regional directional transfer", body)?;
+    let mut points: Vec<TransferPoint> = raw
+        .points
+        .iter()
+        .filter_map(|p| {
+            Some(TransferPoint {
+                time: dt(p.time.as_deref())?,
+                flow: num(&p.flow),
+                raw: num(&p.raw),
+                north_south_limit: num(&p.ns_limit),
+                south_north_limit: num(&p.sn_limit),
+            })
+        })
+        .collect();
+    points.sort_by_key(|p| p.time);
+    Ok(RegionalTransfer { points })
+}
+
+// --- Area control error -------------------------------------------------------
+
+#[derive(Deserialize)]
+struct AceRaw {
+    #[serde(rename = "ACE", default)]
+    points: Vec<AcePointRaw>,
+}
+
+#[derive(Deserialize)]
+struct AcePointRaw {
+    #[serde(rename = "instantEST")]
+    time: Option<String>,
+    value: Option<Num>,
+}
+
+pub fn parse_ace(body: &str) -> Result<Ace, FetchError> {
+    let raw: AceRaw = json("area control error", body)?;
+    let mut points: Vec<TimePoint> = raw
+        .points
+        .iter()
+        .filter_map(|p| Some((dt(p.time.as_deref())?, num(&p.value)?)))
+        .collect();
+    points.sort_by_key(|p| p.0);
+    Ok(Ace { points })
+}
+
 // --- Daily market report CSVs -------------------------------------------------
 
 /// Parse a daily LMP report (`<yyyymmdd>_da_expost_lmp.csv` and friends).

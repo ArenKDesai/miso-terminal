@@ -50,7 +50,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 
 | Code | Name | What it shows |
 |---|---|---|
-| `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices with 5-min sparklines, fuel mix, top constraints |
+| `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices (RT, next-interval ex-ante, DA) with 5-min sparklines, fuel mix, top constraints |
 | `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable and filterable. `LMP ALL` lists all ~2,600 CP nodes |
 | `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), or N days of hourly DA vs RT with stats. Switch between LMP, energy, congestion and loss |
 | `SPRD` | Node spread | A − B between any two nodes: today at 5 minutes, or hourly DA and RT spreads over N days, with stats. Use the congestion component for an FTR-style view |
@@ -61,6 +61,8 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `FUEL` | Fuel mix | Generation by fuel now, plus a stacked chart of the day |
 | `RENEW` | Wind & solar | Hourly forecast vs actual for today and tomorrow, with forecast bias |
 | `NSI` | Interchange | Net scheduled interchange by neighbour, plus 5-min history |
+| `RDT` | Regional transfer | North-South regional directional transfer over the last day against its limits, with utilisation |
+| `ACE` | Area control error | 30-second ACE over the last two hours: how far generation is from balancing load |
 | `CONS` | Binding constraints | RT binding constraints, shadow prices, and how long each has bound |
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, fetch activity, cache and file locations |
@@ -148,11 +150,10 @@ each piece plugs in.
 - [ ] **Long history from a local archive:** a `Query` source backed by the
       Energy-Pricing-Journalist DuckDB (DA/RT nodal LMPs since 2023-01-01), or a
       Parquet export of it. GP then gets `90d`, `1y` and more.
-- [ ] Panels for datasets that are already parsed but unused: hub **ex-ante LMPs**
-      (`HubExAnte`) next to the ticker, and the **5-min interchange** breakdown.
-- [ ] New MISO feeds: ACE, regional directional transfer (N→S flow vs limits),
-      reserve and sub-regional constraints, RSG commitments, short-term reserve
-      requirements, NAI.
+- [x] Hub **ex-ante LMPs** (next interval) on HOME.
+- [x] New MISO feeds: `ACE` and `RDT` (regional directional transfer vs limits).
+- [ ] More MISO feeds: reserve and sub-regional constraints, RSG commitments,
+      short-term reserve requirements, NAI.
 - [ ] More market reports: DA ex-ante LMPs, DA/RT binding-constraint history,
       MCP history, load-zone summaries.
 - [ ] **Node metadata:** type, zone, LBA and coordinates (the 3D-MISO-Map
