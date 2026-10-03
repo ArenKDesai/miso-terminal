@@ -68,6 +68,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
 | `ALRT` | Alerts | Price (any node, above/below) and constraint alerts: add rules, see which hold, and what fired. A firing rule flashes the taskbar and shows a ⚠ badge |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, fetch activity, cache and file locations |
+| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits and MISO endpoints, saved to config.toml |
 | `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
 | `HELP` | Help | Functions, keyboard shortcuts, data notes |
 
@@ -180,7 +181,7 @@ each piece plugs in.
       for multi-monitor desks.
 - [x] Copy tables as CSV (LMP, WL, GP and SPRD history).
 - [ ] Save a chart as PNG.
-- [ ] `SET`: edit `config.toml` values in-app.
+- [x] `SET`: edit `config.toml` values in-app.
 - [ ] Command line: fuzzy matching, inline argument hints, Bloomberg-style
       function-key menus.
 - [x] Contain panel panics to their tab (logged, with a *Reload panel* button).

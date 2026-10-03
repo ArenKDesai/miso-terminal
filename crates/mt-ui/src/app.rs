@@ -265,6 +265,17 @@ impl TerminalApp {
                     }
                 }
                 AppCommand::RevealPath(path) => reveal(&path),
+                AppCommand::ReplaceConfig(config) => {
+                    let endpoints_changed = config.endpoints != self.config.endpoints;
+                    self.config = *config;
+                    ctx.set_zoom_factor(self.config.ui.zoom.clamp(0.5, 3.0));
+                    if endpoints_changed {
+                        // Cached values stay until their next refresh, which uses the new URLs.
+                        self.miso = Miso::new(self.config.endpoints.clone());
+                    }
+                    self.save_config();
+                    self.feedback("Settings saved", false);
+                }
             }
         }
     }

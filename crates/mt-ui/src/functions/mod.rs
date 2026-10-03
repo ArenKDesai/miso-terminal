@@ -18,6 +18,7 @@ mod map;
 mod nsi;
 mod outages;
 mod renew;
+mod settings;
 mod spread;
 mod theme;
 mod transfer;
@@ -46,6 +47,7 @@ pub fn all() -> Vec<FunctionSpec> {
         alrt::SPEC,
         log::SPEC,
         theme::SPEC,
+        settings::SPEC,
         help::SPEC,
     ]
 }

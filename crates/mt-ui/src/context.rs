@@ -33,6 +33,8 @@ pub enum AppCommand {
     RemoveAlert(usize),
     /// The ALRT function has shown the latest alerts.
     AlertsSeen,
+    /// Replace and save the whole configuration (the SET function).
+    ReplaceConfig(Box<AppConfig>),
     /// Open a folder in the system file manager.
     RevealPath(std::path::PathBuf),
 }
