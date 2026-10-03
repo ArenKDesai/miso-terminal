@@ -85,6 +85,13 @@ impl Panel for Settings {
                             .range(0.0..=10_000.0),
                     );
                     ui.end_row();
+                    ui.label("Local time in the status bar");
+                    ui.checkbox(&mut draft.ui.show_local_clock, "");
+                    ui.end_row();
+                    ui.label("Windows notifications for alerts");
+                    ui.checkbox(&mut draft.ui.notify_alerts, "")
+                        .on_hover_text("When the terminal is not the active window");
+                    ui.end_row();
                 });
 
             widgets::section(ui, skin, "Data");
