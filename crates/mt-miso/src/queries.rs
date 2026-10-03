@@ -131,6 +131,16 @@ impl Miso {
         RtArchiveQuery { day }
     }
 
+    /// A market day's binding constraints, DA or RT (`None` until published:
+    /// DA about 13:30 EST the day before, RT the day after).
+    pub fn constraint_history(&self, market: Market, day: NaiveDate) -> ConstraintHistoryQuery {
+        ConstraintHistoryQuery {
+            endpoints: self.endpoints.clone(),
+            market,
+            day,
+        }
+    }
+
     /// One daily report. `None` inside the result means "not published yet".
     pub fn day_report(&self, kind: DayReportKind, day: NaiveDate) -> DayReportQuery {
         DayReportQuery {
@@ -503,6 +513,66 @@ async fn fetch_report(
         Ok(body) => parse::parse_day_report(kind, day, &body).map(Some),
         Err(FetchError::NotFound(_)) => Ok(None),
         Err(e) => Err(e),
+    }
+}
+
+/// A market day's binding-constraints report.
+#[derive(Clone, Debug)]
+pub struct ConstraintHistoryQuery {
+    endpoints: Arc<MisoEndpoints>,
+    pub market: Market,
+    pub day: NaiveDate,
+}
+
+impl ConstraintHistoryQuery {
+    /// MISO dates the DA report the day before its market day and the RT one
+    /// the day after.
+    pub fn url(&self) -> String {
+        let (file_day, suffix) = match self.market {
+            Market::DayAhead => (self.day - TimeDelta::days(1), reports::DA_BC),
+            Market::RealTime => (self.day + TimeDelta::days(1), reports::RT_BC),
+        };
+        self.endpoints.report_file(file_day, suffix, "xls")
+    }
+}
+
+impl Query for ConstraintHistoryQuery {
+    type Output = Option<ConstraintHistory>;
+
+    fn key(&self) -> String {
+        format!("miso/constraints/{}/{}", self.market.label(), self.day)
+    }
+
+    fn label(&self) -> String {
+        format!("{} binding constraints {}", self.market.label(), self.day)
+    }
+
+    fn freshness(&self, current: &Self::Output) -> Freshness {
+        match current {
+            None => Freshness::Every(UNPUBLISHED_RETRY),
+            Some(_) => Freshness::Forever,
+        }
+    }
+
+    async fn fetch(
+        &self,
+        ctx: FetchCtx,
+        _prev: Option<Arc<Self::Output>>,
+    ) -> Result<Self::Output, FetchError> {
+        let body = match ctx.get_immutable(&self.url()).await {
+            Ok(body) => body,
+            Err(FetchError::NotFound(_)) => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        let history = parse::parse_constraint_history(self.market, &body)?;
+        // Replayed fixtures stand in for any date; live files must match.
+        if history.day != self.day && ctx.is_live() {
+            return Err(FetchError::parse(
+                self.label(),
+                format!("the file is for {}", history.day),
+            ));
+        }
+        Ok(Some(history))
     }
 }
 

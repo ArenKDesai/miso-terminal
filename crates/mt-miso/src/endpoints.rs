@@ -33,8 +33,14 @@ impl MisoEndpoints {
 
     /// `<market_reports>/<yyyymmdd>_<suffix>.csv`
     pub fn report(&self, day: NaiveDate, suffix: &str) -> String {
+        self.report_file(day, suffix, "csv")
+    }
+
+    /// `<market_reports>/<yyyymmdd>_<suffix>.<ext>`, for reports MISO only
+    /// publishes in other formats (e.g. `xls`).
+    pub fn report_file(&self, day: NaiveDate, suffix: &str, ext: &str) -> String {
         format!(
-            "{}/{}_{suffix}.csv",
+            "{}/{}_{suffix}.{ext}",
             self.market_reports.trim_end_matches('/'),
             day.format("%Y%m%d")
         )
@@ -106,6 +112,10 @@ pub mod reports {
     pub const DA_EXANTE: &str = "da_exante_lmp";
     pub const RT_FINAL: &str = "rt_lmp_final";
     pub const RT_PRELIM: &str = "rt_lmp_prelim";
+    /// Day-ahead binding constraints (`.xls`), dated the day before the market day.
+    pub const DA_BC: &str = "da_bc";
+    /// Real-time binding constraints (`.xls`), dated the day after the market day.
+    pub const RT_BC: &str = "rt_bc";
 }
 
 #[cfg(test)]

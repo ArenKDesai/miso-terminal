@@ -5,6 +5,7 @@
 mod ace;
 mod alrt;
 mod asm;
+mod bch;
 mod capacity;
 mod compare;
 mod cons;
@@ -53,6 +54,7 @@ pub fn all() -> Vec<FunctionSpec> {
         ace::SPEC,
         wx::SPEC,
         cons::SPEC,
+        bch::SPEC,
         outages::SPEC,
         alrt::SPEC,
         log::SPEC,

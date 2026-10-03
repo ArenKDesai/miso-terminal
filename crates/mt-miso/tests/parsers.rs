@@ -320,3 +320,63 @@ fn cts_forecasts() {
             .all(|f| (-500.0..5000.0).contains(&f.lmp))
     );
 }
+
+/// The newest recorded `<yyyymmdd>_<suffix>` report: its date and bytes.
+fn latest_report(suffix: &str) -> (NaiveDate, Vec<u8>) {
+    let dir = root().join("docs.misoenergy.org/marketreports");
+    let name = std::fs::read_dir(&dir)
+        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+        .flatten()
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| n.ends_with(suffix))
+        .max()
+        .unwrap_or_else(|| panic!("no *{suffix} in {}", dir.display()));
+    let date = NaiveDate::parse_from_str(&name[..8], "%Y%m%d").expect("dated file name");
+    let bytes = std::fs::read(dir.join(&name)).expect("readable fixture");
+    (date, bytes)
+}
+
+#[test]
+fn binding_constraint_history() {
+    use mt_core::Market;
+    // The DA report is dated the day before its market day, the RT one the day after.
+    let (da_file, da_bytes) = latest_report("_da_bc.xls");
+    let da = parse_constraint_history(Market::DayAhead, &da_bytes).unwrap();
+    assert_eq!(da.day, da_file + chrono::Duration::days(1));
+    let (rt_file, rt_bytes) = latest_report("_rt_bc.xls");
+    let rt = parse_constraint_history(Market::RealTime, &rt_bytes).unwrap();
+    assert_eq!(rt.day, rt_file - chrono::Duration::days(1));
+    for h in [&da, &rt] {
+        assert!(
+            h.records.len() > 100,
+            "{:?}: {} records",
+            h.market,
+            h.records.len()
+        );
+        assert!(
+            h.records
+                .iter()
+                .all(|r| r.id > 0 && !r.name.is_empty() && r.start.date() == h.day)
+        );
+        assert!(
+            h.records
+                .iter()
+                .all(|r| (-100_000.0..100_000.0).contains(&r.shadow_price))
+        );
+    }
+    assert!(
+        da.records
+            .iter()
+            .all(|r| r.start.format("%M").to_string() == "00"),
+        "DA is hourly"
+    );
+    assert!(
+        rt.records
+            .iter()
+            .any(|r| r.start.format("%M").to_string() == "05"),
+        "RT is five-minute"
+    );
+    let s = rt.summary();
+    assert!(s.windows(2).all(|w| w[0].total >= w[1].total));
+    assert!(s[0].hours > 0.0 && s[0].max > 0.0);
+}

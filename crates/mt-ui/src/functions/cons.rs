@@ -63,9 +63,16 @@ impl Panel for Cons {
             }
         }
 
+        let mut history = false;
         widgets::title_bar(ui, skin, "Binding constraints", |ui| {
-            widgets::freshness(ui, skin, &snap)
+            widgets::freshness(ui, skin, &snap);
+            history = widgets::link(ui, skin, "History → BCH")
+                .on_hover_text("Yesterday's DA and RT binding constraints, by cost")
+                .clicked();
         });
+        if history {
+            cx.open(Route::code("BCH"));
+        }
         ui.add(
             egui::TextEdit::singleline(&mut self.filter)
                 .hint_text("filter")

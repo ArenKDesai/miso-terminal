@@ -97,6 +97,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(e) => return Err(e.into()),
         }
     }
+
+    // Binding-constraint histories (.xls, kept whole): the newest of each,
+    // trying back a few days in case today's is not out yet.
+    for suffix in [reports::DA_BC, reports::RT_BC] {
+        for back in 0..4 {
+            let url = endpoints.report_file(today - Duration::days(back), suffix, "xls");
+            match ctx.get(&url).await {
+                Ok(body) => {
+                    let path = fixtures.path_for(&url);
+                    if let Some(parent) = path.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                    std::fs::write(&path, &body)?;
+                    println!("{:>8} KB  {}", body.len() / 1024, path.display());
+                    break;
+                }
+                Err(FetchError::NotFound(_)) => println!("not published: {url}"),
+                Err(e) => return Err(e.into()),
+            }
+        }
+    }
     Ok(())
 }
 

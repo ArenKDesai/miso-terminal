@@ -943,6 +943,131 @@ pub fn parse_cts(body: &str) -> Result<Cts, FetchError> {
     Ok(Cts { forecasts })
 }
 
+// --- Binding-constraint history (.xls) ---------------------------------------
+
+/// A spreadsheet cell as text (whole numbers without a trailing `.0`).
+fn xls_text(c: &calamine::Data) -> String {
+    use calamine::Data;
+    match c {
+        Data::String(s) | Data::DateTimeIso(s) | Data::DurationIso(s) => s.trim().to_owned(),
+        Data::Int(i) => i.to_string(),
+        Data::Float(f) if f.fract() == 0.0 && f.abs() < 1e15 => format!("{}", *f as i64),
+        Data::Float(f) => f.to_string(),
+        Data::Bool(b) => b.to_string(),
+        Data::DateTime(d) => d.as_f64().to_string(),
+        Data::Error(_) | Data::Empty => String::new(),
+    }
+}
+
+fn xls_number(c: &calamine::Data) -> Option<f64> {
+    use calamine::Data;
+    match c {
+        Data::Int(i) => Some(*i as f64),
+        Data::Float(f) => Some(*f).filter(|f| f.is_finite()),
+        _ => parse_num(&xls_text(c)),
+    }
+}
+
+/// Lowercase letters and digits only: headers vary in spacing and underscores
+/// between the DA and RT reports ("Constraint_ID" / "Constraint ID").
+fn header_key(s: &str) -> String {
+    s.chars()
+        .filter(char::is_ascii_alphanumeric)
+        .map(|c| c.to_ascii_lowercase())
+        .collect()
+}
+
+/// Parse a daily binding-constraints report (`<date>_da_bc.xls` or
+/// `<date>_rt_bc.xls`): a banner with the market date, then one row per
+/// constraint per hour (DA, "HE 01") or five-minute interval (RT, "00:05").
+pub fn parse_constraint_history(
+    market: Market,
+    bytes: &[u8],
+) -> Result<ConstraintHistory, FetchError> {
+    use calamine::Reader;
+    let what = || format!("{} binding constraints", market.label());
+    let mut book = calamine::Xls::new(std::io::Cursor::new(bytes))
+        .map_err(|e| FetchError::parse(what(), e))?;
+    let sheet = book
+        .worksheet_range_at(0)
+        .ok_or_else(|| FetchError::parse(what(), "no worksheet"))?
+        .map_err(|e| FetchError::parse(what(), e))?;
+    let rows: Vec<&[calamine::Data]> = sheet.rows().collect();
+
+    let day = rows
+        .iter()
+        .take(10)
+        .find_map(|r| {
+            let t = xls_text(r.first()?);
+            let d = t.strip_prefix("Market Date:")?;
+            NaiveDate::parse_from_str(d.trim(), "%m/%d/%Y").ok()
+        })
+        .ok_or_else(|| FetchError::parse(what(), "no market date"))?;
+    let header = rows
+        .iter()
+        .position(|r| {
+            r.iter()
+                .any(|c| header_key(&xls_text(c)) == "constraintname")
+        })
+        .ok_or_else(|| FetchError::parse(what(), "no header row"))?;
+    let keys: Vec<String> = rows[header]
+        .iter()
+        .map(|c| header_key(&xls_text(c)))
+        .collect();
+    let col = |want: &dyn Fn(&str) -> bool, name: &str| {
+        keys.iter()
+            .position(|k| want(k))
+            .ok_or_else(|| FetchError::parse(what(), format!("no {name} column")))
+    };
+    let id_col = col(&|k| k == "constraintid", "constraint ID")?;
+    let name_col = col(&|k| k == "constraintname", "constraint name")?;
+    let branch_col = col(&|k| k.starts_with("branchname"), "branch")?;
+    let cont_col = col(&|k| k.starts_with("contingency"), "contingency")?;
+    let period_col = col(&|k| k.starts_with("hourof"), "hour")?;
+    let price_col = col(&|k| k.ends_with("shadowprice"), "shadow price")?;
+
+    let start_of = |c: &calamine::Data| -> Option<NaiveDateTime> {
+        let t = xls_text(c);
+        match market {
+            Market::DayAhead => {
+                let he: u32 = t.trim_start_matches("HE").trim().parse().ok()?;
+                (1..=24)
+                    .contains(&he)
+                    .then(|| day.and_hms_opt(he - 1, 0, 0))?
+            }
+            Market::RealTime => match c {
+                // A time cell, as a fraction of a day.
+                calamine::Data::Float(f) if (0.0..1.0).contains(f) => {
+                    let minutes = (f * 1440.0).round() as u32;
+                    day.and_hms_opt(minutes / 60, minutes % 60, 0)
+                }
+                _ => NaiveTime::parse_from_str(&t, "%H:%M")
+                    .ok()
+                    .map(|time| day.and_time(time)),
+            },
+        }
+    };
+    let records = rows[header + 1..]
+        .iter()
+        .filter_map(|r| {
+            let cell = |i: usize| r.get(i).unwrap_or(&calamine::Data::Empty);
+            Some(ConstraintRecord {
+                id: xls_number(cell(id_col))? as u64,
+                name: xls_text(cell(name_col)),
+                branch: xls_text(cell(branch_col)),
+                contingency: xls_text(cell(cont_col)),
+                start: start_of(cell(period_col))?,
+                shadow_price: xls_number(cell(price_col))?,
+            })
+        })
+        .collect();
+    Ok(ConstraintHistory {
+        market,
+        day,
+        records,
+    })
+}
+
 // --- Daily market report CSVs -------------------------------------------------
 
 /// Parse a daily LMP report (`<yyyymmdd>_da_expost_lmp.csv` and friends).

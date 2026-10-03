@@ -88,6 +88,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `ACE` | Area control error | 30-second ACE over the last two hours: how far generation is from balancing load |
 | `WX` | Weather | Now, today's and tomorrow's high/low, dew point, wind and the 48-hour trend for a city in each MISO zone (National Weather Service); hourly chart for all or one |
 | `CONS` | Binding constraints | RT binding constraints, shadow prices and how long each has bound; reserve and sub-regional constraints |
+| `BCH` | Constraint history | A day's binding constraints in DA and RT side by side, matched by MISO's constraint ID: hours bound, cost ($/MW) and peak shadow price, sortable and filterable, with the selected constraint's DA and RT shadow prices through the day (`BCH 2026-09-30`) |
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
 | `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast and ACE: add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, fetch activity, cache and file locations |
@@ -200,8 +201,8 @@ each piece plugs in.
 - [x] New MISO feeds: `ACE` and `RDT` (regional directional transfer vs limits).
 - [x] Net actual interchange (NSI) and reserve / sub-regional constraints (CONS).
 - [x] More MISO feeds: RSG commitments and the next-day STR requirement (CAP), CTS (SEAM).
-- [ ] More market reports: DA ex-ante LMPs, DA/RT binding-constraint history,
-      MCP history, load-zone summaries.
+- [x] DA/RT binding-constraint history (`BCH`, from MISO's daily `.xls` reports).
+- [ ] More market reports: DA ex-ante LMPs, MCP history, load-zone summaries.
 - [x] Node types for every CP node (hub, load zone, interface, generator), from the DA report, in LMP.
 - [ ] More node metadata: zone and LBA for every CP node (MISO publishes no feed for it;
       `geo.rs` carries positions for the 317 mapped ones).
