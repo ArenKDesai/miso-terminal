@@ -126,19 +126,28 @@ impl Panel for Hubs {
         }
         widgets::title_bar(ui, skin, "Trading hubs · $/MWh", |_| {});
         ui.horizontal(|ui| {
-            for d in [3, 7, 14, 30] {
-                ui.selectable_value(&mut self.days, d, format!("{d}d"));
+            for d in super::gp::DAY_CHOICES {
+                ui.selectable_value(
+                    &mut self.days,
+                    d,
+                    if d == 365 {
+                        "1y".into()
+                    } else {
+                        format!("{d}d")
+                    },
+                );
             }
         });
         // Each daily report covers every node, so the eight hubs share downloads.
-        let mut pending = 0;
-        let mut prelim = 0;
+        let (mut pending, mut prelim, mut archived, mut capped) = (0, 0, 0, false);
         let rows: Vec<HubRow> = TRADING_HUBS
             .iter()
             .map(|hub| {
                 let h = series::node_history(cx, hub, Component::Lmp, self.days);
                 pending = pending.max(h.pending);
                 prelim = prelim.max(h.prelim_days);
+                archived = archived.max(h.archived_days);
+                capped |= h.capped;
                 HubRow::of(hub, &h.da, &h.rt)
             })
             .collect();
@@ -147,6 +156,8 @@ impl Panel for Hubs {
             rt: Vec::new(),
             pending,
             prelim_days: prelim,
+            archived_days: archived,
+            capped,
         };
         super::gp::history_notes(ui, cx, &history, || {
             let mut headers = vec!["hub"];

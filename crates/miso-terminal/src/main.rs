@@ -231,7 +231,11 @@ fn main() -> Result<()> {
         let max = config.data.cache_max_mb.saturating_mul(1024 * 1024);
         let archive_days = config.data.archive_days;
         runtime.spawn_blocking(move || {
-            let (files, bytes) = cache.prune(max, &[mt_miso::archive_dir(&cache)]);
+            let keep = [
+                mt_miso::archive_dir(&cache),
+                mt_miso::lmp_archive_dir(&cache),
+            ];
+            let (files, bytes) = cache.prune(max, &keep);
             if files > 0 {
                 tracing::info!("pruned {files} cached reports ({} MB)", bytes / 1_048_576);
             }

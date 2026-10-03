@@ -131,6 +131,14 @@ impl Miso {
         RtArchiveQuery { day }
     }
 
+    /// A node's long hourly history from the local archive written by
+    /// `tools/export_history.py` (`None` when that node was not exported).
+    pub fn lmp_archive(&self, node: &str) -> LmpArchiveQuery {
+        LmpArchiveQuery {
+            node: node.to_ascii_uppercase(),
+        }
+    }
+
     /// A market day's binding constraints, DA or RT (`None` until published:
     /// DA about 13:30 EST the day before, RT the day after).
     pub fn constraint_history(&self, market: Market, day: NaiveDate) -> ConstraintHistoryQuery {
@@ -439,6 +447,55 @@ pub fn prune_archive(cache: &DiskCache, keep_days: u32, today: NaiveDate) -> usi
         })
         .filter(|e| std::fs::remove_file(e.path()).is_ok())
         .count()
+}
+
+/// Where `tools/export_history.py` puts a node's history in the disk cache.
+pub fn lmp_archive_key(node: &str) -> String {
+    format!("local://archive/lmp/{node}")
+}
+
+/// The long-history archive's directory in `cache` (exempt from the size cap,
+/// like the five-minute archive).
+pub fn lmp_archive_dir(cache: &DiskCache) -> PathBuf {
+    cache
+        .path_for(&lmp_archive_key("X"))
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_default()
+}
+
+/// A node's exported long history, read from disk once per run.
+#[derive(Clone, Debug)]
+pub struct LmpArchiveQuery {
+    node: String,
+}
+
+impl Query for LmpArchiveQuery {
+    type Output = Option<HourlyArchive>;
+
+    fn key(&self) -> String {
+        format!("archive/lmp/{}", self.node)
+    }
+
+    fn label(&self) -> String {
+        format!("LMP archive, {}", self.node)
+    }
+
+    fn freshness(&self, _: &Option<HourlyArchive>) -> Freshness {
+        // Exports happen outside the app; a restart picks up new files.
+        Freshness::Forever
+    }
+
+    async fn fetch(
+        &self,
+        ctx: FetchCtx,
+        _prev: Option<Arc<Option<HourlyArchive>>>,
+    ) -> Result<Option<HourlyArchive>, FetchError> {
+        Ok(ctx
+            .local_get(&lmp_archive_key(&self.node))
+            .await
+            .and_then(|b| HourlyArchive::from_bytes(&b)))
+    }
 }
 
 /// Five-minute intervals in a complete market day.

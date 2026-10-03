@@ -35,7 +35,11 @@ pub fn hour_day(ui: &mut Ui, skin: &Skin, points: &[(NaiveDateTime, f64)], zero_
     let avail = ui.available_size();
     // A little slack on the right so the last column never clips.
     let cell_w = ((avail.x - label_w - 8.0) / 24.0).max(8.0);
-    let cell_h = ((avail.y - header_h) / days.len() as f32).clamp(10.0, 26.0);
+    // A year of days still fits: rows thin down to a pixel and a half.
+    let cell_h = ((avail.y - header_h) / days.len() as f32).clamp(1.5, 26.0);
+    let gap = if cell_h >= 4.0 { 1.0 } else { 0.0 };
+    // Label every day while they fit, else every n-th.
+    let label_every = ((14.0 / cell_h).ceil() as usize).max(1);
     let (rect, resp) = ui.allocate_exact_size(
         vec2(
             label_w + cell_w * 24.0,
@@ -58,17 +62,19 @@ pub fn hour_day(ui: &mut Ui, skin: &Skin, points: &[(NaiveDateTime, f64)], zero_
     let mut hovered = None;
     for (row, (day, hours)) in days.iter().rev().enumerate() {
         let y = rect.top() + header_h + cell_h * row as f32;
-        painter.text(
-            egui::pos2(rect.left(), y + cell_h / 2.0),
-            Align2::LEFT_CENTER,
-            day.format("%a %b %d").to_string(),
-            font.clone(),
-            skin.text_muted,
-        );
+        if row % label_every == 0 {
+            painter.text(
+                egui::pos2(rect.left(), y + cell_h / 2.0),
+                Align2::LEFT_CENTER,
+                day.format("%a %b %d").to_string(),
+                font.clone(),
+                skin.text_muted,
+            );
+        }
         for (h, v) in hours.iter().enumerate() {
             let cell = egui::Rect::from_min_size(
                 egui::pos2(rect.left() + label_w + cell_w * h as f32, y),
-                vec2(cell_w - 1.0, cell_h - 1.0),
+                vec2(cell_w - 1.0, cell_h - gap),
             );
             let fill = v.map_or(skin.surface, |v| scale.color(v, skin));
             painter.rect_filled(cell, 0.0, fill);

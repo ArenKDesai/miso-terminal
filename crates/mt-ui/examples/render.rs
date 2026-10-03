@@ -12,6 +12,8 @@
 //!   --size WxH       window size in points (default 1600x960)
 //!   --scale F        pixels per point (default 1)
 //!   --fixtures DIR   recorded responses to replay (default: the repo's)
+//!   --cache DIR      a disk cache to read local data from (e.g. the long-history
+//!                    archive written by tools/export_history.py)
 //!   --at TIME        freeze the clock at this market time (EST), e.g.
 //!                    "2026-10-02 16:55". Default: when the fixtures were
 //!                    recorded, so they look as they did live. `--at now`
@@ -29,6 +31,7 @@ fn main() -> Result<()> {
     let (mut out, mut run, mut zoom, mut theme) = (PathBuf::new(), Vec::new(), false, None);
     let (mut size, mut scale, mut fixtures, mut at) =
         ((1600.0, 960.0), 1.0, scene::fixtures_dir(), None::<String>);
+    let mut cache: Option<PathBuf> = None;
     while let Some(a) = it.next() {
         let mut value = || it.next().with_context(|| format!("{a} needs a value"));
         match a.as_str() {
@@ -43,6 +46,7 @@ fn main() -> Result<()> {
             "--scale" => scale = value()?.parse()?,
             "--fixtures" => fixtures = value()?.into(),
             "--at" => at = Some(value()?),
+            "--cache" => cache = Some(value()?.into()),
             other if other.starts_with("--") => bail!("unknown option {other}"),
             other => out = other.into(),
         }
@@ -70,7 +74,7 @@ fn main() -> Result<()> {
         .worker_threads(2)
         .enable_all()
         .build()?;
-    let hub = scene::offline_hub(&runtime, &fixtures);
+    let hub = scene::offline_hub_with_cache(&runtime, &fixtures, cache.as_deref());
     let run: Vec<&str> = run.iter().map(String::as_str).collect();
     let image = scene::render(
         &hub,

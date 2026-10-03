@@ -157,7 +157,7 @@ cargo run -p mt-miso --example capture_fixtures   # re-record fixtures from live
 # Render the app offscreen against the fixtures (docs screenshots, reviews):
 cargo run -p mt-ui --example render -- docs/screenshots/x.png --run "GP MINN.HUB 7" --zoom
 # After an intended visual change, accept the new reference images:
-$env:UPDATE_SNAPSHOTS=1; cargo test -p mt-ui --test snapshots
+$env:UPDATE_SNAPSHOTS=force; cargo test -p mt-ui --test snapshots
 ```
 
 The workspace is layered so that each part can change without touching the others:
@@ -192,11 +192,11 @@ each piece plugs in.
       saved while the app runs, with yesterday completed from MISO's previous-day feed.
 - [ ] Backfill the five-minute archive for days the app was not running (MISO only
       publishes today and yesterday at five minutes; older days would need another source).
-- [ ] **Long history from a local archive:** the Energy-Pricing-Journalist DuckDB
-      (DA/RT nodal LMPs since 2023-01-01). Linking DuckDB itself means a large C++
-      build; lighter: a `uv` script that exports chosen nodes (hubs, zones,
-      interfaces, the watchlist) to a compact file the terminal reads as a local
-      `Query` source. GP then gets `90d`, `1y` and more.
+- [x] **Long history from a local archive:** `uv run tools/export_history.py` exports
+      hourly DA and RT (since 2023-01-01) for the hubs, load zones and interfaces, or any
+      `--nodes`, from the Energy-Pricing-Journalist DuckDB into the terminal's cache.
+      GP, SPRD, CMP and HUBS then reach back up to about four years (`GP MINN.HUB 365`),
+      downloading only the days after the archive ends.
 - [x] Hub **ex-ante LMPs** (next interval) on HOME.
 - [x] New MISO feeds: `ACE` and `RDT` (regional directional transfer vs limits).
 - [x] Net actual interchange (NSI) and reserve / sub-regional constraints (CONS).

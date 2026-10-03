@@ -124,8 +124,16 @@ impl Panel for Compare {
                 ui.selectable_value(&mut self.da, false, "RT");
                 ui.selectable_value(&mut self.da, true, "DA");
                 ui.separator();
-                for d in [3, 7, 14, 30] {
-                    ui.selectable_value(&mut self.days, d, format!("{d}d"));
+                for d in super::gp::DAY_CHOICES {
+                    ui.selectable_value(
+                        &mut self.days,
+                        d,
+                        if d == 365 {
+                            "1y".into()
+                        } else {
+                            format!("{d}d")
+                        },
+                    );
                 }
             }
         });

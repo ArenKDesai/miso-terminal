@@ -40,13 +40,19 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
     }))
 }
 
+/// The longest window offered: about four years, what the local archive holds.
+pub(crate) const MAX_DAYS: u32 = 1500;
+
+/// Day-count buttons shared by the history views.
+pub(crate) const DAY_CHOICES: [u32; 6] = [3, 7, 14, 30, 90, 365];
+
 /// Parse an optional day count; 0 means "use the configured default".
 pub(crate) fn parse_days(arg: Option<&String>) -> Result<u32, String> {
     match arg {
         Some(d) => Ok(d
             .parse::<u32>()
             .map_err(|_| format!("days must be a number, got {d:?}"))?
-            .clamp(1, 90)),
+            .clamp(1, MAX_DAYS)),
         None => Ok(0),
     }
 }
@@ -182,8 +188,8 @@ pub(crate) fn view_controls(
         }
         if *view != View::Today {
             ui.separator();
-            for d in [3, 7, 14, 30] {
-                ui.selectable_value(days, d, format!("{d}d"));
+            for d in DAY_CHOICES {
+                ui.selectable_value(days, d, if d == 365 { "1y".into() } else { format!("{d}d") });
             }
         }
     });
@@ -592,6 +598,27 @@ pub(crate) fn history_notes(
                 ))
                 .small()
                 .color(skin.text_muted),
+            );
+        }
+        if h.archived_days > 0 {
+            ui.label(
+                RichText::new(format!(
+                    "{} day(s) from the local archive.",
+                    h.archived_days
+                ))
+                .small()
+                .color(skin.text_muted),
+            );
+        }
+        if h.capped {
+            ui.label(
+                RichText::new(format!(
+                    "Showing {} days: longer history needs the local archive \
+                     (uv run tools/export_history.py).",
+                    series::DOWNLOAD_DAYS
+                ))
+                .small()
+                .color(skin.warning),
             );
         }
     });

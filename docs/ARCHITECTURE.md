@@ -82,6 +82,16 @@ same way. `series::node_five_minute` stitches archive days, yesterday and today
 together for GP and SPRD (`… 5MIN`). The archive is exempt from the cache's size cap and
 keeps `data.archive_days` days instead.
 
+### Long history
+
+`tools/export_history.py` exports hourly DA and RT prices per node from the
+Energy-Pricing-Journalist DuckDB into the cache (`local://archive/lmp/<node>`,
+exempt from the size cap). `LmpArchiveQuery` reads a node's file once per run,
+and `series::node_history` takes every day the archive covers from it, so only
+the days after it ends are downloaded as daily reports. Without an archive,
+windows are capped at 90 days of downloads. The DuckDB is linked by the script,
+not the app, which keeps a large C++ build out of the terminal.
+
 ### Feeds with memory
 
 `Query::fetch` receives the previous value. `RtIntradayQuery` uses that to seed

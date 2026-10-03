@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use chrono::{Duration, NaiveDate, NaiveDateTime, Timelike};
 use mt_core::time::market_today;
-use mt_core::{DayLmpReport, DayNodeRow, DayReportKind, NodeSeries, RtIntraday};
+use mt_core::{DayLmpReport, DayNodeRow, DayReportKind, Market, NodeSeries, RtIntraday};
 use mt_miso::parse::hourly_points;
 
 use crate::context::PanelCx;
@@ -161,25 +161,69 @@ pub struct History {
     pub pending: usize,
     /// Days whose RT is preliminary (final reports trail about a week).
     pub prelim_days: usize,
+    /// Days read from the local archive instead of downloaded.
+    pub archived_days: usize,
+    /// The window asked for was longer than [`DOWNLOAD_DAYS`] and this node
+    /// has no local archive, so it was shortened to that.
+    pub capped: bool,
 }
+
+/// The longest window fetched from MISO's daily reports (two downloads a
+/// day); longer history comes from the local archive.
+pub const DOWNLOAD_DAYS: u32 = 90;
 
 pub fn node_history(cx: &PanelCx<'_>, node: &str, component: Component, days: u32) -> History {
     let today = market_today();
-    let first = today - Duration::days(i64::from(days.max(1)) - 1);
     let mut h = History {
         da: Vec::new(),
         rt: Vec::new(),
         pending: 0,
         prelim_days: 0,
+        archived_days: 0,
+        capped: false,
+    };
+    // The local archive (tools/export_history.py) covers the older days, so
+    // only the days after it ends are downloaded.
+    let archive = cx.hub.watch(&cx.miso.lmp_archive(node));
+    if archive.data.is_none() && archive.error.is_none() {
+        h.pending += 1; // a local read; decides what to download
+        return h;
+    }
+    let archive = archive.data().and_then(Option::as_ref);
+    let days = match archive {
+        None if days > DOWNLOAD_DAYS => {
+            h.capped = true;
+            DOWNLOAD_DAYS
+        }
+        _ => days.max(1),
+    };
+    let first = today - Duration::days(i64::from(days) - 1);
+    let covered = |market: Market, day: NaiveDate| {
+        archive
+            .filter(|a| day >= a.first_day() && a.last_day(market).is_some_and(|last| day <= last))
+    };
+    let pick = |rows: Vec<(NaiveDateTime, f32, f32, f32)>| -> Points {
+        rows.into_iter()
+            .map(|(t, l, c, m)| (t, f64::from(component.pick(l, c, m))))
+            .filter(|(_, v)| v.is_finite())
+            .collect()
     };
     let mut day = first;
     while day <= today + Duration::days(1) {
-        let d = cx
-            .hub
-            .watch(&cx.miso.day_report(DayReportKind::DaExPost, day));
-        h.pending += usize::from(d.data.is_none() && d.error.is_none());
-        h.da.extend(report_points(d.data(), node, component, day));
-        if day < today {
+        let from_archive = covered(Market::DayAhead, day);
+        if let Some(a) = from_archive {
+            h.da.extend(pick(a.day(Market::DayAhead, day)));
+            h.archived_days += 1;
+        } else {
+            let d = cx
+                .hub
+                .watch(&cx.miso.day_report(DayReportKind::DaExPost, day));
+            h.pending += usize::from(d.data.is_none() && d.error.is_none());
+            h.da.extend(report_points(d.data(), node, component, day));
+        }
+        if let (true, Some(a)) = (day < today, covered(Market::RealTime, day)) {
+            h.rt.extend(pick(a.day(Market::RealTime, day)));
+        } else if day < today {
             let r = cx.hub.watch(&cx.miso.rt_best_day(day));
             h.pending += usize::from(r.data.is_none() && r.error.is_none());
             if let Some(Some(report)) = r.data()

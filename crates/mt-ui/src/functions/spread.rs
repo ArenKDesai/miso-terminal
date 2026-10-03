@@ -248,6 +248,8 @@ impl Spread {
             rt: Vec::new(),
             pending: ha.pending + hb.pending,
             prelim_days: ha.prelim_days.max(hb.prelim_days),
+            archived_days: ha.archived_days.min(hb.archived_days),
+            capped: ha.capped || hb.capped,
         };
         history_notes(ui, cx, &pending, || {
             csv::to_csv(

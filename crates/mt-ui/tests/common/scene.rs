@@ -57,13 +57,22 @@ pub fn fixtures_time(fixtures: &Path) -> Option<chrono::NaiveDateTime> {
     Some(board.interval? + chrono::Duration::minutes(5))
 }
 
-/// A data hub replaying `fixtures`, with no disk cache and no politeness delay.
+/// A data hub replaying `fixtures`, with no politeness delay and no disk cache.
 pub fn offline_hub(runtime: &tokio::runtime::Runtime, fixtures: &Path) -> DataHub {
+    offline_hub_with_cache(runtime, fixtures, None)
+}
+
+/// The same, reading local data (archives) from a disk cache.
+pub fn offline_hub_with_cache(
+    runtime: &tokio::runtime::Runtime,
+    fixtures: &Path,
+    cache: Option<&Path>,
+) -> DataHub {
     DataHub::new(
         runtime.handle().clone(),
         FetchCtx::new(
             Arc::new(FixtureTransport::new(fixtures).labelled("recorded MISO data")),
-            None,
+            cache.map(mt_data::DiskCache::new),
             FetchCtxOptions {
                 max_concurrent: 8,
                 polite_interval: Duration::ZERO,

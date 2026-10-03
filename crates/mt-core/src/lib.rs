@@ -5,6 +5,7 @@
 //! Keeping the model here means a second source (a local archive, another API)
 //! can feed the same panels without the panels changing.
 
+pub mod archive;
 pub mod constraints;
 pub mod geo;
 pub mod grid;
@@ -14,6 +15,7 @@ pub mod seams;
 pub mod time;
 pub mod weather;
 
+pub use archive::*;
 pub use constraints::*;
 pub use grid::*;
 pub use prices::*;

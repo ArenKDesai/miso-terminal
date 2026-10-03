@@ -27,6 +27,12 @@ const STEPS: &[f64] = &[
     DAY,
     2.0 * DAY,
     7.0 * DAY,
+    14.0 * DAY,
+    28.0 * DAY,
+    56.0 * DAY,
+    91.0 * DAY,
+    182.0 * DAY,
+    364.0 * DAY,
 ];
 
 /// Grid marks on round market-time boundaries.
@@ -37,7 +43,7 @@ fn time_grid(input: GridInput) -> Vec<GridMark> {
         .iter()
         .copied()
         .find(|s| span / s <= 8.0)
-        .unwrap_or(7.0 * DAY);
+        .unwrap_or(364.0 * DAY);
     // Align to market midnight, not UTC midnight.
     let offset = f64::from(MARKET_UTC_OFFSET_SECS);
     let first = ((lo + offset) / step).ceil() * step - offset;
@@ -69,7 +75,9 @@ fn axis_label(mark: GridMark, range: &std::ops::RangeInclusive<f64>) -> String {
     let midnight = t.time() == chrono::NaiveTime::MIN;
     if span > 3.0 * DAY {
         // Dates at midnight; times in between only while they still fit.
-        if midnight {
+        if midnight && span > 300.0 * DAY {
+            t.format("%b %d %Y").to_string()
+        } else if midnight {
             t.format("%b %d").to_string()
         } else if span <= 7.0 * DAY {
             t.format("%H:%M").to_string()
@@ -280,6 +288,16 @@ mod tests {
         assert_eq!(axis_label(mark(12, DAY / 2.0), &five_days), "12:00");
         let month = x(0)..=x(0) + 30.0 * DAY;
         assert_eq!(axis_label(mark(12, DAY / 2.0), &month), "");
+        let year = x(0)..=x(0) + 365.0 * DAY;
+        assert_eq!(axis_label(mark(0, 28.0 * DAY), &year), "Sep 30 2026");
+        // A year spans about eight marks, so labels stay readable.
+        let marks = time_grid(GridInput {
+            bounds: (*year.start(), *year.end()),
+            base_step_size: 1.0,
+        });
+        let step = marks.iter().map(|m| m.step_size).fold(0.0, f64::max);
+        let major = marks.iter().filter(|m| m.step_size == step).count();
+        assert!((4..=9).contains(&major), "{major} major marks over a year");
     }
 
     #[test]

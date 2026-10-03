@@ -3,7 +3,7 @@
 //! images in `tests/snapshots/`. After an intended visual change, review the
 //! renders and accept them:
 //!
-//!     UPDATE_SNAPSHOTS=1 cargo test -p mt-ui --test snapshots
+//!     UPDATE_SNAPSHOTS=force cargo test -p mt-ui --test snapshots
 //!
 //! A mismatch leaves `<name>.new.png` and `<name>.diff.png` next to the
 //! reference for inspection (both are git-ignored).
