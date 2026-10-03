@@ -6,7 +6,7 @@ default-members = ["crates/miso-terminal"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.89"  # std::fs::File::try_lock (single instance)
+rust-version = "1.95"  # egui 0.36 and friends
 publish = false
 repository = "https://github.com/ArenKDesai/miso-terminal"
 

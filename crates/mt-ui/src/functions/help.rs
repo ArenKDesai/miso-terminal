@@ -24,7 +24,10 @@ fn open(_: &[String]) -> Result<Box<dyn Panel>, String> {
 struct Help;
 
 pub const SHORTCUTS: &[(&str, &str)] = &[
-    ("Ctrl+K  /  Esc", "Focus the command line"),
+    (
+        "Ctrl+K  /  Esc",
+        "Focus the command line (Esc also leaves a zoomed panel)",
+    ),
     ("Enter", "Run the command (<GO>)"),
     ("Tab / ↑ ↓", "Pick a suggestion"),
     ("F1", "Help"),
@@ -35,8 +38,12 @@ pub const SHORTCUTS: &[(&str, &str)] = &[
     ),
     ("Ctrl+W", "Close the current tab"),
     (
+        "Ctrl+M / double-click a tab",
+        "Zoom the panel to fill the window, and back",
+    ),
+    (
         "Right-click a tab",
-        "Copy the panel as an image, or save it as PNG",
+        "Zoom, copy the panel as an image, or save it as PNG",
     ),
     ("Ctrl+Shift+L", "Reset the layout"),
 ];

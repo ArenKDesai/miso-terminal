@@ -94,8 +94,9 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
 | `HELP` | Help | Functions, keyboard shortcuts, data notes |
 
-Right-click a tab title to copy the panel as an image or save it as a PNG (to
-`Pictures\MISO Terminal`).
+Double-click a tab title (or press `Ctrl+M`) to zoom that panel to the whole
+window; `Esc` or `Ctrl+M` brings the layout back. Right-click a tab title to
+copy the panel as an image or save it as a PNG (to `Pictures\MISO Terminal`).
 
 Keyboard: `Ctrl+K` or `Esc` focuses the command line, `Enter` runs it, `Tab`/`↑`/`↓`
 pick a suggestion, `F1` opens help, `F5` refreshes every open feed,
@@ -240,7 +241,11 @@ each piece plugs in.
 - [ ] An update check against GitHub releases.
 
 ### Engineering
-- [ ] Visual regression tests with `egui_kittest` snapshots, per theme.
+- [x] Offscreen rendering of the real app to PNG (`cargo run -p mt-ui --example render`),
+      with egui_kittest and wgpu: no window, real input and rendering.
+- [ ] Visual regression tests from those renders, per theme. Needs a frozen clock
+      (the status bar, "updated Ns ago" and today's axes all move) and a tolerance
+      for GPU differences between CI's WARP adapter and real GPUs.
 - [x] A weekly CI job (`drift.yml`) that records live responses and runs every
       parser against them, to catch MISO format changes early.
 - [ ] Benchmarks for the rolling-feed parser (~33 MB of JSON per seed).

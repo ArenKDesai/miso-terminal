@@ -335,6 +335,8 @@ impl TerminalApp {
                 AppCommand::ResetLayout => self.workspace = Workspace::default_layout(),
                 AppCommand::CloseTab => self.workspace.close_focused(),
                 AppCommand::CycleTab(forward) => self.workspace.cycle_focused(forward),
+                AppCommand::ToggleZoom => self.workspace.toggle_zoom(),
+                AppCommand::Zoom(tab) => self.workspace.zoom(tab),
                 AppCommand::RefreshWatched => self.hub.refresh_watched(),
                 AppCommand::SetPaused(p) => self.hub.set_paused(p),
                 AppCommand::ClearCache => {
@@ -447,10 +449,18 @@ impl TerminalApp {
 
     fn shortcuts(&mut self, ctx: &egui::Context, commands: &mut Vec<AppCommand>) {
         ctx.input_mut(|i| {
-            if i.consume_key(egui::Modifiers::COMMAND, Key::K)
-                || i.consume_key(egui::Modifiers::NONE, Key::Escape)
-            {
+            if i.consume_key(egui::Modifiers::COMMAND, Key::K) {
                 self.cmd.focus = true;
+            }
+            if i.consume_key(egui::Modifiers::NONE, Key::Escape) {
+                // Esc backs out of a zoomed panel, then to the command line.
+                if self.workspace.is_zoomed() {
+                    commands.push(AppCommand::Zoom(None));
+                }
+                self.cmd.focus = true;
+            }
+            if i.consume_key(egui::Modifiers::COMMAND, Key::M) {
+                commands.push(AppCommand::ToggleZoom);
             }
             if i.consume_key(egui::Modifiers::NONE, Key::F1) {
                 commands.push(AppCommand::Open(Route::code("HELP")));
@@ -883,12 +893,16 @@ impl eframe::App for TerminalApp {
                     alerts: &self.alerts,
                     commands: &mut commands,
                 };
-                DockArea::new(&mut self.workspace.dock)
-                    .id(egui::Id::new("mt-dock"))
-                    .style(dock_style)
-                    .show_leaf_close_all_buttons(false)
-                    .show_leaf_collapse_buttons(false)
-                    .show_inside(ui, &mut Viewer { cx: &mut cx });
+                if let Some(tab) = self.workspace.zoomed_tab() {
+                    zoomed_view(ui, &mut cx, tab);
+                } else {
+                    DockArea::new(&mut self.workspace.dock)
+                        .id(egui::Id::new("mt-dock"))
+                        .style(dock_style)
+                        .show_leaf_close_all_buttons(false)
+                        .show_leaf_collapse_buttons(false)
+                        .show_inside(ui, &mut Viewer { cx: &mut cx });
+                }
             });
 
         self.apply_commands(&ctx, commands);
@@ -903,6 +917,38 @@ impl eframe::App for TerminalApp {
     fn on_exit(&mut self) {
         self.save_intraday(false);
     }
+}
+
+/// One tab filling the window, with a strip to go back to the layout.
+fn zoomed_view(ui: &mut Ui, cx: &mut PanelCx<'_>, tab: &mut crate::workspace::Tab) {
+    let skin = cx.skin;
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(tab.title(cx.registry))
+                .strong()
+                .color(skin.accent),
+        );
+        ui.label(
+            RichText::new("zoomed · Ctrl+M or Esc for the layout")
+                .small()
+                .color(skin.text_muted),
+        );
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if ui.small_button("Back to layout").clicked() {
+                cx.send(AppCommand::Zoom(None));
+            }
+        });
+    });
+    let pad = skin.theme.style.padding;
+    Frame::new()
+        .fill(skin.surface)
+        .stroke(egui::Stroke::new(1.0, skin.border))
+        .inner_margin(Margin::same(pad as i8))
+        .show(ui, |ui| {
+            ui.set_min_size(ui.available_size());
+            tab.set_body_rect(ui.max_rect().expand(pad));
+            crate::workspace::draw_tab(ui, cx, tab);
+        });
 }
 
 /// Disk-cache key for a market day's five-minute store.

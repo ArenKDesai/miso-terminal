@@ -323,6 +323,13 @@ fn app_shell_runs_frames_and_executes_commands() {
             .any(|r| r.code == "SPRD"),
         "a forwarded command did not open"
     );
+    // Zoom the focused panel, draw it alone, and come back.
+    app.apply_commands(&ctx, vec![AppCommand::ToggleZoom]);
+    run(&mut app);
+    assert!(app.workspace_mut().is_zoomed());
+    app.apply_commands(&ctx, vec![AppCommand::Zoom(None)]);
+    run(&mut app);
+    assert!(!app.workspace_mut().is_zoomed());
     let before = app.workspace_mut().routes().len();
     app.apply_commands(
         &ctx,
@@ -435,4 +442,72 @@ fn intraday_prices_survive_a_restart() {
     eframe::App::on_exit(&mut app);
     assert!(cache.get(&key).is_some(), "saved on exit");
     let _ = std::fs::remove_dir_all(paths.config_file.parent().unwrap());
+}
+
+#[test]
+fn double_clicking_a_tab_zooms_it() {
+    let rt = runtime();
+    let ctx = egui::Context::default();
+    let deps = Deps {
+        hub: hub(&rt),
+        config: AppConfig::default(),
+        config_error: None,
+        paths: temp_paths("zoom"),
+        reset_layout: true,
+        startup_commands: Vec::new(),
+        remote: None,
+    };
+    let mut app = TerminalApp::headless(&ctx, deps);
+    let mut frame = eframe::Frame::_new_kittest();
+    let mut time = 0.0;
+    let mut run = |app: &mut TerminalApp, events: Vec<egui::Event>| {
+        time += 0.05;
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1600.0, 960.0),
+            )),
+            time: Some(time),
+            events,
+            ..Default::default()
+        };
+        finish_frame(&ctx, ctx.run_ui(input, |ui| app.ui(ui, &mut frame)));
+    };
+    for _ in 0..3 {
+        run(&mut app, Vec::new());
+    }
+    // The first tab title (HOME) sits just under the top bar, at the left
+    // (about x 4-83, y 64-88 with the built-in fonts at 1600 x 960).
+    let tab = egui::pos2(40.0, 76.0);
+    let button = |pressed| egui::Event::PointerButton {
+        pos: tab,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    run(&mut app, vec![egui::Event::PointerMoved(tab)]);
+    for _ in 0..2 {
+        run(&mut app, vec![button(true)]);
+        run(&mut app, vec![button(false)]);
+    }
+    run(&mut app, Vec::new());
+    assert!(
+        app.workspace_mut().is_zoomed(),
+        "double-click zooms the tab"
+    );
+    run(
+        &mut app,
+        vec![egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }],
+    );
+    run(&mut app, Vec::new());
+    assert!(
+        !app.workspace_mut().is_zoomed(),
+        "Esc goes back to the layout"
+    );
 }

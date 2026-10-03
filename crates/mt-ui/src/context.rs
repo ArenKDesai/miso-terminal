@@ -29,6 +29,10 @@ pub enum AppCommand {
     CloseTab,
     /// Activate the next (`true`) or previous tab in the focused pane.
     CycleTab(bool),
+    /// Fill the window with the focused tab, or go back to the layout.
+    ToggleZoom,
+    /// Fill the window with this tab (or go back to the layout with `None`).
+    Zoom(Option<u64>),
     RefreshWatched,
     SetPaused(bool),
     ClearCache,

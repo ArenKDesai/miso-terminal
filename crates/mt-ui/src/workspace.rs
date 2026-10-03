@@ -58,6 +58,18 @@ impl Tab {
             })
             .as_mut()
     }
+
+    /// Where the panel is drawn, for "copy as image".
+    pub(crate) fn set_body_rect(&mut self, rect: egui::Rect) {
+        self.body_rect = Some(rect);
+    }
+
+    pub(crate) fn title(&mut self, registry: &Registry) -> String {
+        if self.crashed.is_some() {
+            return format!("{} ⚠", self.route.code);
+        }
+        self.panel(registry).title()
+    }
 }
 
 /// Shown for a route that cannot be opened.
@@ -89,6 +101,9 @@ pub struct Workspace {
     pub version: u32,
     pub dock: DockState<Tab>,
     next_id: u64,
+    /// The tab filling the window (Ctrl+M), if any. Layouts always reopen unzoomed.
+    #[serde(skip)]
+    zoomed: Option<u64>,
 }
 
 impl Workspace {
@@ -97,6 +112,7 @@ impl Workspace {
             version: LAYOUT_VERSION,
             dock: DockState::new(Vec::new()),
             next_id: 1,
+            zoomed: None,
         };
         let home = ws.tab(Route::code("HOME"));
         let lmp = ws.tab(Route::code("LMP"));
@@ -118,9 +134,51 @@ impl Workspace {
         Tab::new(id, route)
     }
 
+    /// Fill the window with the focused tab, or go back to the layout.
+    pub fn toggle_zoom(&mut self) {
+        self.zoomed = match self.zoomed {
+            Some(_) => None,
+            None => self.focused_tab_id(),
+        };
+    }
+
+    /// The active tab of the focused pane; before anything has been focused
+    /// (no click since launch), the first pane's.
+    fn focused_tab_id(&mut self) -> Option<u64> {
+        if let Some((_, tab)) = self.dock.find_active_focused() {
+            return Some(tab.id);
+        }
+        self.dock
+            .iter_leaves()
+            .find_map(|(_, leaf)| leaf.tabs.get(leaf.active.0).map(|t| t.id))
+    }
+
+    /// Zoom a particular tab (or none).
+    pub fn zoom(&mut self, tab: Option<u64>) {
+        self.zoomed = tab;
+    }
+
+    pub fn is_zoomed(&self) -> bool {
+        self.zoomed.is_some()
+    }
+
+    /// The zoomed tab, if there is one and it is still open.
+    pub fn zoomed_tab(&mut self) -> Option<&mut Tab> {
+        let id = self.zoomed?;
+        if !self.dock.iter_all_tabs().any(|(_, t)| t.id == id) {
+            self.zoomed = None;
+            return None;
+        }
+        self.dock
+            .iter_all_tabs_mut()
+            .map(|(_, t)| t)
+            .find(|t| t.id == id)
+    }
+
     /// Focus a tab showing `route` (or one whose panel absorbs it), else open
-    /// it in the focused pane.
+    /// it in the focused pane. Leaves a zoomed view, so the result is visible.
     pub fn open(&mut self, route: Route, registry: &Registry) {
+        self.zoomed = None;
         let code = registry
             .find(&route.code)
             .map_or(route.code.as_str(), |s| s.code)
@@ -143,7 +201,13 @@ impl Workspace {
             return;
         }
         let tab = self.tab(route);
+        let id = tab.id;
         self.dock.push_to_focused_leaf(tab);
+        // Focus the new tab, so Ctrl+W / Ctrl+M act on what was just opened.
+        if let Some(path) = self.dock.find_tab_from(|t| t.id == id) {
+            let _ = self.dock.set_active_tab(path);
+            self.dock.set_focused_node_and_surface(path.node_path());
+        }
     }
 
     /// Close the active tab in the focused pane (Ctrl+W).
@@ -184,6 +248,9 @@ impl Workspace {
             node.node,
             next.into(),
         ));
+        if self.zoomed.is_some() {
+            self.zoomed = self.focused_tab_id();
+        }
     }
 
     pub fn routes(&self) -> Vec<Route> {
@@ -253,11 +320,13 @@ impl TabViewer for Viewer<'_, '_> {
     }
 
     fn title(&mut self, tab: &mut Tab) -> WidgetText {
-        if tab.crashed.is_some() {
-            return format!("{} ⚠", tab.route.code).into();
+        tab.title(self.cx.registry).into()
+    }
+
+    fn on_tab_button(&mut self, tab: &mut Tab, response: &egui::Response) {
+        if response.double_clicked() {
+            self.cx.send(crate::context::AppCommand::Zoom(Some(tab.id)));
         }
-        let registry = self.cx.registry;
-        tab.panel(registry).title().into()
     }
 
     fn ui(&mut self, ui: &mut Ui, tab: &mut Tab) {
@@ -267,6 +336,10 @@ impl TabViewer for Viewer<'_, '_> {
     }
 
     fn context_menu(&mut self, ui: &mut Ui, tab: &mut Tab, _path: egui_dock::NodePath) {
+        if ui.button("Zoom (Ctrl+M, double-click)").clicked() {
+            self.cx.send(crate::context::AppCommand::Zoom(Some(tab.id)));
+            ui.close();
+        }
         let Some(rect) = tab.body_rect else { return };
         for (label, action) in [
             ("Copy panel as image", crate::capture::Action::Copy),
@@ -320,5 +393,38 @@ pub(crate) mod tests {
 
     pub(crate) fn crashed(tab: &Tab) -> Option<&str> {
         tab.crashed.as_deref()
+    }
+
+    #[test]
+    fn zoom_follows_focus_and_gives_way_to_new_tabs() {
+        let registry = Registry::builtin();
+        let mut ws = Workspace::default_layout();
+        ws.open(Route::code("MAP"), &registry);
+        ws.toggle_zoom();
+        let zoomed = ws.zoomed_tab().map(|t| t.route.clone());
+        assert_eq!(zoomed, Some(Route::code("MAP")), "zooms the focused tab");
+
+        ws.cycle_focused(true);
+        let next = ws.zoomed_tab().map(|t| t.route.clone());
+        assert!(
+            next.is_some() && next != zoomed,
+            "Ctrl+Tab moves the zoom along"
+        );
+
+        ws.open(Route::code("CAP"), &registry);
+        assert!(!ws.is_zoomed(), "opening something shows the layout again");
+
+        ws.toggle_zoom();
+        assert!(ws.is_zoomed());
+        ws.close_focused();
+        assert!(
+            ws.zoomed_tab().is_none(),
+            "closing the zoomed tab ends the zoom"
+        );
+        assert!(!ws.is_zoomed());
+
+        ws.toggle_zoom();
+        ws.toggle_zoom();
+        assert!(!ws.is_zoomed(), "toggles back");
     }
 }
