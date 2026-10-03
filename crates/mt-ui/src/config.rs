@@ -49,6 +49,26 @@ pub struct UiConfig {
     pub follow_system_theme: bool,
     pub light_theme: String,
     pub dark_theme: String,
+    /// Function keys that run commands, e.g. `F2 = "HOME"`, `F9 = "GP ALTE.ALTE"`.
+    /// F1 (help) and F5 (refresh) are fixed.
+    pub hotkeys: std::collections::BTreeMap<String, String>,
+}
+
+/// The default function-key bar.
+pub fn default_hotkeys() -> std::collections::BTreeMap<String, String> {
+    [
+        ("F2", "HOME"),
+        ("F3", "LMP"),
+        ("F4", "MAP"),
+        ("F6", "WL"),
+        ("F7", "HUBS"),
+        ("F8", "WX"),
+        ("F9", "ALRT"),
+        ("F10", "LOG"),
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_owned(), v.to_owned()))
+    .collect()
 }
 
 impl Default for UiConfig {
@@ -64,6 +84,7 @@ impl Default for UiConfig {
             follow_system_theme: false,
             light_theme: "everforge-light".into(),
             dark_theme: mt_theme::DEFAULT_THEME_ID.into(),
+            hotkeys: default_hotkeys(),
         }
     }
 }
@@ -163,6 +184,15 @@ mod tests {
         assert_eq!(cfg.ui.zoom, 1.25);
         assert_eq!(cfg.ui.price_alert, UiConfig::default().price_alert);
         assert_eq!(cfg.endpoints, MisoEndpoints::default());
+    }
+
+    #[test]
+    fn default_hotkeys_are_real_keys_and_old_configs_get_them() {
+        assert!(default_hotkeys().keys().all(|k| egui::Key::from_name(k).is_some()));
+        let cfg: AppConfig = toml::from_str("[ui]
+zoom = 1.0
+").unwrap();
+        assert_eq!(cfg.ui.hotkeys, default_hotkeys());
     }
 
     #[test]

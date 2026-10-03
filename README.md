@@ -13,8 +13,8 @@ and never submits anything to MISO.
   between sessions.
 - **Live.** Real-time feeds refresh once a minute (MISO's limit). Daily market
   reports are cached on disk, so history loads instantly the second time.
-- **Themed.** Ships with **Everforge Dark** (the default), Everforge Light and
-  Amber Terminal. Drop a TOML file into the themes folder to add your own; it
+- **Themed.** Ships with **Everforge Dark** (the default), Everforge Light,
+  Amber Terminal and High Contrast. Drop a TOML file into the themes folder to add your own; it
   hot-reloads while you edit it.
 - **Built for Windows.** A single `.exe` with a native window, Windows certificate
   store TLS (corporate proxies work), a per-user or portable data layout and an
@@ -98,7 +98,9 @@ Right-click a tab title to copy the panel as an image or save it as a PNG (to
 Keyboard: `Ctrl+K` or `Esc` focuses the command line, `Enter` runs it, `Tab`/`↑`/`↓`
 pick a suggestion, `F1` opens help, `F5` refreshes every open feed,
 `Ctrl+Tab` / `Ctrl+Shift+Tab` cycle tabs, `Ctrl+W` closes one, and
-`Ctrl+Shift+L` resets the layout.
+`Ctrl+Shift+L` resets the layout. Function keys open functions: F2 HOME, F3 LMP,
+F4 MAP, F6 WL, F7 HUBS, F8 WX, F9 ALRT and F10 LOG by default. Remap them, or
+bind any command (`F11 = "GP ALTE.ALTE 14"`), under `[ui.hotkeys]` in config.toml.
 
 ## Data
 
@@ -126,7 +128,7 @@ positive, negative, chart series, fuel colours, fonts and spacing. Panels only
 use those slots, so any theme works with any panel. See [`themes/README.md`](themes/README.md)
 for the format.
 
-- **Built-in:** `everforge-dark` (default), `everforge-light`, `amber-terminal`.
+- **Built-in:** `everforge-dark` (default), `everforge-light`, `amber-terminal`, `high-contrast`.
 - **Yours:** run `THEME`, click *Copy to edit*, then edit the file in the themes
   folder. It reloads every time you save. A theme whose `id` matches a built-in
   replaces it. Validation flags unreadable contrast.
@@ -210,14 +212,13 @@ each piece plugs in.
 - [x] Copy tables as CSV (LMP, WL, GP and SPRD history).
 - [x] Copy a panel to the clipboard as an image, or save it as PNG (right-click its tab).
 - [x] `SET`: edit `config.toml` values in-app.
-- [x] Command line: usage hints for the function being typed.
-- [ ] Command line: fuzzy matching and Bloomberg-style function-key menus.
+- [x] Command line: usage hints, fuzzy matching, and configurable function keys.
 - [x] Contain panel panics to their tab (logged, with a *Reload panel* button).
 
 ### Themes
 - [x] Follow the Windows light/dark setting with a chosen light/dark pair (`THEME`).
 - [ ] Everforge's chamfered corners (`cut-md`) on hero tiles and the active tab.
-- [ ] A high-contrast accessibility theme.
+- [x] A high-contrast accessibility theme (`high-contrast`).
 - [ ] Optionally make `miso-terminal` a target in Everforge's own `build.py`
       (per its port policy) instead of the sync example here.
 

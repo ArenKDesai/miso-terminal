@@ -72,6 +72,21 @@ impl Panel for Help {
                 });
             }
 
+            widgets::section(ui, skin, "Function keys");
+            ui.horizontal_wrapped(|ui| {
+                for (key, command) in &cx.config.ui.hotkeys {
+                    if widgets::link(ui, skin, &format!("{key} {command}")).clicked() {
+                        cx.send(crate::context::AppCommand::Run(command.clone()));
+                    }
+                    ui.add_space(10.0);
+                }
+            });
+            ui.label(
+                RichText::new("Change them under [ui.hotkeys] in config.toml (SET opens its folder).")
+                    .small()
+                    .color(skin.text_muted),
+            );
+
             widgets::section(ui, skin, "Keyboard");
             Grid::new("help-keys").num_columns(2).spacing([14.0, 4.0]).show(ui, |ui| {
                 for (keys, what) in SHORTCUTS {

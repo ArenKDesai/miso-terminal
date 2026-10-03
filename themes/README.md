@@ -76,6 +76,7 @@ text that is hard to read (body text under 4.5:1). Warnings are worth a look.
 | `everforge-dark` | Default. **Generated** from the Everforge design tokens; do not edit by hand. |
 | `everforge-light` | **Generated**, as above. |
 | `amber-terminal` | Hand-written amber-on-black look, monospace throughout. |
+| `high-contrast` | White and gold on black, heavier and larger type, 2 px borders; every text pairing 7:1 or better. |
 
 Regenerate the Everforge pair after a token change:
 

@@ -35,6 +35,10 @@ pub const BUILTIN_SOURCES: &[(&str, &str)] = &[
         "amber-terminal.toml",
         include_str!("../../../themes/amber-terminal.toml"),
     ),
+    (
+        "high-contrast.toml",
+        include_str!("../../../themes/high-contrast.toml"),
+    ),
 ];
 
 /// Parse the built-in themes. A built-in that fails to parse is a bug caught by

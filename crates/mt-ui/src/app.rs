@@ -448,6 +448,14 @@ impl TerminalApp {
             if i.consume_key(egui::Modifiers::NONE, Key::F1) {
                 commands.push(AppCommand::Open(Route::code("HELP")));
             }
+            for (name, command) in &self.config.ui.hotkeys {
+                if let Some(key) = Key::from_name(name)
+                    && !matches!(key, Key::F1 | Key::F5)
+                    && i.consume_key(egui::Modifiers::NONE, key)
+                {
+                    commands.push(AppCommand::Run(command.clone()));
+                }
+            }
             if i.consume_key(egui::Modifiers::NONE, Key::F5) {
                 commands.push(AppCommand::RefreshWatched);
             }

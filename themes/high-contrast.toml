@@ -1,0 +1,54 @@
+# High Contrast: white and gold on black, heavier type, thicker borders.
+# For bright rooms, projectors and low vision. Every text pairing is 7:1 or better.
+
+[meta]
+id = "high-contrast"
+name = "High Contrast"
+dark = true
+description = "White and gold on black, larger and heavier type, 2 px borders."
+
+[palette]
+background = "#000000"
+surface = "#0a0a0a"
+surface_alt = "#16324f"
+border = "#8a8a8a"
+border_strong = "#ffffff"
+text = "#ffffff"
+text_strong = "#ffffff"
+text_muted = "#d6d6d6"
+accent = "#ffd700"
+on_accent = "#000000"
+live = "#00ff88"
+positive = "#4dff88"
+negative = "#ff6b6b"
+warning = "#ffd700"
+info = "#7fd4ff"
+
+[chart]
+series = ["#ffd700", "#7fd4ff", "#4dff88", "#ff6b6b", "#ff9cff", "#ffffff", "#ffa94d", "#00ffff"]
+grid = "#5a5a5a"
+
+[fuel]
+coal = "#bdbdbd"
+gas = "#ffa94d"
+nuclear = "#ff9cff"
+wind = "#7fd4ff"
+solar = "#ffd700"
+hydro = "#00ffff"
+storage = "#4dff88"
+imports = "#ffffff"
+other = "#9e9e9e"
+
+[style]
+rounding = 0.0
+spacing = 7.0
+padding = 9.0
+stroke = 2.0
+shadow_offset = 0.0
+
+[fonts]
+body = { family = "IBM Plex Sans", weight = 500, size = 15.0 }
+mono = { family = "JetBrains Mono", weight = 500, size = 14.0 }
+heading = { family = "Space Grotesk", weight = 700, size = 18.0 }
+label = { family = "Space Grotesk", weight = 700, size = 12.0 }
+readout = { family = "Space Grotesk", weight = 700, size = 28.0 }
