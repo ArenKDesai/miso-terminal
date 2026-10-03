@@ -67,6 +67,7 @@ fn routes(registry: &Registry) -> Vec<Route> {
     out.push(Route::new("LMP", ["ALL"]));
     out.push(Route::new("MAP", ["MCC"]));
     out.push(Route::new("HUBS", ["3"]));
+    out.push(Route::new("DAM", ["YESTERDAY"]));
     out.push(Route::new(
         "CMP",
         ["MINN.HUB", "MICHIGAN.HUB", "ILLINOIS.HUB"],

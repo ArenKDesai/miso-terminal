@@ -8,6 +8,7 @@ mod asm;
 mod capacity;
 mod compare;
 mod cons;
+mod dam;
 mod fuel;
 pub(crate) mod gp;
 mod help;
@@ -35,6 +36,7 @@ pub fn all() -> Vec<FunctionSpec> {
         home::SPEC,
         lmp::SPEC,
         hubs::SPEC,
+        dam::SPEC,
         map::SPEC,
         gp::SPEC,
         spread::SPEC,
