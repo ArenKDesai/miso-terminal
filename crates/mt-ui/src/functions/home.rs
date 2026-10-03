@@ -42,6 +42,7 @@ impl Panel for Home {
         let fuel = cx.hub.watch(&cx.miso.fuel_mix());
         let cons = cx.hub.watch(&cx.miso.binding_constraints());
         let exante = cx.hub.watch(&cx.miso.exante_hubs());
+        let gas = cx.hub.watch(&cx.eia.henry_hub());
 
         ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             widgets::title_bar(ui, skin, "MISO at a glance", |ui| {
@@ -123,6 +124,22 @@ impl Panel for Home {
                                 .color(skin.text_muted)
                         }),
                     );
+                }
+                if let Some((day, price)) = gas.data().and_then(|g| g.latest()) {
+                    // Marginal energy cost over gas: the market's heat rate right now.
+                    let hr = mec.and_then(|m| mt_core::implied_heat_rate(m, price));
+                    let sub = match hr {
+                        Some(hr) => format!("heat rate {hr:.1} · {}", day.format("%b %-d")),
+                        None => format!("spot {}", day.format("%b %-d")),
+                    };
+                    widgets::stat_tile(
+                        ui,
+                        skin,
+                        "Henry Hub · $/MMBtu",
+                        &format!("{price:.2}"),
+                        Some(RichText::new(sub).color(skin.text_muted)),
+                    )
+                    .on_hover_text("Gas spot (EIA). Heat rate = MISO's marginal energy cost / gas, MMBtu/MWh. GAS for more.");
                 }
             });
 
