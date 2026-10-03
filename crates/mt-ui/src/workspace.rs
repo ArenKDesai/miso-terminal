@@ -100,9 +100,10 @@ impl Workspace {
         let fuel = ws.tab(Route::code("FUEL"));
         let cons = ws.tab(Route::code("CONS"));
         let help = ws.tab(Route::code("HELP"));
+        let wl = ws.tab(Route::code("WL"));
         ws.dock = DockState::new(vec![home, help]);
         let surface = ws.dock.main_surface_mut();
-        let [_, right] = surface.split_right(NodeIndex::root(), 0.52, vec![lmp]);
+        let [_, right] = surface.split_right(NodeIndex::root(), 0.52, vec![lmp, wl]);
         surface.split_below(right, 0.55, vec![load, fuel, cons]);
         ws
     }
@@ -113,9 +114,26 @@ impl Workspace {
         Tab::new(id, route)
     }
 
-    /// Focus a tab with this route if one is open, else open it in the focused pane.
-    pub fn open(&mut self, route: Route) {
-        if let Some(path) = self.dock.find_tab_from(|t| t.route == route) {
+    /// Focus a tab showing `route` (or one whose panel absorbs it), else open
+    /// it in the focused pane.
+    pub fn open(&mut self, route: Route, registry: &Registry) {
+        let code = registry
+            .find(&route.code)
+            .map_or(route.code.as_str(), |s| s.code)
+            .to_owned();
+        let mut target = self.dock.find_tab_from(|t| t.route == route);
+        if target.is_none() {
+            for (path, tab) in self.dock.iter_all_tabs_mut() {
+                if tab.route.code == code
+                    && tab.crashed.is_none()
+                    && tab.panel(registry).absorb(&route.args)
+                {
+                    target = Some(path);
+                    break;
+                }
+            }
+        }
+        if let Some(path) = target {
             let _ = self.dock.set_active_tab(path);
             self.dock.set_focused_node_and_surface(path.node_path());
             return;

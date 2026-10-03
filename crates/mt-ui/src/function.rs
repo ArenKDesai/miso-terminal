@@ -57,6 +57,14 @@ pub trait Panel {
     /// The route that reopens this panel in its current state. Persisted with
     /// the layout, so a panel that changes node updates its route.
     fn route(&self) -> Route;
+
+    /// Offered a route with this panel's code that is not an exact match
+    /// (e.g. `WL ALTE.ALTE` while a watchlist is open). Return `true` to take
+    /// the arguments and have the workspace focus this tab instead of opening
+    /// a new one. Most panels want separate tabs per argument set: the default.
+    fn absorb(&mut self, _args: &[String]) -> bool {
+        false
+    }
 }
 
 /// Grouping for menus and HELP.

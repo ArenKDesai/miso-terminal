@@ -8,7 +8,7 @@ use mt_core::is_trading_hub;
 use crate::context::PanelCx;
 use crate::function::{Category, FunctionSpec, Panel, Route};
 use crate::widgets::table::{Sort, cmp_opt, num_cell, sort_header};
-use crate::widgets::{self, fmt};
+use crate::widgets::{self, csv, fmt};
 
 pub const SPEC: FunctionSpec = FunctionSpec {
     code: "LMP",
@@ -221,11 +221,52 @@ impl Panel for Lmp {
             }
             return;
         }
-        ui.label(
-            RichText::new(format!("{} nodes · click a node to graph it", rows.len()))
-                .small()
-                .color(skin.text_muted),
-        );
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(format!("{} nodes · click a node to graph it", rows.len()))
+                    .small()
+                    .color(skin.text_muted),
+            );
+            let all = self.all_nodes;
+            csv::copy_button(ui, skin, || {
+                let c = |v: Option<f64>| v.map_or_else(String::new, |v| format!("{v:.2}"));
+                if all {
+                    csv::to_csv(
+                        &["node", "rt_5min", "change_5min", "mcc", "mlc"],
+                        rows.iter().map(|r| {
+                            vec![r.node.clone(), c(r.rt), c(r.change), c(r.mcc), c(r.mlc)]
+                        }),
+                    )
+                } else {
+                    csv::to_csv(
+                        &[
+                            "node",
+                            "region",
+                            "rt_5min",
+                            "rt_hourly",
+                            "da_exante",
+                            "da_expost",
+                            "rt_minus_da",
+                            "mcc",
+                            "mlc",
+                        ],
+                        rows.iter().map(|r| {
+                            vec![
+                                r.node.clone(),
+                                r.region.clone(),
+                                c(r.rt),
+                                c(r.rt_hourly),
+                                c(r.da_exante),
+                                c(r.da_expost),
+                                c(r.dart()),
+                                c(r.mcc),
+                                c(r.mlc),
+                            ]
+                        }),
+                    )
+                }
+            });
+        });
 
         let columns = if self.all_nodes {
             ALL_COLUMNS

@@ -85,6 +85,10 @@ whose state changes (a new node, a new day count) reports that through
 `route()`, so the layout always reopens what the user was looking at. Bump
 `workspace::LAYOUT_VERSION` if the persisted format ever changes incompatibly.
 
+Opening a route focuses an existing tab with the same route. A panel can also
+*absorb* a non-identical route of its own code (`Panel::absorb`). `WL` does this,
+so `WL ALTE.ALTE` adds to the open watchlist instead of opening a second one.
+
 Panels talk back to the shell only through `AppCommand`s (open a route, set a
 theme, refresh, reveal a folder). The shell applies them after the frame, so
 panels never hold `&mut App`.

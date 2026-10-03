@@ -14,6 +14,9 @@ pub enum AppCommand {
     /// Run a command-line string as if typed.
     Run(String),
     SetTheme(String),
+    /// Add a node to the watchlist (`config.ui.favorite_nodes`).
+    AddFavorite(String),
+    RemoveFavorite(String),
     ResetLayout,
     RefreshWatched,
     SetPaused(bool),

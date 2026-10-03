@@ -53,6 +53,8 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices with 5-min sparklines, fuel mix, top constraints |
 | `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable and filterable. `LMP ALL` lists all ~2,600 CP nodes |
 | `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), or N days of hourly DA vs RT with stats. Switch between LMP, energy, congestion and loss |
+| `SPRD` | Node spread | A − B between any two nodes: today at 5 minutes, or hourly DA and RT spreads over N days, with stats. Use the congestion component for an FTR-style view |
+| `WL` | Watchlist | Your favourite nodes: RT vs DA, 5-min change and today's sparkline. Add from here, with `WL <node>`, or with ☆ in GP. Saved to config |
 | `ASM` | Ancillary MCPs | Regulation, spinning, supplemental, short-term reserve and ramp MCPs by zone |
 | `LOAD` | System load | 5-min actual vs MTLF forecast vs DA cleared, with forecast error |
 | `CAP` | Capacity & headroom | Committed capacity vs demand, forecasts, available capacity |
@@ -162,15 +164,15 @@ each piece plugs in.
 
 ### Functions and UI
 - [ ] `MAP`: a node price heat map (LMP, congestion or loss), click to GP.
-- [ ] `SPRD A B`: node-to-node and hub-to-hub spreads with history; DART history per node.
+- [x] `SPRD A B`: node-to-node spreads (today at 5 minutes, hourly history, by component).
 - [ ] Price duration curve and an hour × day heatmap for a node.
 - [ ] **Alerts:** per-node price thresholds, a constraint starting to bind, a load
       forecast miss. Shown in-app and as Windows toast notifications.
-- [ ] Watchlists: editable favourite nodes (config already has `favorite_nodes`)
-      and a `WL` function.
+- [x] `WL` watchlist of favourite nodes, editable in-app (☆ in GP) and saved to config.
 - [ ] Pop a tab out into its own OS window (egui_dock windows + eframe viewports)
       for multi-monitor desks.
-- [ ] Export: copy a table as CSV, save a chart as PNG.
+- [x] Copy tables as CSV (LMP, WL, GP and SPRD history).
+- [ ] Save a chart as PNG.
 - [ ] `SET`: edit `config.toml` values in-app.
 - [ ] Command line: fuzzy matching, inline argument hints, Bloomberg-style
       function-key menus.

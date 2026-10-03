@@ -2,7 +2,9 @@
 //! share these, not because each copies the same styling.
 
 pub mod chart;
+pub mod csv;
 pub mod fmt;
+pub mod node_picker;
 pub mod table;
 
 use egui::{Color32, Frame, Response, RichText, Sense, Stroke, Ui};

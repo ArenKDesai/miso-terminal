@@ -15,7 +15,9 @@ mod log;
 mod nsi;
 mod outages;
 mod renew;
+mod spread;
 mod theme;
+mod watchlist;
 
 use crate::function::FunctionSpec;
 
@@ -24,6 +26,8 @@ pub fn all() -> Vec<FunctionSpec> {
         home::SPEC,
         lmp::SPEC,
         gp::SPEC,
+        spread::SPEC,
+        watchlist::SPEC,
         asm::SPEC,
         load::SPEC,
         capacity::SPEC,

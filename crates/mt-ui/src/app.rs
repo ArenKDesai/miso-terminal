@@ -149,6 +149,10 @@ impl TerminalApp {
         };
         self.config.theme = theme.meta.id.clone();
         self.apply_theme(ctx);
+        self.save_config();
+    }
+
+    fn save_config(&mut self) {
         if let Err(e) = self.config.save(&self.paths.config_file) {
             self.notices.push(format!("Could not save config: {e}"));
         }
@@ -184,7 +188,7 @@ impl TerminalApp {
                     return;
                 }
                 self.feedback(route.to_string(), false);
-                self.workspace.open(route);
+                self.workspace.open(route, &self.registry);
             }
             Parsed::Unknown(s) => self.feedback(
                 format!("Unknown command {s:?}. Type HELP for functions."),
@@ -196,9 +200,20 @@ impl TerminalApp {
     pub(crate) fn apply_commands(&mut self, ctx: &egui::Context, commands: Vec<AppCommand>) {
         for c in commands {
             match c {
-                AppCommand::Open(route) => self.workspace.open(route),
+                AppCommand::Open(route) => self.workspace.open(route, &self.registry),
                 AppCommand::Run(text) => self.run_command(ctx, &text),
                 AppCommand::SetTheme(id) => self.set_theme(ctx, &id),
+                AppCommand::AddFavorite(node) => {
+                    let node = node.trim().to_ascii_uppercase();
+                    if !node.is_empty() && !self.config.ui.favorite_nodes.contains(&node) {
+                        self.config.ui.favorite_nodes.push(node);
+                        self.save_config();
+                    }
+                }
+                AppCommand::RemoveFavorite(node) => {
+                    self.config.ui.favorite_nodes.retain(|n| n != &node);
+                    self.save_config();
+                }
                 AppCommand::ResetLayout => self.workspace = Workspace::default_layout(),
                 AppCommand::RefreshWatched => self.hub.refresh_watched(),
                 AppCommand::SetPaused(p) => self.hub.set_paused(p),

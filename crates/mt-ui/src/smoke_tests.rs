@@ -65,6 +65,9 @@ fn routes(registry: &Registry) -> Vec<Route> {
     out.push(Route::new("GP", ["MINN.HUB", "3"]));
     out.push(Route::new("GP", ["NOT.A.NODE"]));
     out.push(Route::new("LMP", ["ALL"]));
+    out.push(Route::new("SPRD", ["MINN.HUB", "ILLINOIS.HUB"]));
+    out.push(Route::new("SPRD", ["MINN.HUB", "ILLINOIS.HUB", "3"]));
+    out.push(Route::new("WL", ["ALTE.ALTE"]));
     out.push(Route::new("THEME", ["everforge-light"]));
     out
 }
@@ -267,6 +270,8 @@ fn app_shell_runs_frames_and_executes_commands() {
         ],
     );
     app.apply_commands(&ctx, vec![AppCommand::Open(Route::code("LMP"))]); // already open: focus, not duplicate
+    // WL absorbs `WL <node>` into the open watchlist (the default layout has one).
+    app.apply_commands(&ctx, vec![AppCommand::Run("WL ALTE.ALTE".into())]);
     assert_eq!(app.workspace_mut().routes().len(), before + 1);
     app.apply_commands(&ctx, vec![AppCommand::Run("THEME amber-terminal".into())]);
     run(&mut app);

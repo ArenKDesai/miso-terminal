@@ -57,6 +57,11 @@ Rules of thumb:
 - If `open` gets arguments it cannot use, prompt inside the panel rather than
   failing (a test checks that every function opens with no arguments).
 - Panel state that should survive a restart belongs in `route()`.
+- For single-instance panels, implement `absorb()` so `CODE <args>` updates
+  the open tab rather than opening another.
+- Node history, spreads and component maths live in `crate::series`. Node
+  search is `widgets::node_picker::NodePicker`, and CSV export is
+  `widgets::csv::copy_button`. Reuse them.
 
 ## Add a MISO dataset
 
