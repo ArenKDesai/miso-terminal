@@ -96,6 +96,21 @@ impl Panel for Missing {
     }
 }
 
+/// A tab in its own OS window, for a second monitor.
+#[derive(Serialize, Deserialize)]
+pub struct Popped {
+    pub tab: Tab,
+    /// Where the window was (outer top-left) and its inner size, in points,
+    /// so it reopens in the same place.
+    pub pos: Option<[f32; 2]>,
+    pub size: Option<[f32; 2]>,
+}
+
+/// The OS window showing a popped-out tab.
+pub fn popout_viewport(tab: u64) -> egui::ViewportId {
+    egui::ViewportId::from_hash_of(("mt-popout", tab))
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Workspace {
     pub version: u32,
@@ -104,6 +119,12 @@ pub struct Workspace {
     /// The tab filling the window (Ctrl+M), if any. Layouts always reopen unzoomed.
     #[serde(skip)]
     zoomed: Option<u64>,
+    /// Tabs popped out into their own windows. Saved with the layout.
+    #[serde(default)]
+    pub popped: Vec<Popped>,
+    /// A popped-out window to bring forward (its route was opened again).
+    #[serde(skip)]
+    raise: Option<u64>,
 }
 
 impl Workspace {
@@ -113,6 +134,8 @@ impl Workspace {
             dock: DockState::new(Vec::new()),
             next_id: 1,
             zoomed: None,
+            popped: Vec::new(),
+            raise: None,
         };
         let home = ws.tab(Route::code("HOME"));
         let lmp = ws.tab(Route::code("LMP"));
@@ -132,6 +155,48 @@ impl Workspace {
         let id = self.next_id;
         self.next_id += 1;
         Tab::new(id, route)
+    }
+
+    /// Move a tab out of the dock into its own OS window.
+    pub fn pop_out(&mut self, tab: u64) {
+        let Some(path) = self.dock.find_tab_from(|t| t.id == tab) else {
+            return;
+        };
+        if self.zoomed == Some(tab) {
+            self.zoomed = None;
+        }
+        if let Some(tab) = self.dock.remove_tab(path) {
+            self.popped.push(Popped {
+                tab,
+                pos: None,
+                size: None,
+            });
+        }
+    }
+
+    /// Put a popped-out tab back in the dock (its window was closed).
+    pub fn dock_back(&mut self, tab: u64) {
+        let Some(i) = self.popped.iter().position(|p| p.tab.id == tab) else {
+            return;
+        };
+        let tab = self.popped.remove(i).tab;
+        self.push_focused(tab);
+    }
+
+    /// The popped-out window to bring forward, if any (taken once).
+    pub fn take_raise(&mut self) -> Option<u64> {
+        self.raise.take()
+    }
+
+    /// Add a tab to the focused pane and focus it.
+    fn push_focused(&mut self, tab: Tab) {
+        let id = tab.id;
+        self.dock.push_to_focused_leaf(tab);
+        // Focus the new tab, so Ctrl+W / Ctrl+M act on what was just opened.
+        if let Some(path) = self.dock.find_tab_from(|t| t.id == id) {
+            let _ = self.dock.set_active_tab(path);
+            self.dock.set_focused_node_and_surface(path.node_path());
+        }
     }
 
     /// Fill the window with the focused tab, or go back to the layout.
@@ -179,6 +244,11 @@ impl Workspace {
     /// it in the focused pane. Leaves a zoomed view, so the result is visible.
     pub fn open(&mut self, route: Route, registry: &Registry) {
         self.zoomed = None;
+        // Already in its own window: bring that forward instead.
+        if let Some(p) = self.popped.iter().find(|p| p.tab.route == route) {
+            self.raise = Some(p.tab.id);
+            return;
+        }
         let code = registry
             .find(&route.code)
             .map_or(route.code.as_str(), |s| s.code)
@@ -201,13 +271,7 @@ impl Workspace {
             return;
         }
         let tab = self.tab(route);
-        let id = tab.id;
-        self.dock.push_to_focused_leaf(tab);
-        // Focus the new tab, so Ctrl+W / Ctrl+M act on what was just opened.
-        if let Some(path) = self.dock.find_tab_from(|t| t.id == id) {
-            let _ = self.dock.set_active_tab(path);
-            self.dock.set_focused_node_and_surface(path.node_path());
-        }
+        self.push_focused(tab);
     }
 
     /// Close the active tab in the focused pane (Ctrl+W).
@@ -253,10 +317,13 @@ impl Workspace {
         }
     }
 
+    /// Every open route, docked or popped out.
     pub fn routes(&self) -> Vec<Route> {
         self.dock
             .iter_all_tabs()
-            .map(|(_, t)| t.route.clone())
+            .map(|(_, t)| &t.route)
+            .chain(self.popped.iter().map(|p| &p.tab.route))
+            .cloned()
             .collect()
     }
 
@@ -264,7 +331,8 @@ impl Workspace {
     pub fn restore(saved: Option<Self>) -> Self {
         match saved {
             Some(ws)
-                if ws.version == LAYOUT_VERSION && ws.dock.iter_all_tabs().next().is_some() =>
+                if ws.version == LAYOUT_VERSION
+                    && (ws.dock.iter_all_tabs().next().is_some() || !ws.popped.is_empty()) =>
             {
                 ws
             }
@@ -338,6 +406,14 @@ impl TabViewer for Viewer<'_, '_> {
     fn context_menu(&mut self, ui: &mut Ui, tab: &mut Tab, _path: egui_dock::NodePath) {
         if ui.button("Zoom (Ctrl+M, double-click)").clicked() {
             self.cx.send(crate::context::AppCommand::Zoom(Some(tab.id)));
+            ui.close();
+        }
+        if ui
+            .button("Open in new window")
+            .on_hover_text("For a second monitor. Close the window to dock it again.")
+            .clicked()
+        {
+            self.cx.send(crate::context::AppCommand::PopOut(tab.id));
             ui.close();
         }
         let Some(rect) = tab.body_rect else { return };
@@ -426,5 +502,58 @@ pub(crate) mod tests {
         ws.toggle_zoom();
         ws.toggle_zoom();
         assert!(!ws.is_zoomed(), "toggles back");
+    }
+
+    #[test]
+    fn tabs_pop_out_and_dock_back() {
+        let registry = Registry::builtin();
+        let mut ws = Workspace::default_layout();
+        ws.open(Route::code("MAP"), &registry);
+        let map = ws.dock.find_active_focused().map(|(_, t)| t.id).unwrap();
+        let before = ws.routes().len();
+        ws.pop_out(map);
+        assert_eq!(ws.popped.len(), 1);
+        assert!(
+            ws.dock.find_tab_from(|t| t.id == map).is_none(),
+            "left the dock"
+        );
+        assert_eq!(ws.routes().len(), before, "still open, in its own window");
+
+        // Opening it again raises its window instead of a duplicate.
+        ws.open(Route::code("MAP"), &registry);
+        assert_eq!(ws.take_raise(), Some(map));
+        assert_eq!(ws.routes().len(), before);
+
+        // Survives a save and restore (window geometry too).
+        ws.popped[0].pos = Some([40.0, 50.0]);
+        // Through eframe's own persistence, as the app saves it.
+        #[derive(Default)]
+        struct Memory(std::collections::HashMap<String, String>);
+        impl eframe::Storage for Memory {
+            fn get_string(&self, key: &str) -> Option<String> {
+                self.0.get(key).cloned()
+            }
+            fn set_string(&mut self, key: &str, value: String) {
+                self.0.insert(key.to_owned(), value);
+            }
+            fn remove_string(&mut self, key: &str) {
+                self.0.remove(key);
+            }
+            fn flush(&mut self) {}
+        }
+        let mut storage = Memory::default();
+        eframe::set_value(&mut storage, "workspace", &ws);
+        let saved = eframe::get_value::<Workspace>(&storage, "workspace");
+        assert!(saved.is_some(), "the layout round-trips");
+        let mut ws = Workspace::restore(saved);
+        assert_eq!(ws.popped.len(), 1);
+        assert_eq!(ws.popped[0].pos, Some([40.0, 50.0]));
+
+        ws.dock_back(map);
+        assert!(ws.popped.is_empty());
+        assert!(
+            ws.dock.find_tab_from(|t| t.id == map).is_some(),
+            "back in the dock"
+        );
     }
 }

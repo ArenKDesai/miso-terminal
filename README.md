@@ -97,7 +97,9 @@ The `LOG` function shows the exact paths and has buttons to open them.
 
 Double-click a tab title (or press `Ctrl+M`) to zoom that panel to the whole
 window; `Esc` or `Ctrl+M` brings the layout back. Right-click a tab title to
-copy the panel as an image or save it as a PNG (to `Pictures\MISO Terminal`).
+open the panel in its own window (for a second monitor; close it or press
+*Dock* to put it back, and it reopens where you left it), or to copy the panel
+as an image or save it as a PNG (to `Pictures\MISO Terminal`).
 
 Keyboard: `Ctrl+K` or `Esc` focuses the command line, `Enter` runs it, `Tab`/`↑`/`↓`
 pick a suggestion, `F1` opens help, `F5` refreshes every open feed,
@@ -146,12 +148,15 @@ for the format.
 ## Development
 
 ```powershell
-cargo test --workspace            # unit, parser-fixture and headless UI smoke tests
+cargo test --workspace            # unit, parser-fixture, UI smoke and visual regression tests
 cargo clippy --workspace --all-targets
 cargo fmt --all
 cargo run -- --offline            # UI work without touching MISO
 cargo run -p mt-miso --example capture_fixtures   # re-record fixtures from live MISO
-uv run tools/screenshot.py docs/screenshots/x.png --run "GP MINN.HUB"
+# Render the app offscreen against the fixtures (docs screenshots, reviews):
+cargo run -p mt-ui --example render -- docs/screenshots/x.png --run "GP MINN.HUB 7" --zoom
+# After an intended visual change, accept the new reference images:
+$env:UPDATE_SNAPSHOTS=1; cargo test -p mt-ui --test snapshots
 ```
 
 The workspace is layered so that each part can change without touching the others:
@@ -220,8 +225,8 @@ each piece plugs in.
 - [x] More alert kinds: spreads, RDT near its limit, load above forecast, ACE.
 - [x] Windows toast notifications for alerts (toggle and a test button in ALRT).
 - [x] `WL` watchlist of favourite nodes, editable in-app (☆ in GP) and saved to config.
-- [ ] Pop a tab out into its own OS window (egui_dock windows + eframe viewports)
-      for multi-monitor desks.
+- [x] Pop a tab out into its own OS window for multi-monitor desks (saved with the
+      layout, position included).
 - [x] Copy tables as CSV (LMP, WL, GP and SPRD history).
 - [x] Copy a panel to the clipboard as an image, or save it as PNG (right-click its tab).
 - [x] `SET`: edit `config.toml` values in-app.

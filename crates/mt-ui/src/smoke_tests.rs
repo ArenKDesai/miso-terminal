@@ -334,6 +334,21 @@ fn app_shell_runs_frames_and_executes_commands() {
     app.apply_commands(&ctx, vec![AppCommand::Zoom(None)]);
     run(&mut app);
     assert!(!app.workspace_mut().is_zoomed());
+    // Pop the focused panel out (headless egui embeds it as a floating window),
+    // draw it, and dock it back.
+    let tab = app
+        .workspace_mut()
+        .dock
+        .find_active_focused()
+        .map(|(_, t)| t.id)
+        .expect("a focused tab");
+    app.apply_commands(&ctx, vec![AppCommand::PopOut(tab)]);
+    run(&mut app);
+    run(&mut app);
+    assert_eq!(app.workspace_mut().popped.len(), 1);
+    app.apply_commands(&ctx, vec![AppCommand::DockBack(tab)]);
+    run(&mut app);
+    assert!(app.workspace_mut().popped.is_empty());
     let before = app.workspace_mut().routes().len();
     app.apply_commands(
         &ctx,

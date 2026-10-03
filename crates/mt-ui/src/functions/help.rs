@@ -43,7 +43,7 @@ pub const SHORTCUTS: &[(&str, &str)] = &[
     ),
     (
         "Right-click a tab",
-        "Zoom, copy the panel as an image, or save it as PNG",
+        "Zoom, open in a new window, copy as an image, or save as PNG",
     ),
     ("Ctrl+Shift+L", "Reset the layout"),
 ];

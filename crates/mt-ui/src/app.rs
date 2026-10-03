@@ -352,6 +352,8 @@ impl TerminalApp {
                 AppCommand::CloseTab => self.workspace.close_focused(),
                 AppCommand::CycleTab(forward) => self.workspace.cycle_focused(forward),
                 AppCommand::ToggleZoom => self.workspace.toggle_zoom(),
+                AppCommand::PopOut(tab) => self.workspace.pop_out(tab),
+                AppCommand::DockBack(tab) => self.workspace.dock_back(tab),
                 AppCommand::Zoom(tab) => self.workspace.zoom(tab),
                 AppCommand::RefreshWatched => self.hub.refresh_watched(),
                 AppCommand::SetPaused(p) => self.hub.set_paused(p),
@@ -901,6 +903,20 @@ impl eframe::App for TerminalApp {
             .show(ui, |ui| self.status_bar(ui, &mut commands));
 
         let dock_style = self.dock_style(ui);
+        let mut cx = PanelCx {
+            hub: &self.hub,
+            miso: &self.miso,
+            nws: &self.nws,
+            skin: &self.skin,
+            config: &self.config,
+            paths: &self.paths,
+            registry: &self.registry,
+            themes: &self.themes,
+            notices: &self.notices,
+            alerts: &self.alerts,
+            can_notify: self.notifier.is_some(),
+            commands: &mut commands,
+        };
         egui::CentralPanel::default()
             .frame(
                 Frame::new()
@@ -908,20 +924,6 @@ impl eframe::App for TerminalApp {
                     .inner_margin(Margin::same(4)),
             )
             .show(ui, |ui| {
-                let mut cx = PanelCx {
-                    hub: &self.hub,
-                    miso: &self.miso,
-                    nws: &self.nws,
-                    skin: &self.skin,
-                    config: &self.config,
-                    paths: &self.paths,
-                    registry: &self.registry,
-                    themes: &self.themes,
-                    notices: &self.notices,
-                    alerts: &self.alerts,
-                    can_notify: self.notifier.is_some(),
-                    commands: &mut commands,
-                };
                 if let Some(tab) = self.workspace.zoomed_tab() {
                     zoomed_view(ui, &mut cx, tab);
                 } else {
@@ -933,8 +935,18 @@ impl eframe::App for TerminalApp {
                         .show_inside(ui, &mut Viewer { cx: &mut cx });
                 }
             });
+        for popped in &mut self.workspace.popped {
+            if popout_window(&ctx, &mut cx, popped) {
+                cx.send(AppCommand::DockBack(popped.tab.id));
+            }
+        }
 
         self.apply_commands(&ctx, commands);
+        if let Some(tab) = self.workspace.take_raise() {
+            let id = crate::workspace::popout_viewport(tab);
+            ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Minimized(false));
+            ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Focus);
+        }
         // Clocks and "updated 12s ago" labels tick even when no data arrives.
         ctx.request_repaint_after(Duration::from_secs(1));
     }
@@ -946,6 +958,67 @@ impl eframe::App for TerminalApp {
     fn on_exit(&mut self) {
         self.save_intraday(false);
     }
+}
+
+/// A popped-out tab in its own OS window (or, where the platform has no extra
+/// windows, a floating one). Returns whether it should go back in the dock.
+fn popout_window(
+    ctx: &egui::Context,
+    cx: &mut PanelCx<'_>,
+    popped: &mut crate::workspace::Popped,
+) -> bool {
+    let skin = cx.skin;
+    let title = popped.tab.title(cx.registry);
+    let mut builder = egui::ViewportBuilder::default()
+        .with_title(format!("{title} · MISO Terminal"))
+        .with_inner_size(popped.size.unwrap_or([960.0, 640.0]))
+        .with_min_inner_size([360.0, 240.0]);
+    if let Some(pos) = popped.pos {
+        builder = builder.with_position(pos);
+    }
+    let id = crate::workspace::popout_viewport(popped.tab.id);
+    ctx.show_viewport_immediate(id, builder, |ui, class| {
+        let pad = skin.theme.style.padding;
+        let mut body = |ui: &mut Ui| {
+            let mut dock_back = false;
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(&title).strong().color(skin.accent));
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    dock_back = ui
+                        .small_button("Dock")
+                        .on_hover_text("Put this panel back in the main window")
+                        .clicked();
+                });
+            });
+            popped.tab.set_body_rect(ui.max_rect().expand(pad));
+            crate::workspace::draw_tab(ui, cx, &mut popped.tab);
+            dock_back
+        };
+        if class == egui::ViewportClass::EmbeddedWindow {
+            // Already inside a floating egui window in the main viewport, whose
+            // geometry and close state are the main window's: not ours to keep.
+            return body(ui);
+        }
+        let dock_back = egui::CentralPanel::default()
+            .frame(
+                Frame::new()
+                    .fill(skin.background)
+                    .inner_margin(Margin::same(pad as i8)),
+            )
+            .show(ui, |ui| body(ui))
+            .inner;
+        // Remember where it is, to reopen it there.
+        ui.ctx().input(|i| {
+            let v = i.viewport();
+            if let Some(r) = v.outer_rect {
+                popped.pos = Some([r.min.x, r.min.y]);
+            }
+            if let Some(r) = v.inner_rect {
+                popped.size = Some([r.width(), r.height()]);
+            }
+            dock_back || v.close_requested()
+        })
+    })
 }
 
 /// One tab filling the window, with a strip to go back to the layout.

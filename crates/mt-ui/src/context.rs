@@ -33,6 +33,10 @@ pub enum AppCommand {
     ToggleZoom,
     /// Fill the window with this tab (or go back to the layout with `None`).
     Zoom(Option<u64>),
+    /// Move this tab into its own OS window.
+    PopOut(u64),
+    /// Put a popped-out tab back in the dock.
+    DockBack(u64),
     RefreshWatched,
     SetPaused(bool),
     ClearCache,
