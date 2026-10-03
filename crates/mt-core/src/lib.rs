@@ -5,6 +5,7 @@
 //! Keeping the model here means a second source (a local archive, another API)
 //! can feed the same panels without the panels changing.
 
+pub mod geo;
 pub mod grid;
 pub mod num;
 pub mod prices;

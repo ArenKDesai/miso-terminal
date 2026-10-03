@@ -24,7 +24,7 @@ line in a list.
             │ DiskCache      │     └───────┬────────┘     └────────────────┘
             └────────────────┘             │
             ┌──────────────────────────────▼───────────────────────────────┐
- domain     │ mt-core   prices · grid · market time · lenient numbers      │
+ domain     │ mt-core   prices · grid · weather · time · geometry · numbers│
             └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -135,7 +135,7 @@ with a grid that snaps to market midnight.
 
 | Layer | Tests |
 |---|---|
-| `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging |
+| `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces |
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; transports; disk cache |
 | `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green) |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |

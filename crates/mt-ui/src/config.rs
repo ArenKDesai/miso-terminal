@@ -188,10 +188,17 @@ mod tests {
 
     #[test]
     fn default_hotkeys_are_real_keys_and_old_configs_get_them() {
-        assert!(default_hotkeys().keys().all(|k| egui::Key::from_name(k).is_some()));
-        let cfg: AppConfig = toml::from_str("[ui]
+        assert!(
+            default_hotkeys()
+                .keys()
+                .all(|k| egui::Key::from_name(k).is_some())
+        );
+        let cfg: AppConfig = toml::from_str(
+            "[ui]
 zoom = 1.0
-").unwrap();
+",
+        )
+        .unwrap();
         assert_eq!(cfg.ui.hotkeys, default_hotkeys());
     }
 

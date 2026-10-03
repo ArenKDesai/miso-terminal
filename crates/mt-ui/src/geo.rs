@@ -55,6 +55,18 @@ pub fn map() -> &'static MapData {
     })
 }
 
+/// The footprint's rings in projected coordinates, computed once.
+pub fn footprint_xy() -> &'static [Vec<[f64; 2]>] {
+    static RINGS: OnceLock<Vec<Vec<[f64; 2]>>> = OnceLock::new();
+    RINGS.get_or_init(|| {
+        map()
+            .footprint
+            .iter()
+            .map(|r| r.iter().map(|p| project(p[0], p[1])).collect())
+            .collect()
+    })
+}
+
 /// Lambert conformal conic (standard parallels 33°N and 45°N, central meridian
 /// 100°W): the projection MISO's own maps use. Spherical, unit radius; the
 /// output is only ever used for drawing.

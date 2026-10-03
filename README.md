@@ -70,7 +70,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices (RT, next-interval ex-ante, DA) with 5-min sparklines, fuel mix, top constraints |
 | `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable and filterable. `LMP ALL` lists all ~2,600 CP nodes |
 | `HUBS` | Hub statistics | All eight trading hubs over N days: DA, RT and DART averages, on-peak and off-peak blocks, RT volatility, extremes and how often RT beat DA |
-| `MAP` | Price map | Every node MISO plots, on a map of the footprint, coloured by RT LMP, congestion, loss, DA or RT − DA. Hover for the breakdown, click to graph |
+| `MAP` | Price map | Every node MISO plots, over an interpolated price surface of the footprint, coloured by RT LMP, congestion, loss, DA or RT − DA. Hover for the breakdown, click to graph |
 | `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), N days of hourly DA vs RT with stats, an hour × day heatmap (`GP MINN.HUB 14 HEAT`), or price duration curves (`… DUR`). Switch between LMP, energy, congestion and loss |
 | `SPRD` | Node spread | A − B between any two nodes: today at 5 minutes, or hourly DA and RT spreads over N days, with stats. Use the congestion component for an FTR-style view |
 | `CMP` | Compare nodes | Up to eight nodes on one chart: today's 5-minute RT, or hourly RT or DA over N days, with a latest/average/range row each (`CMP MINN.HUB MICHIGAN.HUB 7`) |
@@ -198,7 +198,8 @@ each piece plugs in.
 
 ### Functions and UI
 - [x] `MAP`: node price map (LMP, congestion, loss, DA, DART) built from MISO's own node positions; click to GP.
-- [ ] MAP: an interpolated price surface and transmission lines (3D-MISO-Map has both).
+- [x] MAP: an interpolated price surface over the footprint.
+- [ ] MAP: transmission lines (3D-MISO-Map has them; needs a much-simplified asset).
 - [x] `SPRD A B`: node-to-node spreads (today at 5 minutes, hourly history, by component).
 - [x] Hour × day heatmap for a node or a spread (`GP <node> 14 HEAT`, `SPRD A B 14 HEAT`).
 - [x] Price duration curves for a node or spread (`GP <node> 30 DUR`).

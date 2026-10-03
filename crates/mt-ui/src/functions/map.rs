@@ -2,7 +2,8 @@
 //! chosen metric on a diverging scale; hover for details, click to graph.
 
 use egui::{Color32, Pos2, RichText, Shape, Stroke, Ui, vec2};
-use egui_plot::{Line, Plot, PlotPoint, PlotPoints};
+use egui_plot::{Line, Plot, PlotImage, PlotPoint, PlotPoints};
+use mt_core::geo::GridSpec;
 use mt_core::{LmpBoardRow, hub_short};
 
 use crate::context::PanelCx;
@@ -89,6 +90,9 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
         metric,
         show_generators: true,
         labels: true,
+        surface: true,
+        mask: None,
+        texture: None,
     }))
 }
 
@@ -96,6 +100,85 @@ struct MapPanel {
     metric: Metric,
     show_generators: bool,
     labels: bool,
+    /// Draw the interpolated price surface under the markers.
+    surface: bool,
+    /// Which grid cells fall inside the footprint (computed once).
+    mask: Option<(GridSpec, Vec<bool>)>,
+    /// The current surface image and what it was built from.
+    texture: Option<(String, egui::TextureHandle)>,
+}
+
+/// Grid columns across the footprint (~200 x 180 cells).
+const SURFACE_COLUMNS: usize = 200;
+/// How local the interpolation is; higher follows individual nodes more.
+const IDW_POWER: i32 = 3;
+/// Surface opacity; markers stay the stronger signal.
+const SURFACE_ALPHA: u8 = 145;
+
+impl MapPanel {
+    /// The surface texture for the current data, rebuilt only when the
+    /// interval, metric, scale or theme changes. Returns its plot centre, size and id.
+    fn surface_texture(
+        &mut self,
+        ctx: &egui::Context,
+        board: &mt_core::LmpBoard,
+        scale: &Diverging,
+        skin: &Skin,
+    ) -> Option<(PlotPoint, egui::Vec2, egui::TextureId)> {
+        let (spec, mask) = self.mask.get_or_insert_with(|| {
+            let rings = geo::footprint_xy();
+            let (lo, hi) = mt_core::geo::bounds(rings.iter().map(Vec::as_slice))
+                .unwrap_or(([0.0; 2], [1.0; 2]));
+            let spec = GridSpec::new(lo, hi, SURFACE_COLUMNS);
+            let mask = mt_core::geo::mask(&spec, rings);
+            (spec, mask)
+        });
+        let key = format!(
+            "{}|{:?}|{}|{:?}",
+            self.metric.code(),
+            board.interval,
+            skin.theme.meta.id,
+            scale
+        );
+        if self.texture.as_ref().is_none_or(|(k, _)| *k != key) {
+            let samples: Vec<([f64; 2], f64)> = geo::map()
+                .nodes
+                .iter()
+                .filter_map(|n| {
+                    Some((
+                        geo::project(n.lon, n.lat),
+                        self.metric.value(board.row(&n.node)?)?,
+                    ))
+                })
+                .collect();
+            let values = mt_core::geo::idw(spec, mask, &samples, IDW_POWER);
+            let pixels = values
+                .iter()
+                .map(|v| match v {
+                    Some(v) => {
+                        let c = scale.color(*v, skin);
+                        Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), SURFACE_ALPHA)
+                    }
+                    None => Color32::TRANSPARENT,
+                })
+                .collect();
+            let image = egui::ColorImage::new([spec.nx, spec.ny], pixels);
+            self.texture = Some((
+                key,
+                ctx.load_texture("map-surface", image, egui::TextureOptions::LINEAR),
+            ));
+        }
+        let (_, tex) = self.texture.as_ref()?;
+        let center = PlotPoint::new(
+            (spec.min[0] + spec.max[0]) / 2.0,
+            (spec.min[1] + spec.max[1]) / 2.0,
+        );
+        let size = egui::vec2(
+            (spec.max[0] - spec.min[0]) as f32,
+            (spec.max[1] - spec.min[1]) as f32,
+        );
+        Some((center, size, tex.id()))
+    }
 }
 
 impl Panel for MapPanel {
@@ -117,6 +200,9 @@ impl Panel for MapPanel {
             ui.separator();
             ui.checkbox(&mut self.show_generators, "Generators");
             ui.checkbox(&mut self.labels, "Hub labels");
+            ui.checkbox(&mut self.surface, "Surface").on_hover_text(
+                "Interpolated price field over the footprint (inverse-distance weighting)",
+            );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 widgets::freshness(ui, skin, &board)
             });
@@ -155,6 +241,10 @@ impl Panel for MapPanel {
         for (_, [x, y], _) in &points {
             (x0, x1, y0, y1) = (x0.min(*x), x1.max(*x), y0.min(*y), y1.max(*y));
         }
+        let surface = self
+            .surface
+            .then(|| self.surface_texture(ui.ctx(), board, &scale, skin))
+            .flatten();
         let resp = Plot::new("miso-map")
             .include_x(x0)
             .include_x(x1)
@@ -168,6 +258,9 @@ impl Panel for MapPanel {
             .label_formatter(|_| None)
             .allow_double_click_reset(true)
             .show(ui, |plot| {
+                if let Some((center, size, id)) = surface {
+                    plot.image(PlotImage::new("", id, center, size).allow_hover(false));
+                }
                 for ring in &map.states {
                     plot.line(outline(ring, skin.border, 1.0));
                 }
