@@ -153,6 +153,7 @@ with a grid that snaps to market midnight.
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
 | `mt-ui` | Command parsing, completion and hints; alert engine; series maths; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart |
+| visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen at their recording time, compared with committed images: every theme's layout and several zoomed panels |
 
 The smoke test iterates the registry, so a new function gets coverage without
 writing a test. Separately, the weekly `drift.yml` workflow records live MISO

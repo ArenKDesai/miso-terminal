@@ -17,9 +17,29 @@ pub fn market_offset() -> FixedOffset {
     FixedOffset::east_opt(MARKET_UTC_OFFSET_SECS).expect("constant offset is valid")
 }
 
+/// Seconds since the epoch the clock is frozen at; `i64::MIN` while it runs.
+static FROZEN_AT: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(i64::MIN);
+
+/// Stop the clock at `at`, or let it run again with `None`. Process-wide: for
+/// showing recorded data as of when it was recorded (the `render` example) and
+/// for reproducible output, never in the live app.
+pub fn freeze_clock(at: Option<DateTime<Utc>>) {
+    let secs = at.map_or(i64::MIN, |t| t.timestamp());
+    FROZEN_AT.store(secs, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The current instant: the system clock unless frozen. Everything that shows
+/// or reasons about "now" should come through here.
+pub fn now_utc() -> DateTime<Utc> {
+    match FROZEN_AT.load(std::sync::atomic::Ordering::Relaxed) {
+        i64::MIN => Utc::now(),
+        secs => DateTime::from_timestamp(secs, 0).unwrap_or_else(Utc::now),
+    }
+}
+
 /// Current wall-clock time in market time.
 pub fn now_market() -> NaiveDateTime {
-    to_market(Utc::now())
+    to_market(now_utc())
 }
 
 /// Today's market day.

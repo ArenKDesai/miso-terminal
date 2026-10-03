@@ -786,7 +786,9 @@ impl TerminalApp {
                 );
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                let local = chrono::Local::now().format("%H:%M:%S");
+                let local = mt_core::time::now_utc()
+                    .with_timezone(&chrono::Local)
+                    .format("%H:%M:%S");
                 let market = now_market().format("%a %b %d  %H:%M:%S");
                 ui.label(
                     RichText::new(format!("local {local}"))

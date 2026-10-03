@@ -16,10 +16,17 @@ cargo run -p mt-miso --example capture_fixtures       # re-record MISO fixtures 
 cargo run -p mt-nws --example capture_fixtures        # re-record weather fixtures (two per city)
 cargo run -p mt-theme --example sync_everforge -- ..\everforge
 cargo run -p mt-ui --example render -- out.png --run "MAP MCC" --zoom   # offscreen PNG, fixtures, no window
+$env:UPDATE_SNAPSHOTS=1; cargo test -p mt-ui --test snapshots           # accept intended visual changes
 uv run tools/screenshot.py out.png --run "GP MINN.HUB"   # PrintWindow capture of the app window only (live data)
 uv run tools/screenshot.py out.png --home some\dir --offline   # with a prepared config, no network
 uv run tools/build_map_asset.py        # rebuild assets/map/miso_map.json from ../3D-MISO-Map
 ```
+
+`tests/snapshots.rs` compares renders with `crates/mt-ui/tests/snapshots/*.png`.
+A visual change fails it on purpose: look at the `.new.png` / `.diff.png` it
+leaves, and accept with `UPDATE_SNAPSHOTS=1` if the change is intended.
+Renders freeze the clock (`mt_core::time::freeze_clock`) at the fixtures'
+recording time; route any new "now" through `mt_core::time::now_utc`.
 
 Prefer the `render` example for reviewing UI changes: it drives the real app
 offscreen (egui_kittest + wgpu), so it never touches the desktop and can reach

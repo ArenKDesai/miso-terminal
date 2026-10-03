@@ -9,3 +9,7 @@ __pycache__/
 # Local scratch
 /scratch/
 *.log
+# Visual regression scratch output (references are committed).
+crates/mt-ui/tests/snapshots/*.new.png
+crates/mt-ui/tests/snapshots/*.diff.png
+crates/mt-ui/tests/snapshots/*.old.png

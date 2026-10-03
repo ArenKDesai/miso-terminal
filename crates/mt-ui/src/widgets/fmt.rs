@@ -66,7 +66,7 @@ pub fn day_hm(t: NaiveDateTime) -> String {
 
 /// `12s ago`, `3m ago`, `2h ago`.
 pub fn ago(t: DateTime<Utc>) -> String {
-    let s = (Utc::now() - t).num_seconds().max(0);
+    let s = (mt_core::time::now_utc() - t).num_seconds().max(0);
     match s {
         0..=4 => "just now".into(),
         5..=59 => format!("{s}s ago"),

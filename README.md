@@ -247,9 +247,9 @@ each piece plugs in.
 ### Engineering
 - [x] Offscreen rendering of the real app to PNG (`cargo run -p mt-ui --example render`),
       with egui_kittest and wgpu: no window, real input and rendering.
-- [ ] Visual regression tests from those renders, per theme. Needs a frozen clock
-      (the status bar, "updated Ns ago" and today's axes all move) and a tolerance
-      for GPU differences between CI's WARP adapter and real GPUs.
+- [x] Visual regression tests (`tests/snapshots.rs`): the layout in every theme plus
+      zoomed MAP, DAM, SEAM and GP, rendered with the clock frozen at the fixtures'
+      recording time and compared with committed images.
 - [x] A weekly CI job (`drift.yml`) that records live responses and runs every
       parser against them, to catch MISO format changes early.
 - [ ] Benchmarks for the rolling-feed parser (~33 MB of JSON per seed).
