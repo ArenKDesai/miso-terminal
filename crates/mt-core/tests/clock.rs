@@ -14,6 +14,13 @@ fn freezing_stops_market_time_and_thawing_restarts_it() {
         NaiveDate::from_ymd_opt(2026, 10, 2).unwrap()
     );
     assert_eq!(now_market().format("%H:%M").to_string(), "16:55");
+    // Exchange time follows the same clock, in New York time (EDT here).
+    assert_eq!(
+        mt_core::exchange::now_exchange()
+            .format("%H:%M %Z")
+            .to_string(),
+        "17:55 EDT"
+    );
     freeze_clock(None);
     assert!(now_utc() > at, "the real clock is running again");
 }

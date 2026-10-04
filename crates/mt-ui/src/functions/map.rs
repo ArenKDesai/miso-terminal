@@ -21,6 +21,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "MAP [LMP|MCC|MLC|DA|DART]",
     description: "Prices across the MISO footprint: every mapped node coloured by RT LMP, congestion, loss, DA or RT − DA. Click a node to graph it.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 

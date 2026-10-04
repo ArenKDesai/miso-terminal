@@ -273,6 +273,12 @@ impl TerminalApp {
         self.cmd.feedback = Some((msg.into(), error));
     }
 
+    /// The command line's last message and whether it was an error.
+    #[cfg(test)]
+    pub(crate) fn last_feedback(&self) -> Option<&(String, bool)> {
+        self.cmd.feedback.as_ref()
+    }
+
     /// Every pricing node we know about, favourites first, for completion.
     fn known_nodes(&self) -> Vec<String> {
         let mut nodes: Vec<String> = self.config.ui.favorite_nodes.clone();
@@ -298,9 +304,23 @@ impl TerminalApp {
                     self.set_theme(ctx, id);
                     return;
                 }
+                if let Some(spec) = self.registry.find(&route.code)
+                    && !spec.takes_security
+                    && let Some(sec) = command::security_arg(&route)
+                {
+                    self.feedback(
+                        format!("{} takes MISO nodes; {sec} is a security.", spec.code),
+                        true,
+                    );
+                    return;
+                }
                 self.feedback(route.to_string(), false);
                 self.workspace.open(route, &self.registry);
             }
+            Parsed::Instrument(inst) => self.feedback(
+                format!("{inst} is a security. No function shows securities yet."),
+                true,
+            ),
             Parsed::Unknown(s) => self.feedback(
                 format!("Unknown command {s:?}. Type HELP for functions."),
                 true,

@@ -18,6 +18,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "CMP <node> <node> … [days]",
     description: "Up to eight nodes on one chart: today's five-minute RT, or hourly RT or DA over N days, by component.",
     takes_node: true,
+    takes_security: false,
     open,
 };
 

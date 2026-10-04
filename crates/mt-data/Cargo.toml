@@ -1,6 +1,6 @@
 [package]
 name = "mt-data"
-description = "Source-agnostic data hub: queries, caching, refresh scheduling, HTTP/fixture transports."
+description = "Source-agnostic data hub: queries, streams, caching, refresh scheduling, request budgets, secrets, HTTP/fixture transports."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,13 +11,20 @@ license.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 flate2.workspace = true
+futures-util.workspace = true
 parking_lot.workspace = true
 reqwest.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-tungstenite.workspace = true
 tracing.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+zeroize.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+keyring-core.workspace = true
+windows-native-keyring-store.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

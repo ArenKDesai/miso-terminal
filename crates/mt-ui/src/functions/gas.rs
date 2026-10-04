@@ -23,6 +23,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "GAS",
     description: "Henry Hub gas spot (EIA) with recent change, and the market heat rate and spark spread each hub's day-ahead on-peak price implies.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 

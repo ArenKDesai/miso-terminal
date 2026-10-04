@@ -1,18 +1,42 @@
+use std::collections::VecDeque;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::Duration;
 
 use bytes::Bytes;
+use futures_util::{SinkExt, StreamExt};
+use tokio_tungstenite::tungstenite;
 
-use crate::FetchError;
+use crate::stream::{Frame, StreamConn};
+use crate::{FetchError, Method, Request, Response};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// How long a WebSocket handshake may take.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+
 /// Where bytes come from. Queries never see this directly; they go through
-/// [`crate::FetchCtx`], which adds caching, throttling and logging on top.
+/// [`crate::FetchCtx`], which adds caching, throttling, budgets and logging on
+/// top. Streams reach it through the hub.
 pub trait Transport: Send + Sync + 'static {
-    fn get<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<Bytes, FetchError>>;
+    /// One round trip. Any HTTP status is a `Response`; errors are for
+    /// requests that got no answer.
+    fn send<'a>(&'a self, req: &'a Request) -> BoxFuture<'a, Result<Response, FetchError>>;
+
+    /// Open a WebSocket. `req` carries the URL and any handshake headers.
+    fn connect<'a>(
+        &'a self,
+        req: &'a Request,
+    ) -> BoxFuture<'a, Result<Box<dyn StreamConn>, FetchError>> {
+        Box::pin(async move {
+            Err(FetchError::Other(format!(
+                "{} cannot open {}",
+                self.describe(),
+                req.url
+            )))
+        })
+    }
 
     /// Short description for the status bar.
     fn describe(&self) -> String;
@@ -23,9 +47,11 @@ pub trait Transport: Send + Sync + 'static {
     }
 }
 
-/// The real network.
+/// The real network: reqwest for requests, tungstenite for streams, both on
+/// native TLS (SChannel on Windows, so the system's certificate store).
 pub struct HttpTransport {
     client: reqwest::Client,
+    user_agent: String,
 }
 
 impl HttpTransport {
@@ -37,32 +63,93 @@ impl HttpTransport {
             .timeout(Duration::from_secs(180))
             .build()
             .map_err(|e| FetchError::Other(format!("could not build HTTP client: {e}")))?;
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            user_agent: user_agent.to_owned(),
+        })
     }
 }
 
+fn reqwest_method(m: Method) -> reqwest::Method {
+    match m {
+        Method::Get => reqwest::Method::GET,
+        Method::Head => reqwest::Method::HEAD,
+        Method::Post => reqwest::Method::POST,
+        Method::Put => reqwest::Method::PUT,
+        Method::Patch => reqwest::Method::PATCH,
+        Method::Delete => reqwest::Method::DELETE,
+    }
+}
+
+fn header_value(
+    name: &str,
+    value: &crate::HeaderValue,
+) -> Result<tungstenite::http::HeaderValue, FetchError> {
+    let mut v = tungstenite::http::HeaderValue::from_str(value.expose())
+        .map_err(|_| FetchError::Other(format!("invalid value for header {name}")))?;
+    v.set_sensitive(value.is_secret());
+    Ok(v)
+}
+
 impl Transport for HttpTransport {
-    fn get<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<Bytes, FetchError>> {
+    fn send<'a>(&'a self, req: &'a Request) -> BoxFuture<'a, Result<Response, FetchError>> {
         Box::pin(async move {
-            let resp = self
-                .client
-                .get(url)
+            let mut rb = self.client.request(reqwest_method(req.method), &req.url);
+            for (name, value) in &req.headers {
+                rb = rb.header(name.as_str(), header_value(name, value)?);
+            }
+            if let Some(body) = &req.body {
+                rb = rb.body(body.clone());
+            }
+            let resp = rb
                 .send()
                 .await
-                .map_err(|e| FetchError::Network(e.to_string()))?;
-            let status = resp.status();
-            if status == reqwest::StatusCode::NOT_FOUND {
-                return Err(FetchError::NotFound(url.to_owned()));
-            }
-            if !status.is_success() {
-                return Err(FetchError::Status {
-                    status: status.as_u16(),
-                    url: url.to_owned(),
-                });
-            }
-            resp.bytes()
+                .map_err(|e| FetchError::Network(e.without_url().to_string()))?;
+            let status = resp.status().as_u16();
+            let headers = resp
+                .headers()
+                .iter()
+                .filter_map(|(n, v)| Some((n.as_str().to_owned(), v.to_str().ok()?.to_owned())))
+                .collect();
+            let body = resp
+                .bytes()
                 .await
-                .map_err(|e| FetchError::Network(e.to_string()))
+                .map_err(|e| FetchError::Network(e.without_url().to_string()))?;
+            Ok(Response {
+                status,
+                headers,
+                body,
+            })
+        })
+    }
+
+    fn connect<'a>(
+        &'a self,
+        req: &'a Request,
+    ) -> BoxFuture<'a, Result<Box<dyn StreamConn>, FetchError>> {
+        Box::pin(async move {
+            use tungstenite::client::IntoClientRequest;
+            use tungstenite::http::HeaderName;
+            let mut ws_req = req
+                .url
+                .as_str()
+                .into_client_request()
+                .map_err(|e| FetchError::Other(format!("bad stream URL {}: {e}", req.url)))?;
+            let headers = ws_req.headers_mut();
+            if let Ok(ua) = tungstenite::http::HeaderValue::from_str(&self.user_agent) {
+                headers.insert(tungstenite::http::header::USER_AGENT, ua);
+            }
+            for (name, value) in &req.headers {
+                let n = HeaderName::from_bytes(name.as_bytes())
+                    .map_err(|_| FetchError::Other(format!("invalid header name {name}")))?;
+                headers.insert(n, header_value(name, value)?);
+            }
+            let (ws, _) =
+                tokio::time::timeout(CONNECT_TIMEOUT, tokio_tungstenite::connect_async(ws_req))
+                    .await
+                    .map_err(|_| FetchError::Network(format!("{} did not answer", req.host())))?
+                    .map_err(|e| ws_error(&req.url, e))?;
+            Ok(Box::new(WsConn { ws }) as Box<dyn StreamConn>)
         })
     }
 
@@ -71,12 +158,84 @@ impl Transport for HttpTransport {
     }
 }
 
+fn ws_error(url: &str, e: tungstenite::Error) -> FetchError {
+    match e {
+        tungstenite::Error::Http(resp) => match resp.status().as_u16() {
+            401 | 403 => FetchError::Auth(format!(
+                "{} refused the connection (HTTP {})",
+                crate::request::host_of(url),
+                resp.status().as_u16()
+            )),
+            404 => FetchError::NotFound(url.to_owned()),
+            status => FetchError::Status {
+                status,
+                url: url.to_owned(),
+            },
+        },
+        e => FetchError::Network(e.to_string()),
+    }
+}
+
+type WsStream =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+struct WsConn {
+    ws: WsStream,
+}
+
+impl StreamConn for WsConn {
+    fn send(&mut self, text: String) -> BoxFuture<'_, Result<(), FetchError>> {
+        Box::pin(async move {
+            self.ws
+                .send(tungstenite::Message::text(text))
+                .await
+                .map_err(|e| FetchError::Network(e.to_string()))
+        })
+    }
+
+    fn recv(&mut self) -> BoxFuture<'_, Option<Result<Frame, FetchError>>> {
+        Box::pin(async move {
+            loop {
+                let msg = match self.ws.next().await? {
+                    Ok(m) => m,
+                    Err(e) => return Some(Err(FetchError::Network(e.to_string()))),
+                };
+                return Some(Ok(match msg {
+                    tungstenite::Message::Text(t) => Frame::Text(t.as_str().to_owned()),
+                    tungstenite::Message::Binary(b) => Frame::Binary(b),
+                    tungstenite::Message::Pong(_) => Frame::Pong,
+                    tungstenite::Message::Close(_) => return None,
+                    // tungstenite answers pings itself.
+                    tungstenite::Message::Ping(_) | tungstenite::Message::Frame(_) => continue,
+                }));
+            }
+        })
+    }
+
+    fn ping(&mut self) -> BoxFuture<'_, Result<(), FetchError>> {
+        Box::pin(async move {
+            self.ws
+                .send(tungstenite::Message::Ping(Bytes::new()))
+                .await
+                .map_err(|e| FetchError::Network(e.to_string()))
+        })
+    }
+
+    fn close(&mut self) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            let _ = self.ws.close(None).await;
+        })
+    }
+}
+
 /// Serves recorded responses from a directory, for offline work and tests.
 ///
 /// `https://host/a/b` maps to `<root>/host/a/b`, with `.json` appended when the
 /// URL path has no extension. Date-stamped files (`20261001_da_expost_lmp.csv`)
 /// fall back to the newest fixture with the same suffix, so any date "replays"
-/// the recorded day.
+/// the recorded day. Requests other than GET look for the method before the
+/// extension (`orders.post.json`). Streams replay `<path>.jsonl`, one server
+/// frame per line, and then stay open and quiet.
 pub struct FixtureTransport {
     root: PathBuf,
     /// Shown in the status bar instead of the directory.
@@ -111,6 +270,22 @@ impl FixtureTransport {
         path
     }
 
+    fn path_for_request(&self, req: &Request) -> PathBuf {
+        let path = self.path_for(&req.url);
+        match req.method {
+            Method::Get | Method::Head => path,
+            m => {
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("json");
+                path.with_extension(format!("{}.{ext}", m.as_str().to_ascii_lowercase()))
+            }
+        }
+    }
+
+    /// Where a recorded stream session for `url` lives.
+    pub fn stream_path_for(&self, url: &str) -> PathBuf {
+        self.path_for(url).with_extension("jsonl")
+    }
+
     fn dated_fallback(path: &Path) -> Option<PathBuf> {
         let name = path.file_name()?.to_str()?;
         let (date, suffix) = name.split_once('_')?;
@@ -134,17 +309,45 @@ impl FixtureTransport {
 }
 
 impl Transport for FixtureTransport {
-    fn get<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<Bytes, FetchError>> {
+    fn send<'a>(&'a self, req: &'a Request) -> BoxFuture<'a, Result<Response, FetchError>> {
         Box::pin(async move {
-            let path = self.path_for(url);
-            let path = if path.exists() {
-                path
-            } else {
-                Self::dated_fallback(&path).ok_or_else(|| FetchError::NotFound(url.to_owned()))?
+            let path = self.path_for_request(req);
+            let Some(path) = path
+                .exists()
+                .then_some(path.clone())
+                .or_else(|| Self::dated_fallback(&path))
+            else {
+                return Ok(Response {
+                    status: 404,
+                    headers: Vec::new(),
+                    body: Bytes::new(),
+                });
             };
-            std::fs::read(&path)
-                .map(Bytes::from)
-                .map_err(|e| FetchError::Other(format!("{}: {e}", path.display())))
+            let body = std::fs::read(&path)
+                .map_err(|e| FetchError::Other(format!("{}: {e}", path.display())))?;
+            Ok(Response::ok(if req.method == Method::Head {
+                Vec::new()
+            } else {
+                body
+            }))
+        })
+    }
+
+    fn connect<'a>(
+        &'a self,
+        req: &'a Request,
+    ) -> BoxFuture<'a, Result<Box<dyn StreamConn>, FetchError>> {
+        Box::pin(async move {
+            let path = self.stream_path_for(&req.url);
+            let text = std::fs::read_to_string(&path)
+                .map_err(|_| FetchError::NotFound(req.url.clone()))?;
+            let frames = text
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .map(str::to_owned)
+                .collect();
+            Ok(Box::new(ReplayConn { frames, pongs: 0 }) as Box<dyn StreamConn>)
         })
     }
 
@@ -157,6 +360,41 @@ impl Transport for FixtureTransport {
 
     fn is_live(&self) -> bool {
         false
+    }
+}
+
+/// A recorded stream session: its frames, then silence (pings still get pongs,
+/// so the hub's keep-alive is satisfied and nothing reconnects).
+struct ReplayConn {
+    frames: VecDeque<String>,
+    pongs: usize,
+}
+
+impl StreamConn for ReplayConn {
+    fn send(&mut self, _text: String) -> BoxFuture<'_, Result<(), FetchError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn recv(&mut self) -> BoxFuture<'_, Option<Result<Frame, FetchError>>> {
+        Box::pin(async move {
+            if self.pongs > 0 {
+                self.pongs -= 1;
+                return Some(Ok(Frame::Pong));
+            }
+            match self.frames.pop_front() {
+                Some(f) => Some(Ok(Frame::Text(f))),
+                None => std::future::pending().await,
+            }
+        })
+    }
+
+    fn ping(&mut self) -> BoxFuture<'_, Result<(), FetchError>> {
+        self.pongs += 1;
+        Box::pin(async { Ok(()) })
+    }
+
+    fn close(&mut self) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
     }
 }
 
@@ -175,6 +413,14 @@ mod tests {
             t.path_for("https://docs.misoenergy.org/marketreports/20261001_da_expost_lmp.csv"),
             Path::new("/fx/docs.misoenergy.org/marketreports/20261001_da_expost_lmp.csv")
         );
+        assert_eq!(
+            t.path_for_request(&Request::post("https://api.example.com/v2/orders")),
+            Path::new("/fx/api.example.com/v2/orders.post.json")
+        );
+        assert_eq!(
+            t.stream_path_for("wss://stream.example.com/v2/iex"),
+            Path::new("/fx/stream.example.com/v2/iex.jsonl")
+        );
     }
 
     #[tokio::test]
@@ -186,11 +432,106 @@ mod tests {
         std::fs::write(dir.join("20260301_da.csv"), "new").unwrap();
         std::fs::write(dir.join("20260401_rt.csv"), "other").unwrap();
         let t = FixtureTransport::new(&root);
-        let got = t.get("https://host/reports/20991231_da.csv").await.unwrap();
-        assert_eq!(got.as_ref(), b"new");
+        let got = t
+            .send(&Request::get("https://host/reports/20991231_da.csv"))
+            .await
+            .unwrap();
+        assert_eq!(got.body.as_ref(), b"new");
+        let missing = t
+            .send(&Request::get("https://host/reports/missing.csv"))
+            .await
+            .unwrap();
+        assert_eq!(missing.status, 404);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    /// The real WebSocket client against a local server: handshake headers
+    /// arrive (secret ones too), text goes both ways, pings get pongs, and a
+    /// refused handshake is an auth error.
+    #[tokio::test]
+    async fn websockets_round_trip_through_the_http_transport() {
+        use tokio_tungstenite::tungstenite::handshake::server::{
+            ErrorResponse, Request as Hs, Response as HsResp,
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            for _ in 0..2 {
+                let (tcp, _) = listener.accept().await.unwrap();
+                // The callback's signature is tungstenite's.
+                #[allow(clippy::result_large_err)]
+                let check = |req: &Hs, resp: HsResp| -> Result<HsResp, ErrorResponse> {
+                    if req.headers().get("x-key").and_then(|v| v.to_str().ok()) == Some("k1") {
+                        Ok(resp)
+                    } else {
+                        let mut refuse = ErrorResponse::new(None);
+                        *refuse.status_mut() =
+                            tokio_tungstenite::tungstenite::http::StatusCode::UNAUTHORIZED;
+                        Err(refuse)
+                    }
+                };
+                let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(tcp, check).await else {
+                    continue;
+                };
+                while let Some(Ok(msg)) = ws.next().await {
+                    if msg.is_text() {
+                        ws.send(msg).await.unwrap();
+                    }
+                }
+            }
+        });
+        let t = HttpTransport::new("mt-test").unwrap();
+        let url = format!("ws://{addr}/echo");
+        let mut conn = t
+            .connect(&Request::get(&url).secret_header("X-Key", crate::Secret::new("k1")))
+            .await
+            .unwrap();
+        conn.send("hello".into()).await.unwrap();
+        assert_eq!(
+            conn.recv().await.unwrap().unwrap(),
+            Frame::Text("hello".into())
+        );
+        conn.ping().await.unwrap();
+        assert_eq!(conn.recv().await.unwrap().unwrap(), Frame::Pong);
+        conn.close().await;
+        let refused = t
+            .connect(&Request::get(&url).secret_header("X-Key", crate::Secret::new("wrong")))
+            .await;
+        assert!(matches!(refused.err(), Some(FetchError::Auth(_))));
+    }
+
+    #[tokio::test]
+    async fn recorded_streams_replay_then_answer_pings() {
+        let root = std::env::temp_dir().join(format!("mt-stream-fx-{}", std::process::id()));
+        let dir = root.join("stream.example.com").join("v2");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("iex.jsonl"),
+            "[{\"T\":\"success\"}]\n\n[{\"T\":\"q\"}]\n",
+        )
+        .unwrap();
+        let t = FixtureTransport::new(&root);
+        let mut conn = t
+            .connect(&Request::get("wss://stream.example.com/v2/iex"))
+            .await
+            .unwrap();
+        assert_eq!(
+            conn.recv().await.unwrap().unwrap(),
+            Frame::Text("[{\"T\":\"success\"}]".into())
+        );
+        assert_eq!(
+            conn.recv().await.unwrap().unwrap(),
+            Frame::Text("[{\"T\":\"q\"}]".into())
+        );
+        conn.ping().await.unwrap();
+        assert_eq!(conn.recv().await.unwrap().unwrap(), Frame::Pong);
+        let quiet = tokio::time::timeout(Duration::from_millis(20), conn.recv()).await;
+        assert!(quiet.is_err(), "a finished replay stays open and quiet");
         assert!(matches!(
-            t.get("https://host/reports/missing.csv").await,
-            Err(FetchError::NotFound(_))
+            t.connect(&Request::get("wss://stream.example.com/v2/sip"))
+                .await
+                .err(),
+            Some(FetchError::NotFound(_))
         ));
         std::fs::remove_dir_all(root).unwrap();
     }

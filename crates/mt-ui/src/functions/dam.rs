@@ -23,6 +23,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "DAM [TODAY|TOMORROW|YESTERDAY]",
     description: "Hourly day-ahead prices at the eight hubs for one day, with on-peak, off-peak and all-hours averages, or the change from the day before.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 

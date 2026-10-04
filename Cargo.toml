@@ -33,6 +33,9 @@ egui_dock = { version = "0.21", features = ["serde"] }
 tokio = { version = "1.53", features = ["rt-multi-thread", "sync", "time", "macros"] }
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "http2", "charset", "system-proxy", "gzip"] }
 bytes = "1"
+# WebSocket streams (market data, trade updates). native-tls for the same SChannel trust as reqwest.
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "native-tls"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 
 # Data
 serde = { version = "1", features = ["derive"] }
@@ -43,6 +46,10 @@ csv = "1.4"
 calamine = { version = "0.36", default-features = false }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
 flate2 = "1.1"
+# Exact decimals for money (orders, positions); never f64 where an order is involved.
+rust_decimal = "1.43"
+# US exchanges observe daylight saving (America/New_York); MISO market time does not.
+chrono-tz = "0.10"
 
 # Plumbing
 anyhow = "1"
@@ -50,6 +57,10 @@ thiserror = "2"
 parking_lot = "0.12"
 directories = "6"
 fontdb = "0.24"
+# Secrets (API keys) in the OS credential store: Windows Credential Manager.
+keyring-core = "1"
+windows-native-keyring-store = { version = "1.1", default-features = false }
+zeroize = "1.9"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"

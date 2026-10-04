@@ -16,6 +16,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "HOME",
     description: "Headline grid numbers, trading-hub prices, generation mix and top binding constraints.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 

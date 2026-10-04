@@ -7,9 +7,10 @@ use std::time::{Duration, Instant};
 use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 
+use crate::stream::StreamShared;
 use crate::{FetchCtx, FetchError, Freshness, Query};
 
-type AnyValue = Arc<dyn Any + Send + Sync>;
+pub(crate) type AnyValue = Arc<dyn Any + Send + Sync>;
 type Refetch = Arc<dyn Fn(&DataHub) + Send + Sync>;
 type Notify = Arc<dyn Fn() + Send + Sync>;
 
@@ -17,7 +18,7 @@ type Notify = Arc<dyn Fn() + Send + Sync>;
 const BASE_BACKOFF: Duration = Duration::from_secs(5);
 const MAX_BACKOFF: Duration = Duration::from_secs(300);
 /// An entry counts as "watched" if a panel asked for it this recently.
-const WATCH_WINDOW: Duration = Duration::from_secs(5);
+pub(crate) const WATCH_WINDOW: Duration = Duration::from_secs(5);
 
 /// What a panel gets back from [`DataHub::watch`]: the latest value (possibly
 /// stale) plus enough status to render loading and error states honestly.
@@ -208,6 +209,7 @@ struct Inner {
     runtime: tokio::runtime::Handle,
     ctx: FetchCtx,
     entries: Mutex<HashMap<String, Entry>>,
+    streams: Mutex<HashMap<String, Arc<StreamShared>>>,
     notify: Mutex<Option<Notify>>,
     paused: AtomicBool,
 }
@@ -219,6 +221,7 @@ impl DataHub {
                 runtime,
                 ctx,
                 entries: Mutex::default(),
+                streams: Mutex::default(),
                 notify: Mutex::default(),
                 paused: AtomicBool::new(false),
             }),
@@ -229,12 +232,29 @@ impl DataHub {
         &self.inner.ctx
     }
 
+    pub(crate) fn streams(&self) -> &Mutex<HashMap<String, Arc<StreamShared>>> {
+        &self.inner.streams
+    }
+
+    pub(crate) fn runtime(&self) -> &tokio::runtime::Handle {
+        &self.inner.runtime
+    }
+
+    /// Tell the UI something changed.
+    pub(crate) fn notify(&self) {
+        let notify = self.inner.notify.lock().clone();
+        if let Some(f) = notify {
+            f();
+        }
+    }
+
     /// Called (from a background thread) whenever a fetch completes.
     pub fn set_notify(&self, f: impl Fn() + Send + Sync + 'static) {
         *self.inner.notify.lock() = Some(Arc::new(f));
     }
 
-    /// While paused no new fetches start; cached values are still served.
+    /// While paused no new fetches start and streams close; cached values are
+    /// still served.
     pub fn set_paused(&self, paused: bool) {
         self.inner.paused.store(paused, Ordering::Relaxed);
     }
@@ -335,13 +355,16 @@ impl DataHub {
         entry.fresh_for = Some(Duration::ZERO);
     }
 
-    /// Drop entries nobody has watched for `idle`. Returns how many were dropped.
+    /// Drop entries (and closed streams) nobody has watched for `idle`.
+    /// Returns how many were dropped.
     pub fn gc(&self, idle: Duration) -> usize {
         let now = Instant::now();
         let mut entries = self.inner.entries.lock();
         let before = entries.len();
         entries.retain(|_, e| e.in_flight || now.duration_since(e.last_watched) < idle);
-        before - entries.len()
+        let dropped = before - entries.len();
+        drop(entries);
+        dropped + self.gc_streams(idle)
     }
 
     pub fn in_flight(&self) -> usize {
@@ -427,10 +450,7 @@ impl DataHub {
                 }
             }
         }
-        let notify = self.inner.notify.lock().clone();
-        if let Some(f) = notify {
-            f();
-        }
+        self.notify();
     }
 }
 

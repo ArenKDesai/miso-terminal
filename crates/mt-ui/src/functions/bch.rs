@@ -23,6 +23,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "BCH [YYYY-MM-DD | days ago]",
     description: "A day's binding constraints in DA and RT, matched by constraint: hours bound, cost ($/MW) and peak shadow price, with the selected constraint's shadow prices through the day.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 

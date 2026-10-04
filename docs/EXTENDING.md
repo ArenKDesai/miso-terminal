@@ -99,8 +99,37 @@ smoke harness build it). Give it a fixture, a parser test that honours
 `MT_FIXTURES`, and a recorder example with a name unique in the workspace
 (`capture_weather`, `capture_gas`); then add it to the Linux CI job and the
 weekly drift workflow. The hub, cache, transports, polite interval and LOG
-function all apply unchanged. If the source needs an API key, put it in
-`AppConfig` (a new table with `#[serde(default)]`).
+function all apply unchanged.
+
+If the source needs an API key, never put it in `AppConfig`: give the key a
+name (`<source>/<account>/<key>`, e.g. `alpaca/paper/key-id`), add it to
+`CREDENTIALS` in `functions/settings.rs` so SET can store it in Windows
+Credential Manager, and read it in `fetch()` with `ctx.secret(name)?` (a missing
+key is a `FetchError::Auth` naming it). Send it with
+`Request::get(url).secret_header("Header-Name", key)` and `ctx.get(&req)`: the
+event log shows the request with the value as `***`. If the API limits
+requests per minute, give it a `Budget` in `FetchCtxOptions` (built in
+`main.rs`), shared by all of its hosts; LOG then shows how much is used.
+Fixtures never contain keys or account numbers.
+
+## Add a streaming source
+
+For a WebSocket feed (quotes, trade updates, news), implement
+`mt_data::Stream` once per endpoint: `key`, the handshake `request` (URL and
+any `secret_header`s), `hello` (a login message, if the protocol has one; it is
+never logged), `waits_for_ready` if subscriptions must wait for the login's
+acknowledgement, `subscribe`/`unsubscribe` messages for a list of topics, and
+`apply`, which folds one frame into the stream's `State` and says whether it
+changed anything, accepted the login (`Applied::Ready`), or failed
+(`FetchError::Parse` skips the frame, `FetchError::Auth` stops reconnecting).
+`apply` is pure, so test it against recorded frames.
+
+Panels call `cx.hub.watch_stream(&stream, &["quotes:XLU"])` every frame and
+render the `Snapshot` like any other. The hub shares one connection among them,
+subscribes the union of their topics, reconnects and resubscribes, and lists
+the stream in LOG. For offline mode and tests, record a session as
+`fixtures/<host>/<path>.jsonl` (one server frame per line, keys removed);
+`FixtureTransport` replays it.
 
 Data the app keeps itself (the five-minute archive, the long-history archive)
 lives in the disk cache under `local://` keys, read and written with

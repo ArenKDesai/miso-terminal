@@ -16,6 +16,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "RENEW",
     description: "Hourly wind and solar forecast vs actual for today and tomorrow, with forecast error so far.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 

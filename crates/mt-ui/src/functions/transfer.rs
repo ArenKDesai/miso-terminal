@@ -16,6 +16,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "RDT",
     description: "North-South regional directional transfer over the last day against its limits, with utilisation.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 

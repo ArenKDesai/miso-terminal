@@ -19,6 +19,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "GP <node> [days] [HEAT|DUR|5MIN]",
     description: "Price chart for one node: today's 5-minute RT vs DA, hourly DA vs RT over N days, or five-minute RT from the local archive, by component.",
     takes_node: true,
+    takes_security: false,
     open,
 };
 

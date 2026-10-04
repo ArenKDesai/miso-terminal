@@ -21,6 +21,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "WL [node]",
     description: "Your favourite nodes: RT vs DA, change and today's sparkline. WL <node> adds one; ☆ in GP does too.",
     takes_node: true,
+    takes_security: false,
     open,
 };
 

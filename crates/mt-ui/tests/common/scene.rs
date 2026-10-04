@@ -79,6 +79,7 @@ pub fn offline_hub_with_cache(
             FetchCtxOptions {
                 max_concurrent: 8,
                 polite_interval: Duration::ZERO,
+                ..FetchCtxOptions::default()
             },
             EventLog::default(),
         ),

@@ -25,12 +25,15 @@ AGPL-3.0.
             ┌───────▼────────┐     ┌───────▼────────┐     ┌───────▼────────┐
  data       │ mt-data        │◄────│ mt-miso, mt-nws│     │ mt-theme       │
             │ DataHub, Query │     │ endpoints      │     │ TOML themes    │
-            │ FetchCtx,      │     │ parsers        │     │ validation     │
-            │ Transport,     │     │ queries        │     │ registry       │
-            │ DiskCache      │     └───────┬────────┘     └────────────────┘
+            │ Stream, Request│     │ parsers        │     │ validation     │
+            │ FetchCtx,      │     │ queries        │     │ registry       │
+            │ budgets,secrets│     └───────┬────────┘     └────────────────┘
+            │ Transport,     │             │
+            │ DiskCache      │             │
             └────────────────┘             │
             ┌──────────────────────────────▼───────────────────────────────┐
  domain     │ mt-core   prices · grid · weather · time · geometry · numbers│
+            │           instruments · exchange time · money                │
             └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -51,11 +54,14 @@ four unchanged.
 3. The query's `fetch()` goes through `FetchCtx`, which adds:
    a concurrency cap; a **polite interval** (a repeat request for the same URL
    inside the window gets the previous body, enforcing MISO's once-a-minute
-   rule even when a user hammers F5); an **on-disk gzip cache** for immutable
-   files (settled market reports); and an event log.
-4. `FetchCtx` calls a `Transport`: `HttpTransport` (reqwest with native-tls, so
-   SChannel and the Windows certificate store) or `FixtureTransport` (recorded
-   files, used by `--offline` and the tests).
+   rule even when a user hammers F5); **conditional GETs** (a URL whose server
+   sent an `ETag` or `Last-Modified` is asked "changed since?", so an unchanged
+   feed costs a `304`); **request budgets** per host (below); an **on-disk gzip
+   cache** for immutable files (settled market reports); and an event log.
+4. `FetchCtx` sends a `Request` (method, URL, headers, body) through a
+   `Transport`: `HttpTransport` (reqwest with native-tls, so SChannel and the
+   Windows certificate store) or `FixtureTransport` (recorded files, used by
+   `--offline` and the tests).
 5. The response is parsed by a pure function in `mt-miso::parse` into `mt-core`
    types. On success the hub stores it and calls the notify hook, which the app
    wires to `request_repaint()`. On failure the last good value is kept, the
@@ -66,6 +72,55 @@ four unchanged.
 Panels therefore never block, never own threads, and never handle HTTP. Loading
 and error states look the same everywhere because they all go through
 `widgets::with_data`.
+
+### Requests, budgets and secrets
+
+Most sources need only `ctx.get(url)`. Sources with API keys build a
+`Request` and put the keys in with `Request::secret_header`; the keys come from
+`FetchCtx::secret(name)`, which reads the `SecretStore`: Windows Credential
+Manager in the app (one generic credential per key, `miso-terminal/<name>`,
+local to the machine), memory in tests and offline replay. A missing key is a
+`FetchError::Auth` naming it. Keys never go in `config.toml`, saved state or
+fixtures, and the event log shows every request through `Request::describe`,
+which prints secret header values (and any header named like a key, token or
+`Authorization`) as `***`. SET writes and removes keys directly in the store.
+
+A `Budget` caps requests to a group of hosts per window (Alpaca allows 200 a
+minute per key across its APIs). Every request through `FetchCtx` takes a slot
+first, waiting for one when the window is full rather than failing; a `429`
+closes the budget for the server's `Retry-After`. Budgets are passed in
+`FetchCtxOptions` by whoever builds the context, and LOG shows their use.
+
+`FetchCtx::send` is the raw path: any method, every HTTP status returned as a
+`Response` (an API's rejection message is in the body), with budgets, the
+concurrency cap and the log, but no caching and no retries. It is what an
+order desk will use. `get` and `get_immutable` turn statuses into errors:
+`404` is `NotFound`, `401`/`403` `Auth`, `429` `RateLimited`.
+
+### Streams
+
+A `Stream` is the WebSocket counterpart of a `Query`: one implementation per
+endpoint, with a key, the handshake `Request`, `hello` messages (a login, never
+logged), subscribe and unsubscribe messages, and `apply`, which folds each
+frame into a typed state. Panels call `cx.hub.watch_stream(&stream, &topics)`
+every frame and get a `Snapshot` of that state, like `watch`.
+
+The hub owns the connections: **one per endpoint**, shared by every panel and
+subscribed to the union of their topics (the free Alpaca plan allows one
+connection per feed). A topic nobody has asked for in 30 seconds is
+unsubscribed, and a stream nobody has watched for a minute is closed, so tab
+switches do not churn subscriptions. After a drop the hub reconnects with
+backoff (1 s doubling to a minute), logs in again and resubscribes everything,
+keeping the last state (shown as stale meanwhile). Pings every 30 seconds
+detect a dead connection. A refused login (`FetchError::Auth`) stops the
+reconnecting until `restart_streams()`, which SET calls when keys change and
+LOG offers as a button. Repaint requests are throttled to ten a second however
+busy the stream. While fetching is paused, streams close.
+
+`HttpTransport` connects with tokio-tungstenite on native TLS (the same
+SChannel trust as HTTP). `FixtureTransport` replays `<url path>.jsonl`, one
+server frame per line, and then stays open and quiet, so offline mode and the
+tests can drive a stream.
 
 ### Restoring at launch
 
@@ -168,12 +223,35 @@ that knows this. Every `NaiveDateTime` in the codebase is market time. Chart x
 values are Unix seconds (`chart_x`), and axes are labelled back in market time
 with a grid that snaps to market midnight.
 
+US exchanges keep New York time, which observes daylight saving, so the 09:30
+open is 08:30 MISO time from March to November. `mt_core::exchange` handles
+equities (`chrono-tz`'s America/New_York): exchange clocks, the spring and
+autumn clock changes, and the trading sessions (pre-market, regular, after
+hours) for a day's hours, which the exchange calendar supplies. It follows the
+same freezable clock. The two never mix: MISO data uses `time`, securities use
+`exchange`.
+
+## Instruments and money
+
+MISO nodes and securities share the command line, and some node names (`AECI`,
+`TVA`) look like tickers. Securities therefore always carry a market code,
+Bloomberg style: `XLU US` (Bloomberg's trailing `Equity` is accepted); options
+are OCC symbols (`XLU261218C00082500`). `mt_core::instrument` parses and prints
+them. The command line joins a security's tokens into one argument (`XLU US GP
+30` is `GP` with `XLU US` and `30`) and refuses securities for functions whose
+`FunctionSpec::takes_security` is false.
+
+Amounts that feed an order or a position (prices, fractional quantities,
+notionals, cash, P&L) are exact `rust_decimal::Decimal`s, never `f64`;
+`mt_core::money` parses, formats and rounds them to a tick. Brokers send them
+as strings to keep them exact, and `Decimal` deserialises from those directly.
+
 ## Testing strategy
 
 | Layer | Tests |
 |---|---|
-| `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces |
-| `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; transports; disk cache |
+| `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces; New York time across clock changes, and sessions; security and OCC parsing; exact decimals from broker JSON |
+| `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; streams against a scripted server (shared connections, subscription unions, reconnect and resubscribe, refused logins, lingering topics, pause); a real WebSocket round trip on localhost; conditional GETs, status mapping, budgets and `429`s; secrets kept out of the log; the Windows Credential Manager round trip; transports; disk cache |
 | `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
@@ -198,6 +276,11 @@ fixtures without error, which is what makes `--offline` trustworthy.
   is wgpu (DX12 on Windows, with a WARP software fallback for VMs and RDP).
 - **native-tls**, not rustls. On Windows it is SChannel, which trusts the system
   certificate store, so TLS-inspecting corporate proxies work without setup.
+  WebSockets (tokio-tungstenite) use it too. They do not go through an HTTP
+  proxy, so a network that only allows proxied traffic will block streams.
+- **Secrets in the OS store.** keyring-core with its Windows Credential Manager
+  store (the `keyring` crate itself recommends that applications link these
+  directly). Other platforms get an in-memory store for the session.
 - **No async runtime in the UI thread.** tokio has two worker threads owned by
   the binary. The UI only ever does non-blocking hub lookups.
 - **Fixtures over mocks.** Real recorded responses catch real format drift.

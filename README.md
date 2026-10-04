@@ -2,8 +2,10 @@
 
 A Bloomberg-style information terminal for the Midcontinent ISO, written in Rust.
 It covers prices, load, generation, interchange, constraints, the seams, gas and
-weather in one keyboard-driven, tiled workspace. It is read-only: it shows MISO's
-public data (plus EIA gas prices and NWS forecasts) and never submits anything to MISO.
+weather in one keyboard-driven, tiled workspace. It is read-only for MISO: it shows
+MISO's public data (plus EIA gas prices and NWS forecasts) and never submits anything
+to MISO. Trading, when it comes, goes only through Alpaca, and paper by default (see
+the [markets plan](docs/MARKETS-PLAN.md)).
 
 ![MISO Terminal in its default theme](docs/screenshots/home-default.png)
 
@@ -110,8 +112,8 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `BCH` | Constraint history | A day's binding constraints in DA and RT side by side, matched by MISO's constraint ID: hours bound, cost ($/MW) and peak shadow price, sortable and filterable, with the selected constraint's DA and RT shadow prices through the day (`BCH 2026-09-30`) |
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
 | `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast and ACE: add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
-| `LOG` | Data feeds & log | Every feed's freshness and errors, fetch activity, cache and file locations |
-| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits and MISO endpoints, saved to config.toml |
+| `LOG` | Data feeds & log | Every feed's freshness and errors, live streams and request budgets (when a source uses them), fetch activity, cache and file locations |
+| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits and MISO endpoints, saved to config.toml; API keys, kept in Windows Credential Manager |
 | `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
 | `HELP` | Help | Functions, keyboard shortcuts, data notes |
 
@@ -127,6 +129,11 @@ pick a suggestion, `F1` opens help, `F5` refreshes every open feed,
 `Ctrl+Shift+L` resets the layout. Function keys open functions: F2 HOME, F3 LMP,
 F4 MAP, F6 WL, F7 HUBS, F8 WX, F9 ALRT and F10 LOG by default. Remap them, or
 bind any command (`F11 = "GP ALTE.ALTE 14"`), under `[ui.hotkeys]` in config.toml.
+
+Securities are written Bloomberg-style, ticker then market code (`XLU US`; options
+by OCC symbol, `XLU261218C00082500`), so they never clash with node names like
+`AECI` or `TVA`. The command line already reads them (`XLU US GP 30` is `GP` for
+`XLU US`); the functions that show them come with the markets work.
 
 ## Data
 
@@ -215,13 +222,17 @@ each piece plugs in.
 The next major addition: news headlines, stock and options data, paper trading
 and portfolio tracking through Alpaca. See the
 [markets plan](docs/MARKETS-PLAN.md) for the design, decisions and sources.
-- [ ] **Phase 0, foundations:** authenticated requests, per-host request budgets
-      and WebSocket streams in `mt-data`; secrets in Windows Credential Manager;
-      instrument syntax (`XLU US`); New York exchange time; exact decimals for money.
+- [x] **Phase 0, foundations:** requests with any method, headers and body (secret
+      headers redacted in logs), per-host request budgets, conditional GETs and
+      hub-owned WebSocket streams (one connection per endpoint, reconnect and
+      resubscribe) in `mt-data`; API keys in Windows Credential Manager, entered
+      in SET; instrument syntax (`XLU US`, OCC options) on the command line; New
+      York exchange time; exact decimals for money. Streams and budgets show in LOG.
 - [ ] **Phase 1, news:** FT, Bloomberg and Washington Post headlines (RSS) in
       `TOP`, `NEWS` and `NI`, opening in your signed-in browser; headline alerts.
 - [ ] **Phase 2, market data:** Alpaca stocks and ETFs (free plan, IEX real-time):
-      `Q`, `GP` for tickers, `DES`, tickers in WL, a "Power & gas" list.
+      `Q`, `GP` for tickers, `DES`, tickers in WL, a "Power & gas" list, and
+      ticker completion from Alpaca's asset list.
 - [ ] **Phase 3, account and portfolio:** `PORT`, `ACCT`, `PNL`, `ACT` on a paper
       account, with a PAPER band in the status bar.
 - [ ] **Phase 4, paper trading:** confirm-only order tickets, the `ORD` blotter,

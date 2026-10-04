@@ -46,7 +46,7 @@ impl Query for GalleryQuery {
         ctx: FetchCtx,
         _prev: Option<Arc<Gallery>>,
     ) -> Result<Gallery, FetchError> {
-        let body = ctx.get_text(&self.url).await?;
+        let body = ctx.get_text(&*self.url).await?;
         parse_index(&body).map_err(|e| FetchError::parse("theme gallery", e))
     }
 }

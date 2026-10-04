@@ -14,6 +14,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "HELP",
     description: "This page: functions, keyboard shortcuts and data sources.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 

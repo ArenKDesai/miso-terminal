@@ -17,6 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "LOAD",
     description: "Five-minute actual load vs the MTLF forecast and DA cleared load, with forecast error.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 

@@ -20,6 +20,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "SPRD <node A> <node B> [days] [HEAT|DUR|5MIN]",
     description: "A − B price spread between two nodes: today at 5 minutes, or hourly DA and RT spreads over N days.",
     takes_node: true,
+    takes_security: false,
     open,
 };
 

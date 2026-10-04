@@ -1,8 +1,9 @@
 # Markets plan: news, market data, trading and portfolio
 
-A plan, not yet built: headlines from the Financial Times, Bloomberg and the
-Washington Post; US stock, ETF and options data from Alpaca; paper trading
-through Alpaca, with live trading later; and account and portfolio tracking.
+A plan: headlines from the Financial Times, Bloomberg and the Washington Post;
+US stock, ETF and options data from Alpaca; paper trading through Alpaca, with
+live trading later; and account and portfolio tracking. Phase 0, the
+foundations, is built (2026-10-04); the later phases are not yet.
 Facts about the sources were checked on 2026-10-04. The README's roadmap tracks
 progress against the phases below.
 
@@ -31,27 +32,42 @@ Why our own Alpaca client:
   endpoints are needed. It is the `mt-miso`/`mt-eia` pattern, tested the same
   way.
 
-## Phase 0: Foundations
+## Phase 0: Foundations (built)
 
-- **`mt-data` grows up.** Today it only does unauthenticated GETs. It needs:
-  requests with a method, headers and body (header values redacted in the event
-  log); a request budget per host (Alpaca: about 180 of 200 a minute, shared by
-  every panel); conditional GETs (ETag, If-Modified-Since) so unchanged feeds
-  cost almost nothing; and **streams**: WebSocket connections owned by the hub,
-  one per endpoint and shared by all panels, with reconnect and resubscribe.
-- **Secrets** live in Windows Credential Manager (the `keyring` crate), with
-  separate paper and live entries. Never in `config.toml`, saved state or logs.
-- **Instruments.** MISO nodes and securities need distinct names, because
-  some node names (`AECI`, `TVA`, `SOCO`) look like tickers. Securities are a
-  ticker plus `US`, Bloomberg-style: `XLU US`, `XLU US GP 30`; options use OCC
-  symbols. Completion draws on Alpaca's asset list, cached daily.
-- **Exchange time.** Market time is fixed EST for MISO, but US exchanges observe
-  daylight saving. Equities use America/New_York (`chrono-tz`), kept apart
-  from `mt_core::time`.
-- **Money** is exact decimal (`rust_decimal`) wherever an order is involved;
-  never `f64`.
-- **Wording.** "Read-only" becomes "read-only for MISO; trades only through
-  Alpaca, paper by default" in the README and CLAUDE.md.
+Built on 2026-10-04; [the architecture notes](ARCHITECTURE.md#requests-budgets-and-secrets)
+describe each piece and [EXTENDING](EXTENDING.md#add-a-streaming-source) the recipes.
+
+- **`mt-data` grows up.** `Request` carries a method, headers and a body;
+  secret header values print as `***` in the event log. `Budget`s cap requests
+  per group of hosts (Alpaca's will be about 180 of 200 a minute, shared by
+  every panel), wait for a free slot rather than fail, and close for a `429`'s
+  `Retry-After`. GETs are conditional (ETag, If-Modified-Since) whenever the
+  server sends validators. `FetchCtx::send` returns every status with its body,
+  for the order desk. **Streams** (`mt_data::Stream`): WebSocket connections
+  owned by the hub, one per endpoint and shared by all panels, subscribed to the
+  union of their topics, with reconnect, resubscribe, keep-alive pings, and no
+  retries after a refused login until the keys change. LOG lists streams and
+  budgets.
+- **Secrets** live in Windows Credential Manager, through keyring-core and its
+  Windows store (the `keyring` crate's own advice for applications), one entry
+  per key: `miso-terminal/alpaca/paper/key-id` and `…/secret-key`. Live keys
+  will get their own `alpaca/live/…` entries, and SET will only show them once
+  live trading exists. SET stores and removes the paper keys; nothing goes in
+  `config.toml`, saved state or logs.
+- **Instruments** (`mt_core::instrument`). Securities are a ticker plus `US`,
+  Bloomberg-style (`XLU US`, also `XLU US Equity`); options are OCC symbols. The
+  command line joins a security into one argument (`XLU US GP 30` is `GP` with
+  `XLU US` and `30`; `MINN.HUB GP 14` now works the same way for nodes) and
+  refuses securities for functions that take only nodes. Completion from
+  Alpaca's asset list moved to Phase 2, since it needs the Alpaca client.
+- **Exchange time** (`mt_core::exchange`): America/New_York via `chrono-tz`,
+  clock changes, and pre-market, regular and after-hours sessions for a day's
+  hours, kept apart from `mt_core::time`.
+- **Money** (`mt_core::money`): `rust_decimal` with parsing (no exponents),
+  `$1,234.50` formatting, quantities and tick rounding. Broker JSON (strings or
+  numbers) deserialises exactly.
+- **Wording.** The README and CLAUDE.md now say read-only for MISO, with
+  trading (when it comes) only through Alpaca and paper by default.
 
 ## Phase 1: News
 
@@ -75,6 +91,9 @@ Needs no Alpaca, so it can ship first.
 - **Health.** Every feed shows in LOG, the feed list is editable in config, and
   the weekly drift job checks the feeds. Feeds do disappear: the Washington
   Post's homepage feed stopped in July 2026.
+- **Bandwidth.** Phase 0's conditional GETs apply automatically: Bloomberg's
+  feeds send ETags and answer `304` when unchanged; FT's send ETags but
+  answered `200` again (checked 2026-10-04); the Washington Post's send none.
 - **Terms.** Headlines and summaries only, always attributed and linked; no
   stored or scraped article text.
 
@@ -92,6 +111,9 @@ Needs no Alpaca, so it can ship first.
   for one-minute intraday and daily history; `DES` (security description); WL
   holds nodes and tickers together; market status from Alpaca's clock and
   calendar.
+- **Completion** of tickers from Alpaca's asset list (`/v2/assets`, active US
+  equities), cached daily; functions that accept securities set
+  `takes_security`, which also turns on security completion for them.
 - **The energy angle.** A default "Power & gas" list: MISO-footprint utilities
   (AEE, XEL, LNT, WEC, DTE, CMS, ETR, CNP, MGEE, NI, OTTR), generators (VST, NRG,
   CEG, TLN), ETFs (XLU, XLE, UNG) and gas producers. Later, a stock against a

@@ -1,10 +1,12 @@
 # MISO Terminal: notes for coding agents
 
-A read-only, Bloomberg-style terminal for MISO market data. It is a Rust
-workspace with an egui UI, and Windows is the primary platform. Read
+A Bloomberg-style terminal for MISO market data. It is read-only for MISO;
+trading, when it comes, goes only through Alpaca, paper by default. It is a
+Rust workspace with an egui UI, and Windows is the primary platform. Read
 `docs/ARCHITECTURE.md` before structural changes and `docs/EXTENDING.md` for
 recipes. `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
-data, trading and portfolio tracking (not built yet).
+data, trading and portfolio tracking: Phase 0 (foundations) is built, the
+README's roadmap tracks the rest.
 
 ## Commands
 
@@ -50,6 +52,11 @@ with WM_CLOSE, which lets it save.
 - `crates/mt-ui/src/alerts.rs`: alert rules and the edge-triggered engine (pure).
 - `crates/mt-ui/src/capture.rs`: copy/save a panel as an image.
 - `crates/mt-ui/src/geo.rs`: map asset and projection.
+- `crates/mt-data/src/`: `request.rs` (methods, headers, redaction), `budget.rs`
+  (per-host request budgets), `secret.rs` (Credential Manager), `stream.rs`
+  (hub-owned WebSockets), `ctx.rs` (polite interval, conditional GETs).
+- `crates/mt-core/src/`: `instrument.rs` (`XLU US`, OCC options), `exchange.rs`
+  (New York time and sessions), `money.rs` (exact decimals), beside the MISO model.
 - `crates/mt-nws`: National Weather Service source, the template for non-MISO sources.
 - `crates/mt-eia`: EIA Henry Hub gas spot, a second example of one.
 - Example names must be unique across the workspace (they share
@@ -58,7 +65,7 @@ with WM_CLOSE, which lets it save.
 ## Conventions
 
 - Crate boundaries are load-bearing. `mt-core`, `mt-data`, `mt-miso`,
-  `mt-nws` and `mt-theme` must not depend on egui; CI tests them on Linux.
+  `mt-nws`, `mt-eia` and `mt-theme` must not depend on egui; CI tests them on Linux.
 - New panel = new file in `crates/mt-ui/src/functions/` + one line in
   `functions/mod.rs` + a README row (a test checks the README). Add any
   argument variants to `routes()` in `smoke_tests.rs`.
@@ -89,6 +96,18 @@ with WM_CLOSE, which lets it save.
   and re-sync.
 - Respect MISO's once-a-minute polling guidance. Real-time queries use
   `REALTIME_REFRESH`, and `FetchCtx` enforces a polite interval.
+- API keys only through the secret store: `ctx.secret(name)` in a query, sent
+  with `Request::secret_header`, entered in SET (`CREDENTIALS` in
+  `functions/settings.rs`). Never in `config.toml`, saved state, logs, test
+  output or fixtures. Per-minute API limits are a `Budget` in `FetchCtxOptions`.
+- WebSocket feeds implement `mt_data::Stream`; panels call
+  `cx.hub.watch_stream(&s, &topics)` every frame, as with `watch`. Never open
+  a connection from a panel.
+- Securities are written `XLU US` (`mt_core::instrument`); a bare token is a
+  node or a code, never a ticker. Functions that accept securities set
+  `takes_security`. Exchange times use `mt_core::exchange` (New York, with
+  daylight saving), never `mt_core::time`. Order and position amounts are
+  `Decimal` (`mt_core::money`), never `f64`.
 - The rolling five-minute feed can take most of a minute to download late in
   the day; today's store is saved to the disk cache and restored at launch.
 - Python helpers run through `uv` (inline script metadata), never global pip.

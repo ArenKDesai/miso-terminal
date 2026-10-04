@@ -3,9 +3,17 @@
 //! Accepted forms (case-insensitive):
 //!
 //! - `CODE [args...]`               e.g. `GP MINN.HUB 14`
-//! - `args... CODE`                 e.g. `MINN.HUB GP` (security first, Bloomberg style)
+//! - `SUBJECT CODE [args...]`       e.g. `MINN.HUB GP 14`, `XLU US GP 30` (subject first, Bloomberg style)
+//! - `args... CODE`                 e.g. `MINN.HUB ALTE.ALTE CMP`
 //! - `NODE`                         a bare pricing node opens `GP NODE`
 //! - a trailing `GO` / `<GO>` is ignored
+//!
+//! A security is a ticker plus its market code, `XLU US` (Bloomberg's trailing
+//! `Equity` is accepted), so it is never confused with a node such as `AECI`.
+//! Its tokens become one argument: `XLU US GP 30` is `GP` with `XLU US` and `30`.
+//! OCC option symbols (`XLU261218C00082500`) are single tokens already.
+
+use mt_core::instrument::{self, Instrument};
 
 use crate::function::{Registry, Route};
 
@@ -13,36 +21,73 @@ use crate::function::{Registry, Route};
 pub enum Parsed {
     Empty,
     Route(Route),
+    /// A security or option on its own, with no function.
+    Instrument(Instrument),
     Unknown(String),
 }
 
+/// Join each security's tokens into one argument, written the standard way
+/// (`xlu us equity` -> `XLU US`).
+fn group_instruments(tokens: &[&str]) -> Vec<String> {
+    let mut out = Vec::with_capacity(tokens.len());
+    let mut i = 0;
+    while i < tokens.len() {
+        match instrument::parse_tokens(&tokens[i..]) {
+            Some((inst, used)) => {
+                out.push(inst.to_string());
+                i += used;
+            }
+            None => {
+                out.push(tokens[i].to_owned());
+                i += 1;
+            }
+        }
+    }
+    out
+}
+
 pub fn parse(input: &str, registry: &Registry, is_node: impl Fn(&str) -> bool) -> Parsed {
-    let mut tokens: Vec<&str> = input.split_whitespace().collect();
-    if tokens
+    let mut raw: Vec<&str> = input.split_whitespace().collect();
+    if raw
         .last()
         .is_some_and(|t| t.eq_ignore_ascii_case("GO") || t.eq_ignore_ascii_case("<GO>"))
     {
-        tokens.pop();
+        raw.pop();
     }
+    let tokens = group_instruments(&raw);
     let Some(first) = tokens.first() else {
         return Parsed::Empty;
     };
 
     if let Some(spec) = registry.find(first) {
-        return Parsed::Route(Route::new(spec.code, tokens[1..].iter().copied()));
+        return Parsed::Route(Route::new(spec.code, &tokens[1..]));
+    }
+    if let Some(spec) = tokens.get(1).and_then(|t| registry.find(t)) {
+        let args = std::iter::once(first).chain(&tokens[2..]);
+        return Parsed::Route(Route::new(spec.code, args));
     }
     if tokens.len() > 1
         && let Some(spec) = tokens.last().and_then(|t| registry.find(t))
     {
-        return Parsed::Route(Route::new(
-            spec.code,
-            tokens[..tokens.len() - 1].iter().copied(),
-        ));
+        return Parsed::Route(Route::new(spec.code, &tokens[..tokens.len() - 1]));
     }
-    if tokens.len() == 1 && is_node(&first.to_ascii_uppercase()) {
-        return Parsed::Route(Route::new("GP", [first.to_ascii_uppercase()]));
+    if tokens.len() == 1 {
+        if let Some(inst) = Instrument::parse_security(first) {
+            return Parsed::Instrument(inst);
+        }
+        if is_node(&first.to_ascii_uppercase()) {
+            return Parsed::Route(Route::new("GP", [first.to_ascii_uppercase()]));
+        }
     }
     Parsed::Unknown(input.trim().to_owned())
+}
+
+/// The first security or option among a route's arguments, if any.
+pub fn security_arg(route: &Route) -> Option<Instrument> {
+    route
+        .args
+        .iter()
+        .find_map(|a| Instrument::parse_security(a))
 }
 
 /// Usage and description of the function being typed, once its code is
@@ -177,6 +222,14 @@ mod tests {
             Parsed::Route(Route::new("GP", ["MINN.HUB"]))
         );
         assert_eq!(
+            parse("MINN.HUB GP 14", &r, node),
+            Parsed::Route(Route::new("GP", ["MINN.HUB", "14"]))
+        );
+        assert_eq!(
+            parse("MINN.HUB ALTE.ALTE CMP", &r, node),
+            Parsed::Route(Route::new("CMP", ["MINN.HUB", "ALTE.ALTE"]))
+        );
+        assert_eq!(
             parse("alte.alte", &r, node),
             Parsed::Route(Route::new("GP", ["ALTE.ALTE"]))
         );
@@ -186,6 +239,42 @@ mod tests {
             parse("make coffee", &r, node),
             Parsed::Unknown("make coffee".into())
         );
+    }
+
+    #[test]
+    fn securities_are_one_argument_and_never_nodes() {
+        let r = reg();
+        // AECI is a node; AECI US would be a security.
+        let node = |s: &str| s == "AECI" || s.ends_with(".HUB");
+        assert_eq!(
+            parse("aeci", &r, node),
+            Parsed::Route(Route::new("GP", ["AECI"]))
+        );
+        assert_eq!(
+            parse("xlu us gp 30", &r, node),
+            Parsed::Route(Route::new("GP", ["XLU US", "30"]))
+        );
+        assert_eq!(
+            parse("GP XLU US Equity 30 <GO>", &r, node),
+            Parsed::Route(Route::new("GP", ["XLU US", "30"]))
+        );
+        assert_eq!(
+            parse("CMP MINN.HUB XEL US", &r, node),
+            Parsed::Route(Route::new("CMP", ["MINN.HUB", "XEL US"]))
+        );
+        let Parsed::Instrument(inst) = parse("xlu us", &r, node) else {
+            panic!("a bare security");
+        };
+        assert_eq!(inst.to_string(), "XLU US");
+        let Parsed::Route(route) = parse("XLU261218C00082500 GP", &r, node) else {
+            panic!()
+        };
+        assert_eq!(route.args, ["XLU261218C00082500"]);
+        assert!(matches!(security_arg(&route), Some(Instrument::Option(_))));
+        // A route's text parses back to the same route (saved layouts, --run).
+        let route = Route::new("GP", ["XLU US", "30"]);
+        assert_eq!(parse(&route.to_string(), &r, node), Parsed::Route(route));
+        assert_eq!(security_arg(&Route::new("GP", ["MINN.HUB"])), None);
     }
 
     #[test]

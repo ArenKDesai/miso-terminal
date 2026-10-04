@@ -1,9 +1,10 @@
 //! LOG: the data feeds behind every panel. What is being fetched, how fresh it
-//! is, what failed and why. The first stop when a panel looks wrong.
+//! is, what failed and why; live streams and request budgets when a source
+//! uses them. The first stop when a panel looks wrong.
 
 use egui::{RichText, ScrollArea, Ui};
 use egui_extras::{Column, TableBuilder};
-use mt_data::{EntryState, EventLevel};
+use mt_data::{EntryState, EventLevel, StreamPhase};
 
 use crate::context::{AppCommand, PanelCx};
 use crate::function::{Category, FunctionSpec, Panel, Route};
@@ -17,6 +18,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "LOG",
     description: "Every data feed with its freshness and last error, recent fetch activity, cache and file locations.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 
@@ -146,6 +148,9 @@ impl Panel for Log {
                 );
             }
 
+            streams(ui, cx);
+            budgets(ui, cx);
+
             widgets::section(ui, skin, "Recent activity");
             for e in hub.ctx().events().recent(80).iter().rev() {
                 let color = match e.level {
@@ -193,5 +198,119 @@ impl Panel for Log {
                 }
             });
         });
+    }
+}
+
+/// Live connections (WebSocket streams), when any source has one open.
+fn streams(ui: &mut Ui, cx: &mut PanelCx<'_>) {
+    let (skin, hub) = (cx.skin, cx.hub);
+    let status = hub.stream_status();
+    if status.is_empty() {
+        return;
+    }
+    widgets::section(ui, skin, "Streams");
+    let mut restart = false;
+    egui::Grid::new("log-streams")
+        .num_columns(7)
+        .min_col_width(12.0)
+        .striped(true)
+        .spacing([12.0, 4.0])
+        .show(ui, |ui| {
+            for title in [
+                "",
+                "Stream",
+                "State",
+                "Connected",
+                "Messages",
+                "Topics",
+                "Last error",
+            ] {
+                widgets::label(ui, skin, title);
+            }
+            ui.end_row();
+            for s in &status {
+                let (color, state) = match s.phase {
+                    StreamPhase::Connected { ready: true } => (skin.live, "live"),
+                    StreamPhase::Connected { ready: false } => (skin.info, "logging in"),
+                    StreamPhase::Connecting => (skin.info, "connecting"),
+                    StreamPhase::Retrying => (skin.warning, "reconnecting"),
+                    StreamPhase::Failed => (skin.negative, "refused"),
+                    StreamPhase::Idle => (skin.text_muted, "closed"),
+                };
+                widgets::lamp(ui, color);
+                ui.label(RichText::new(&s.label).color(if s.watched {
+                    skin.text
+                } else {
+                    skin.text_muted
+                }))
+                .on_hover_text(&s.key);
+                ui.label(state);
+                ui.label(s.connected_since.map_or_else(|| fmt::DASH.into(), fmt::ago))
+                    .on_hover_text(format!(
+                        "{} connection{} since launch",
+                        s.connects,
+                        if s.connects == 1 { "" } else { "s" }
+                    ));
+                ui.label(s.messages.to_string());
+                ui.label(s.topics.to_string());
+                match &s.error {
+                    // Truncated: a long error must not widen the pane.
+                    Some(e) => ui
+                        .add(egui::Label::new(RichText::new(e).color(skin.negative)).truncate())
+                        .on_hover_text(e),
+                    None => ui.label(""),
+                };
+                ui.end_row();
+            }
+        });
+    if status
+        .iter()
+        .any(|s| matches!(s.phase, StreamPhase::Failed | StreamPhase::Retrying))
+    {
+        restart = ui
+            .button("Reconnect now")
+            .on_hover_text("After fixing keys in SET, or to skip a retry wait")
+            .clicked();
+    }
+    if restart {
+        hub.restart_streams();
+    }
+}
+
+/// Request budgets (requests per minute a source allows), when any are set.
+fn budgets(ui: &mut Ui, cx: &mut PanelCx<'_>) {
+    let skin = cx.skin;
+    let status = cx.hub.ctx().budget_status();
+    if status.is_empty() {
+        return;
+    }
+    widgets::section(ui, skin, "Request budgets");
+    for b in &status {
+        let mut text = format!(
+            "{}: {} of {} requests in the last {} s",
+            b.name,
+            b.used,
+            b.max,
+            b.per.as_secs()
+        );
+        if b.waits > 0 {
+            text.push_str(&format!("; {} waited for a slot", b.waits));
+        }
+        let color = if b.used >= b.max {
+            skin.warning
+        } else {
+            skin.text
+        };
+        ui.label(RichText::new(text).color(color));
+        if let Some(d) = b.blocked_for {
+            ui.label(
+                RichText::new(format!(
+                    "⚠ {} asked us to slow down: paused for {} s",
+                    b.name,
+                    d.as_secs()
+                ))
+                .color(skin.negative),
+            );
+        }
     }
 }

@@ -1,6 +1,8 @@
 //! SET: edit `config.toml` in-app. Changes are drafted, then applied together.
+//! API keys are not config: they go straight to the credential store.
 
 use egui::{Grid, RichText, ScrollArea, Ui};
+use mt_data::Secret;
 use mt_miso::MisoEndpoints;
 
 use crate::config::AppConfig;
@@ -14,18 +16,51 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Settings",
     category: Category::System,
     usage: "SET",
-    description: "Display, price highlighting, data and endpoint settings. Saved to config.toml.",
+    description: "Display, price highlighting, data and endpoint settings (saved to config.toml), and API keys (kept in Windows Credential Manager).",
     takes_node: false,
+    takes_security: false,
     open,
 };
 
 fn open(_: &[String]) -> Result<Box<dyn Panel>, String> {
-    Ok(Box::new(Settings { draft: None }))
+    Ok(Box::new(Settings {
+        draft: None,
+        keys: Keys::default(),
+    }))
 }
 
 struct Settings {
     /// Edits not yet applied; `None` means "showing the live config".
     draft: Option<AppConfig>,
+    keys: Keys,
+}
+
+/// An API key the terminal can use, by its name in the credential store.
+struct Credential {
+    name: &'static str,
+    label: &'static str,
+}
+
+/// Alpaca paper-trading keys. Live keys get their own entries, and only once
+/// live trading exists; they are never shown here before then.
+const CREDENTIALS: &[Credential] = &[
+    Credential {
+        name: "alpaca/paper/key-id",
+        label: "Alpaca paper key ID",
+    },
+    Credential {
+        name: "alpaca/paper/secret-key",
+        label: "Alpaca paper secret key",
+    },
+];
+
+/// The credentials section's state. Whether each key is stored is read from
+/// the store once, not every frame; typed values live only until saved.
+#[derive(Default)]
+struct Keys {
+    stored: Option<Vec<bool>>,
+    typed: Vec<String>,
+    message: Option<(String, bool)>,
 }
 
 /// MISO asks that each real-time link be polled at most once a minute; the
@@ -158,6 +193,8 @@ impl Panel for Settings {
                     ui.end_row();
                 });
 
+            credentials(ui, cx, &mut self.keys);
+
             widgets::section(ui, skin, "MISO endpoints");
             Grid::new("set-endpoints")
                 .num_columns(2)
@@ -221,5 +258,88 @@ impl Panel for Settings {
         });
 
         self.draft = (&draft != live).then_some(draft);
+    }
+}
+
+fn credentials(ui: &mut Ui, cx: &mut PanelCx<'_>, keys: &mut Keys) {
+    let skin = cx.skin;
+    let store = cx.hub.ctx().secrets().clone();
+    widgets::section(ui, skin, "Credentials");
+    ui.label(
+        RichText::new(format!(
+            "Kept in {}, never in config.toml, saved layouts or logs. For Alpaca market \
+             data and paper trading, which are on the way: create paper keys in your \
+             Alpaca dashboard.",
+            store.describe()
+        ))
+        .small()
+        .color(skin.text_muted),
+    );
+    keys.typed.resize(CREDENTIALS.len(), String::new());
+    let stored = keys.stored.get_or_insert_with(|| {
+        CREDENTIALS
+            .iter()
+            .map(|c| matches!(store.get(c.name), Ok(Some(s)) if !s.is_empty()))
+            .collect()
+    });
+    let mut changed = false;
+    Grid::new("set-credentials")
+        .num_columns(3)
+        .spacing([16.0, 6.0])
+        .show(ui, |ui| {
+            for (i, c) in CREDENTIALS.iter().enumerate() {
+                ui.label(c.label);
+                if stored[i] {
+                    ui.label(RichText::new("● stored").color(skin.live));
+                } else {
+                    ui.label(RichText::new("not set").color(skin.text_muted));
+                }
+                // Field and buttons share the last column: a Grid sizes
+                // earlier columns from the previous frame, which pins a text
+                // field at its first, tiny width.
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut keys.typed[i])
+                            .password(true)
+                            .hint_text(if stored[i] {
+                                "replace…"
+                            } else {
+                                "paste key…"
+                            })
+                            .desired_width(260.0),
+                    );
+                    let typed = !keys.typed[i].trim().is_empty();
+                    if ui.add_enabled(typed, egui::Button::new("Save")).clicked() {
+                        // Into a Secret, which wipes its copy when dropped.
+                        let secret = Secret::new(std::mem::take(&mut keys.typed[i]).trim());
+                        keys.message = Some(match store.set(c.name, &secret) {
+                            Ok(()) => (format!("Saved {}.", c.label), false),
+                            Err(e) => (format!("Could not save {}: {e}", c.label), true),
+                        });
+                        changed = true;
+                    }
+                    if stored[i] && ui.button("Remove").clicked() {
+                        keys.message = Some(match store.delete(c.name) {
+                            Ok(()) => (format!("Removed {}.", c.label), false),
+                            Err(e) => (format!("Could not remove {}: {e}", c.label), true),
+                        });
+                        changed = true;
+                    }
+                });
+                ui.end_row();
+            }
+        });
+    if let Some((text, error)) = &keys.message {
+        let color = if *error {
+            skin.negative
+        } else {
+            skin.text_muted
+        };
+        ui.label(RichText::new(text).small().color(color));
+    }
+    if changed {
+        keys.stored = None;
+        // Streams refused with the old keys may try again.
+        cx.hub.restart_streams();
     }
 }

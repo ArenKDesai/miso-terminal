@@ -205,6 +205,7 @@ fn main() -> Result<()> {
         .build()
         .context("starting the data runtime")?;
 
+    let replaying = args.offline.is_some();
     let (transport, cache): (Arc<dyn Transport>, Option<DiskCache>) = match args.offline {
         Some(dir) => {
             let dir = dir.unwrap_or_else(default_fixtures);
@@ -226,6 +227,13 @@ fn main() -> Result<()> {
     let opts = FetchCtxOptions {
         max_concurrent: config.data.max_concurrent_requests,
         polite_interval: std::time::Duration::from_secs(config.data.polite_interval_secs),
+        // API keys: Windows Credential Manager live; memory (nothing saved) when replaying.
+        secrets: if replaying {
+            Arc::new(mt_data::MemorySecrets::default())
+        } else {
+            mt_data::os_store("miso-terminal")
+        },
+        ..FetchCtxOptions::default()
     };
     if let Some(cache) = cache.clone() {
         let max = config.data.cache_max_mb.saturating_mul(1024 * 1024);

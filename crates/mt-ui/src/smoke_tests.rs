@@ -29,6 +29,7 @@ fn hub(rt: &tokio::runtime::Runtime) -> DataHub {
         FetchCtxOptions {
             max_concurrent: 8,
             polite_interval: Duration::ZERO,
+            ..FetchCtxOptions::default()
         },
         EventLog::default(),
     );
@@ -371,6 +372,13 @@ fn app_shell_runs_frames_and_executes_commands() {
     // WL absorbs `WL <node>` into the open watchlist (the default layout has one).
     app.apply_commands(&ctx, vec![AppCommand::Run("WL ALTE.ALTE".into())]);
     assert_eq!(app.workspace_mut().routes().len(), before + 1);
+    // Securities are recognised, and refused by functions that take nodes.
+    for cmd in ["XLU US GP 30", "xlu us", "GP XLU261218C00082500"] {
+        app.apply_commands(&ctx, vec![AppCommand::Run(cmd.into())]);
+        let (msg, error) = app.last_feedback().cloned().unwrap_or_default();
+        assert!(error && msg.contains("is a security"), "{cmd}: {msg}");
+    }
+    assert_eq!(app.workspace_mut().routes().len(), before + 1);
     app.apply_commands(&ctx, vec![AppCommand::Run("THEME high-contrast".into())]);
     run(&mut app);
     assert_eq!(app.active_theme_id(), "high-contrast");
@@ -563,4 +571,115 @@ fn double_clicking_a_tab_zooms_it() {
         !app.workspace_mut().is_zoomed(),
         "Esc goes back to the layout"
     );
+}
+
+/// A toy stream for LOG: `ok` accepts the login, `name=value` lines set values.
+#[derive(Clone)]
+struct ToyStream {
+    key: &'static str,
+    /// A secret the stream needs; missing ones are refused.
+    needs: &'static str,
+}
+
+impl mt_data::Stream for ToyStream {
+    type State = std::collections::BTreeMap<String, String>;
+    fn key(&self) -> String {
+        self.key.into()
+    }
+    fn label(&self) -> String {
+        format!("Toy {}", self.key)
+    }
+    fn request(&self, ctx: &FetchCtx) -> Result<mt_data::Request, mt_data::FetchError> {
+        Ok(mt_data::Request::get("wss://stream.example.com/v1/ticks")
+            .secret_header("X-Key", ctx.secret(self.needs)?))
+    }
+    fn waits_for_ready(&self) -> bool {
+        true
+    }
+    fn subscribe(&self, topics: &[String]) -> Vec<String> {
+        vec![format!("sub {}", topics.join(","))]
+    }
+    fn unsubscribe(&self, topics: &[String]) -> Vec<String> {
+        vec![format!("unsub {}", topics.join(","))]
+    }
+    fn apply(
+        &self,
+        state: &mut Self::State,
+        frame: &mt_data::Frame,
+    ) -> Result<mt_data::Applied, mt_data::FetchError> {
+        Ok(match frame.as_text().and_then(|t| t.split_once('=')) {
+            Some((k, v)) => {
+                state.insert(k.into(), v.into());
+                mt_data::Applied::Changed
+            }
+            None if frame.as_text() == Some("ok") => mt_data::Applied::Ready,
+            None => mt_data::Applied::Ignored,
+        })
+    }
+}
+
+#[test]
+fn log_and_set_show_streams_budgets_and_keys() {
+    let rt = runtime();
+    // A recorded stream session and a budgeted host.
+    let root = std::env::temp_dir().join(format!("mt-smoke-streams-{}", std::process::id()));
+    let dir = root.join("stream.example.com").join("v1");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("ticks.jsonl"), "ok\nA=1\nB=2\n").unwrap();
+    let secrets =
+        mt_data::MemorySecrets::with([("alpaca/paper/key-id", mt_data::Secret::new("PKTEST"))]);
+    let ctx = FetchCtx::new(
+        Arc::new(FixtureTransport::new(&root)),
+        None,
+        FetchCtxOptions {
+            budgets: vec![mt_data::Budget::new(
+                "Example",
+                ["api.example.com"],
+                2,
+                Duration::from_secs(60),
+            )],
+            secrets: Arc::new(secrets),
+            ..FetchCtxOptions::default()
+        },
+        EventLog::default(),
+    );
+    let h = Harness::new(DataHub::new(rt.handle().clone(), ctx));
+    for _ in 0..2 {
+        let _ = rt.block_on(h.hub.ctx().send("https://api.example.com/v2/clock"));
+    }
+    let live = ToyStream {
+        key: "toy/stream/live",
+        needs: "alpaca/paper/key-id",
+    };
+    let refused = ToyStream {
+        key: "toy/stream/refused",
+        needs: "alpaca/paper/secret-key",
+    };
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let snap = h.hub.watch_stream(&live, &["A", "B"]);
+        h.hub.watch_stream(&refused, &["A"]);
+        let states: Vec<_> = h.hub.stream_status().iter().map(|s| s.phase).collect();
+        if snap.data().is_some_and(|s| s.len() == 2)
+            && states.contains(&mt_data::StreamPhase::Failed)
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "streams did not settle: {states:?}"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(h.hub.ctx().budget_status()[0].used, 2);
+    let registry = Registry::builtin();
+    for theme in mt_theme::builtin() {
+        let skin = Skin::new(theme.clone());
+        h.apply(&skin);
+        for code in ["LOG", "SET"] {
+            let mut panel = registry.open(&Route::code(code)).unwrap();
+            h.draw(&skin, panel.as_mut());
+        }
+    }
+    let _ = std::fs::remove_dir_all(root);
 }

@@ -17,6 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "THEME [id]",
     description: "Switch themes, preview palettes and contrast checks, install more from the gallery, and copy a theme to edit. THEME <id> switches directly.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 

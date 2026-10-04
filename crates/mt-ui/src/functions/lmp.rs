@@ -21,6 +21,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "LMP [ALL]",
     description: "Real-time and day-ahead LMPs by node, sortable and filterable. ALL lists every CP node's latest 5-minute price.",
     takes_node: false,
+    takes_security: false,
     open,
 };
 
