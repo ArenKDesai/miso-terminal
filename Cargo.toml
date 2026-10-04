@@ -8,6 +8,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.95"  # egui 0.36 and friends
 publish = false
+license = "AGPL-3.0-or-later"
 repository = "https://github.com/ArenKDesai/miso-terminal"
 
 [workspace.dependencies]

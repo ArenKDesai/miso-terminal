@@ -269,4 +269,20 @@ each piece plugs in.
       day (29 MB, 530k rows) parses in ~0.4 s and builds in ~50 ms; the download dominates.
 - [x] GitHub repository (private) with CI on every push.
 - [ ] Make the repository public (the owner's call).
-- [ ] Choose a licence (the bundled fonts are OFL; see `assets/fonts/`).
+- [x] Licence: AGPL-3.0-or-later (see [Licence](#licence)).
+
+## Licence
+
+Copyright (C) 2026 Aren Desai.
+
+MISO Terminal is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. It is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See [`LICENSE`](LICENSE) for the full text.
+
+The bundled fonts (IBM Plex Sans, JetBrains Mono, Space Grotesk) are under the
+SIL Open Font License 1.1; their licences are in [`assets/fonts/`](assets/fonts/).
+Market data comes from MISO, the National Weather Service and the EIA, and is
+subject to their terms.

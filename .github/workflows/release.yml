@@ -25,6 +25,7 @@ jobs:
           Copy-Item target/release/miso-terminal.exe $dir
           Copy-Item -Recurse fixtures $dir/fixtures          # enables --offline
           Copy-Item README.md $dir
+          Copy-Item LICENSE $dir
           Copy-Item packaging/install.ps1 $dir
           New-Item -ItemType Directory $dir/licenses | Out-Null
           Copy-Item assets/fonts/*-OFL.txt $dir/licenses
