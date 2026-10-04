@@ -16,6 +16,7 @@ mt-core.workspace = true
 mt-data.workspace = true
 mt-miso.workspace = true
 mt-news.workspace = true
+mt-alpaca.workspace = true
 mt-ui.workspace = true
 anyhow.workspace = true
 directories.workspace = true

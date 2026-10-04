@@ -233,12 +233,15 @@ fn main() -> Result<()> {
         } else {
             mt_data::os_store("miso-terminal")
         },
-        // Pacing publishers ask for (FT's robots.txt: one request a second);
-        // a replay has nobody to be polite to.
+        // Pacing publishers ask for (FT's robots.txt: one request a second)
+        // and Alpaca's per-key limit; a replay has nobody to be polite to.
         budgets: if replaying {
             Vec::new()
         } else {
             mt_news::budgets()
+                .into_iter()
+                .chain(mt_alpaca::budgets())
+                .collect()
         },
     };
     if let Some(cache) = cache.clone() {

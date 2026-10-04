@@ -2,9 +2,10 @@
 //!
 //! The x axis is seconds since the epoch (`mt_core::time::chart_x`), labelled
 //! in market time (EST) with a grid that snaps to 5-minute, hourly or daily
-//! boundaries instead of egui_plot's decimal steps.
+//! boundaries instead of egui_plot's decimal steps. Securities use
+//! [`exchange_plot`] instead: the same seconds, labelled in New York time.
 
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use egui::Color32;
 use egui_plot::{
     GridInput, GridMark, HoverPosition, Legend, Line, LineStyle, Plot, PlotPoints, PlotUi,
@@ -37,6 +38,11 @@ const STEPS: &[f64] = &[
 
 /// Grid marks on round market-time boundaries.
 fn time_grid(input: GridInput) -> Vec<GridMark> {
+    grid_with_offset(input, f64::from(MARKET_UTC_OFFSET_SECS))
+}
+
+/// Grid marks on round boundaries of a clock `offset` seconds from UTC.
+fn grid_with_offset(input: GridInput, offset: f64) -> Vec<GridMark> {
     let (lo, hi) = input.bounds;
     let span = (hi - lo).max(1.0);
     let step = STEPS
@@ -44,8 +50,7 @@ fn time_grid(input: GridInput) -> Vec<GridMark> {
         .copied()
         .find(|s| span / s <= 8.0)
         .unwrap_or(364.0 * DAY);
-    // Align to market midnight, not UTC midnight.
-    let offset = f64::from(MARKET_UTC_OFFSET_SECS);
+    // Align to local midnight, not UTC midnight.
     let first = ((lo + offset) / step).ceil() * step - offset;
     let mut marks = Vec::new();
     let mut x = first;
@@ -68,9 +73,14 @@ fn time_grid(input: GridInput) -> Vec<GridMark> {
 }
 
 fn axis_label(mark: GridMark, range: &std::ops::RangeInclusive<f64>) -> String {
-    let Some(t) = from_chart_x(mark.value) else {
-        return String::new();
-    };
+    match from_chart_x(mark.value) {
+        Some(t) => label_at(t, mark, range),
+        None => String::new(),
+    }
+}
+
+/// A grid mark's label for wall-clock time `t`.
+fn label_at(t: NaiveDateTime, mark: GridMark, range: &std::ops::RangeInclusive<f64>) -> String {
     let span = range.end() - range.start();
     let midnight = t.time() == chrono::NaiveTime::MIN;
     if span > 3.0 * DAY {
@@ -109,6 +119,122 @@ fn hover_label(pos: &HoverPosition<'_>) -> Option<String> {
     } else {
         format!("{name}\n{when} {MARKET_TZ_LABEL}\n{:.2}", p.y)
     })
+}
+
+/// Seconds since the epoch for an instant, the x of [`exchange_plot`].
+pub fn utc_x(t: DateTime<Utc>) -> f64 {
+    t.timestamp() as f64
+}
+
+/// New York wall-clock time at chart x.
+fn exchange_time(x: f64) -> Option<chrono::DateTime<chrono_tz::Tz>> {
+    DateTime::from_timestamp(x.floor() as i64, 0).map(mt_core::exchange::to_exchange)
+}
+
+fn exchange_grid(input: GridInput) -> Vec<GridMark> {
+    use chrono::Offset;
+    let (lo, hi) = input.bounds;
+    let span = (hi - lo).max(1.0);
+    let step = STEPS
+        .iter()
+        .copied()
+        .find(|s| span / s <= 8.0)
+        .unwrap_or(364.0 * DAY);
+    let Some(start) = exchange_time(lo) else {
+        return Vec::new();
+    };
+    if step < DAY {
+        let offset = f64::from(start.offset().fix().local_minus_utc());
+        return grid_with_offset(input, offset);
+    }
+    // Days and longer: New York midnights, which move an hour with daylight
+    // saving, aligned to whole steps since 1970 as the fixed-offset grid is.
+    let days = (step / DAY).round() as i64;
+    let epoch = chrono::NaiveDate::default();
+    let first = (start.date_naive() - epoch).num_days().div_euclid(days) * days;
+    let at = |day: i64, hour: u32| {
+        let date = epoch + chrono::Duration::days(day);
+        mt_core::exchange::exchange_to_utc(date.and_hms_opt(hour, 0, 0)?).map(utc_x)
+    };
+    let mut marks = Vec::new();
+    let mut day = first;
+    while marks.len() < 400 {
+        let Some(x) = at(day, 0) else {
+            day += days;
+            continue;
+        };
+        if x > hi {
+            break;
+        }
+        if x >= lo {
+            marks.push(GridMark {
+                value: x,
+                step_size: step,
+            });
+        }
+        // A fainter mark between: the middle day, or noon.
+        let minor = if days >= 2 {
+            at(day + days / 2, 0)
+        } else {
+            at(day, 12)
+        };
+        if let Some(m) = minor.filter(|m| (lo..=hi).contains(m)) {
+            marks.push(GridMark {
+                value: m,
+                step_size: step / 2.0,
+            });
+        }
+        day += days;
+    }
+    marks
+}
+
+fn exchange_axis_label(mark: GridMark, range: &std::ops::RangeInclusive<f64>) -> String {
+    exchange_time(mark.value).map_or_else(String::new, |t| label_at(t.naive_local(), mark, range))
+}
+
+fn exchange_hover(pos: &HoverPosition<'_>) -> Option<String> {
+    let (name, p) = match pos {
+        HoverPosition::NearDataPoint {
+            plot_name,
+            position,
+            ..
+        } => (*plot_name, position),
+        HoverPosition::Elsewhere { position } => ("", position),
+    };
+    let t = exchange_time(p.x)?;
+    let when = format!(
+        "{} {}",
+        t.format("%b %d %H:%M"),
+        mt_core::exchange::tz_label(&t)
+    );
+    Some(if name.is_empty() {
+        format!(
+            "{when}
+{:.2}",
+            p.y
+        )
+    } else {
+        format!(
+            "{name}
+{when}
+{:.2}",
+            p.y
+        )
+    })
+}
+
+/// A plot for securities: x is [`utc_x`], labelled in New York time (with
+/// daylight saving), never MISO's market time.
+pub fn exchange_plot<'a>(id: &str, skin: &Skin) -> Plot<'a> {
+    Plot::new(id)
+        .x_grid_spacer(exchange_grid)
+        .x_axis_formatter(exchange_axis_label)
+        .label_formatter(exchange_hover)
+        .grid_color(skin.grid)
+        .y_axis_min_width(56.0)
+        .allow_scroll(false)
+        .allow_double_click_reset(true)
 }
 
 /// A plot with a market-time x axis, themed grid and legend.
@@ -318,6 +444,49 @@ mod tests {
         assert_eq!(runs.len(), 2, "a missing day starts a new run");
         assert_eq!(runs[0].len(), 2);
         assert_eq!(runs[1].len(), 1, "NaN is dropped");
+    }
+
+    #[test]
+    fn exchange_axes_follow_new_york_time() {
+        // 13:30 UTC on a summer day is 09:30 in New York (EDT).
+        let x = utc_x("2026-07-01T13:30:00Z".parse().unwrap());
+        let mark = GridMark {
+            value: x,
+            step_size: HOUR,
+        };
+        assert_eq!(exchange_axis_label(mark, &(x..=x + 6.0 * HOUR)), "09:30");
+        // Hourly marks fall on New York's hours.
+        let marks = exchange_grid(GridInput {
+            bounds: (x - 10.0, x + 6.0 * HOUR),
+            base_step_size: 1.0,
+        });
+        let first = marks.iter().find(|m| m.step_size == HOUR).unwrap();
+        assert_eq!(exchange_axis_label(*first, &(x..=x + 6.0 * HOUR)), "10:00");
+        // A year of daily marks keeps landing on midnights through the
+        // clock changes, so every major mark has a date.
+        let year = utc_x("2025-09-01T04:00:00Z".parse().unwrap())
+            ..=utc_x("2026-09-01T04:00:00Z".parse().unwrap());
+        let marks = exchange_grid(GridInput {
+            bounds: (*year.start(), *year.end()),
+            base_step_size: 1.0,
+        });
+        let step = marks.iter().map(|m| m.step_size).fold(0.0, f64::max);
+        let labels: Vec<String> = marks
+            .iter()
+            .filter(|m| m.step_size == step)
+            .map(|m| exchange_axis_label(*m, &year))
+            .collect();
+        assert!(
+            labels.len() >= 4 && labels.iter().all(|l| !l.is_empty()),
+            "{labels:?}"
+        );
+        // In winter, 14:30 UTC is 09:30 (EST).
+        let w = utc_x("2026-01-15T14:30:00Z".parse().unwrap());
+        let mark = GridMark {
+            value: w,
+            step_size: HOUR,
+        };
+        assert_eq!(exchange_axis_label(mark, &(w..=w + HOUR)), "09:30");
     }
 
     #[test]

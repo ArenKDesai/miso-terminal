@@ -6,7 +6,8 @@
 //! - [`workspace`]: the docking layout and its persistence.
 //! - [`skin`] + [`fonts`]: applying an `mt_theme::Theme` to egui.
 //! - [`widgets`]: shared building blocks (tiles, tables, charts, formatting).
-//! - [`news`]: combined headlines and the headline browser (TOP, NEWS, NI).
+//! - [`news`]: combined headlines and the headline browser (TOP, NEWS, NI, CN).
+//! - [`market`]: shared pieces for securities (market status, live rows, formats).
 
 pub mod alerts;
 pub mod app;
@@ -19,6 +20,7 @@ pub mod function;
 pub mod functions;
 pub mod gallery;
 pub mod geo;
+pub mod market;
 pub mod news;
 pub mod notify;
 pub mod remote;

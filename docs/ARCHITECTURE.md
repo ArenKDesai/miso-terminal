@@ -24,23 +24,23 @@ AGPL-3.0.
                     │ hub.watch(query)     │ miso.lmp_board() …   │ Theme
             ┌───────▼────────┐     ┌───────▼────────┐     ┌───────▼────────┐
  data       │ mt-data        │◄────│ mt-miso, mt-nws│     │ mt-theme       │
-            │ DataHub, Query │     │ endpoints      │     │ TOML themes    │
-            │ Stream, Request│     │ parsers        │     │ validation     │
-            │ FetchCtx,      │     │ queries        │     │ registry       │
-            │ budgets,secrets│     └───────┬────────┘     └────────────────┘
-            │ Transport,     │             │
-            │ DiskCache      │             │
+            │ DataHub, Query │     │ mt-eia, mt-news│     │ TOML themes    │
+            │ Stream, Request│     │ mt-alpaca      │     │ validation     │
+            │ FetchCtx,      │     │ endpoints      │     │ registry       │
+            │ budgets,secrets│     │ parsers        │     └────────────────┘
+            │ Transport,     │     │ queries        │
+            │ DiskCache      │     └───────┬────────┘
             └────────────────┘             │
             ┌──────────────────────────────▼───────────────────────────────┐
  domain     │ mt-core   prices · grid · weather · time · geometry · numbers│
-            │           instruments · exchange time · money                │
+            │           instruments · quotes, bars · exchange time · money │
             └──────────────────────────────────────────────────────────────┘
 ```
 
-Dependencies point downward only. `mt-core`, `mt-data`, `mt-miso` and
-`mt-theme` know nothing about egui, and CI tests them on Linux to keep them
-portable. A second front end (a TUI, a web view, a CLI exporter) could reuse all
-four unchanged.
+Dependencies point downward only. `mt-core`, `mt-data`, the sources (`mt-miso`,
+`mt-nws`, `mt-eia`, `mt-news`, `mt-alpaca`) and `mt-theme` know nothing about
+egui, and CI tests them on Linux to keep them portable. A second front end (a
+TUI, a web view, a CLI exporter) could reuse them unchanged.
 
 ## Data flow
 
@@ -180,6 +180,35 @@ Headline alerts are edge-triggered like the rest, with one addition: a rule
 can return a token (the newest matching headline's id), and a new token fires
 the rule again while it holds.
 
+### Stocks and ETFs
+
+`mt-alpaca` is a source like the others: queries for snapshots, bars, the
+asset list, the clock and calendar and company news, and two `Stream`s (live
+prices, live news), all through `FetchCtx` with the user's keys from the
+secret store (`Request::secret_header`; a replay sends none). Its facade,
+`Alpaca`, knows the configured feed and whether keys are stored
+(`is_ready`), so panels show a prompt instead of failing requests without
+them. One `Budget` covers every Alpaca host (180 of the 200 requests a minute
+the key allows).
+
+The free plan streams trades and quotes for 30 symbols and minute bars for
+any number, so `MarketStream` keeps track of what it has sent: trades and
+quotes for the first `stream_symbols` symbols, bars for all, and the rest held
+back until room frees up. The hub's subscription union stays unaware of the
+limit. Panels watch a minute-old snapshot and the stream together and merge
+them per security with `mt_alpaca::board::row` (`mt_ui::market::Board`).
+
+Bars are fetched for many symbols at once and every page is followed (a
+repeated page token, which a replay produces, ends it). Daily bars come from
+the consolidated tape with an end 16 minutes back, which the free plan allows;
+intraday bars follow the live feed. `FixtureTransport` serves
+`bars@1Day.json` for `bars?timeframe=1Day&…`, so one endpoint can have a
+recording per timeframe.
+
+Securities never use MISO's market time: `mt_core::exchange` gives New York
+time, and charts of securities use `widgets::chart::exchange_plot`, whose grid
+follows New York midnights through the clock changes.
+
 ### Feeds with memory
 
 `Query::fetch` receives the previous value. `RtIntradayQuery` uses that to seed
@@ -281,6 +310,7 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; streams against a scripted server (shared connections, subscription unions, reconnect and resubscribe, refused logins, lingering topics, pause); a real WebSocket round trip on localhost; conditional GETs, status mapping, budgets and `429`s; secrets kept out of the log; the Windows Credential Manager round trip; transports; disk cache |
 | `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
+| `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions, the symbol limit, refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed |
 | `mt-news` | RSS 2.0, RSS 1.0 and Atom (CDATA, escaped HTML, entities, dates, Atom links, no article bodies); every built-in feed against its recording (sample text in the feed's real structure; live in the drift job via `MT_FIXTURES`); identities, merging, combining, keyword rules, config overrides, read marks |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
 | `mt-ui` | Command parsing, completion and hints; alert engine (headline alerts included); series maths; the headline browser and archived headlines and read marks across a restart; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart |
@@ -288,8 +318,11 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 
 The smoke test iterates the registry, so a new function gets coverage without
 writing a test. Separately, the weekly `drift.yml` workflow records live MISO
-responses and runs the parser tests against them (`MT_FIXTURES`), so MISO format
-changes surface in CI rather than as a blank panel.
+responses (and the weather, gas, news and Alpaca sources, the last with a
+throwaway paper account's keys from the repository secrets) and runs the parser
+tests against them (`MT_FIXTURES`), so format changes surface in CI rather than
+as a blank panel. Run by hand, it can also record a fresh set of Alpaca fixtures
+(synthetic prices, sample text) as an artifact.
 
 At runtime, each tab's `ui()` runs inside `catch_unwind`. A panicking panel is
 logged, its state is dropped, and the tab shows the error with a *Reload panel*

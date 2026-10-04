@@ -111,15 +111,45 @@ pub struct Suggestion {
     pub detail: String,
 }
 
-/// Completions for the current input. `nodes` should list favourites first.
+/// Securities matching typed text, best first: `("XLU US", name)`.
+pub type SecuritySearch<'a> = &'a dyn Fn(&str, usize) -> Vec<(String, String)>;
+
+/// No security completion (tests, and before the asset list loads).
+pub fn no_securities(_: &str, _: usize) -> Vec<(String, String)> {
+    Vec::new()
+}
+
+/// Completions for the current input. `nodes` should list favourites first;
+/// `securities` searches the asset list.
 pub fn suggest(
     input: &str,
     registry: &Registry,
     nodes: &[String],
+    securities: SecuritySearch<'_>,
     limit: usize,
 ) -> Vec<Suggestion> {
     let upper = input.trim_start().to_ascii_uppercase();
     let mut out = Vec::new();
+    // A security typed first, Bloomberg style (`XLU US G…`): the functions
+    // that take one.
+    let tokens: Vec<&str> = upper.split_whitespace().collect();
+    if tokens.first().is_some_and(|t| registry.find(t).is_none())
+        && let Some((Instrument::Security(sec), used)) = instrument::parse_tokens(&tokens)
+        && (tokens.len() > used || upper.ends_with(' '))
+        && tokens.len() <= used + 1
+    {
+        let partial = tokens.get(used).copied().unwrap_or("");
+        for spec in registry.specs().iter().filter(|s| s.takes_security) {
+            if spec.code.starts_with(partial) {
+                out.push(Suggestion {
+                    command: format!("{sec} {}", spec.code),
+                    detail: spec.name.to_owned(),
+                });
+            }
+        }
+        out.truncate(limit);
+        return out;
+    }
     // Prefix matches first, then substring, then (for 3+ characters) fuzzy
     // subsequence matches such as `michub` -> `MICHIGAN.HUB`.
     let node_matches = |needle: &str| {
@@ -156,6 +186,17 @@ pub fn suggest(
                     });
                 }
             }
+            if spec.takes_security && !rest.trim().is_empty() && !rest.trim().contains(' ') {
+                for (sec, name) in securities(rest.trim(), limit) {
+                    if out.len() >= limit {
+                        break;
+                    }
+                    out.push(Suggestion {
+                        command: format!("{} {sec}", spec.code),
+                        detail: name,
+                    });
+                }
+            }
         }
         // Completing a function code, or a bare node.
         None => {
@@ -189,6 +230,16 @@ pub fn suggest(
                     out.push(Suggestion {
                         command: format!("GP {n}"),
                         detail: "Graph price".into(),
+                    });
+                }
+                // Tickers: a bare security graphs it too.
+                for (sec, name) in securities(&upper, limit) {
+                    if out.len() >= limit {
+                        break;
+                    }
+                    out.push(Suggestion {
+                        command: format!("GP {sec}"),
+                        detail: name,
                     });
                 }
             }
@@ -297,14 +348,58 @@ mod tests {
         let nodes: Vec<String> = ["MINN.HUB", "MICHIGAN.HUB", "ALTE.ALTE"]
             .map(String::from)
             .to_vec();
-        let s = suggest("l", &r, &nodes, 10);
+        let s = suggest("l", &r, &nodes, &no_securities, 10);
         assert!(s.iter().any(|s| s.command == "LMP"));
-        let s = suggest("mi", &r, &nodes, 10);
+        let s = suggest("mi", &r, &nodes, &no_securities, 10);
         assert!(s.iter().any(|s| s.command == "GP MINN.HUB"));
-        let s = suggest("gp al", &r, &nodes, 10);
+        let s = suggest("gp al", &r, &nodes, &no_securities, 10);
         assert_eq!(s[0].command, "GP ALTE.ALTE");
-        assert!(suggest("", &r, &nodes, 10).is_empty());
-        assert!(suggest("gp", &r, &nodes, 3).len() <= 3);
+        assert!(suggest("", &r, &nodes, &no_securities, 10).is_empty());
+        assert!(suggest("gp", &r, &nodes, &no_securities, 3).len() <= 3);
+    }
+
+    #[test]
+    fn suggests_securities_from_the_asset_list() {
+        let r = reg();
+        let nodes: Vec<String> = vec!["XEL.NODE".into()];
+        let assets = |text: &str, limit: usize| -> Vec<(String, String)> {
+            [
+                ("XEL", "Xcel Energy"),
+                ("XLU", "Utilities Select Sector SPDR Fund"),
+            ]
+            .iter()
+            .filter(|(s, _)| s.starts_with(&text.to_ascii_uppercase()))
+            .take(limit)
+            .map(|(s, n)| (format!("{s} US"), (*n).to_owned()))
+            .collect()
+        };
+        let s = suggest("xe", &r, &nodes, &assets, 10);
+        assert!(s.iter().any(|s| s.command == "GP XEL.NODE"), "{s:?}");
+        assert!(
+            s.iter()
+                .any(|s| s.command == "GP XEL US" && s.detail == "Xcel Energy")
+        );
+        let s = suggest("des xl", &r, &nodes, &assets, 10);
+        assert_eq!(s[0].command, "DES XLU US");
+        assert!(
+            suggest("hubs xl", &r, &nodes, &assets, 10).is_empty(),
+            "HUBS takes no security"
+        );
+        // Security first, then the functions that take one.
+        let s = suggest("xlu us g", &r, &nodes, &assets, 10);
+        assert_eq!(
+            s.iter().map(|s| s.command.as_str()).collect::<Vec<_>>(),
+            ["XLU US GP"]
+        );
+        let s = suggest("xlu us ", &r, &nodes, &assets, 20);
+        assert!(
+            s.iter().any(|s| s.command == "XLU US DES")
+                && s.iter().any(|s| s.command == "XLU US Q")
+        );
+        assert!(s.iter().all(|s| {
+            r.find(s.command.split(' ').next_back().unwrap())
+                .is_some_and(|f| f.takes_security)
+        }));
     }
 
     #[test]
@@ -313,12 +408,15 @@ mod tests {
         let nodes: Vec<String> = ["MICHIGAN.HUB", "MINN.HUB", "AMIL.MICH1"]
             .map(String::from)
             .to_vec();
-        let s = suggest("michub", &r, &nodes, 10);
+        let s = suggest("michub", &r, &nodes, &no_securities, 10);
         assert_eq!(s[0].command, "GP MICHIGAN.HUB");
-        let s = suggest("spd", &r, &nodes, 10);
+        let s = suggest("spd", &r, &nodes, &no_securities, 10);
         assert_eq!(s[0].command, "SPRD", "fuzzy code match");
         // An exact prefix match wins over fuzzy ones.
-        assert_eq!(suggest("gp", &r, &nodes, 10)[0].command, "GP");
+        assert_eq!(
+            suggest("gp", &r, &nodes, &no_securities, 10)[0].command,
+            "GP"
+        );
         assert!(is_subsequence("MHB", "MICHIGAN.HUB") && !is_subsequence("BHM", "MICHIGAN.HUB"));
     }
 

@@ -71,6 +71,10 @@ pub fn short_name(source: &str) -> String {
     if let Some(s) = SOURCES.iter().find(|s| s.name.eq_ignore_ascii_case(source)) {
         return s.short.to_owned();
     }
+    // Sources that arrive other ways than these feeds (company news).
+    if source.eq_ignore_ascii_case("Benzinga") {
+        return "BZ".into();
+    }
     let initials: String = source
         .split_whitespace()
         .filter(|w| !w.eq_ignore_ascii_case("the"))

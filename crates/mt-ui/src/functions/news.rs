@@ -15,7 +15,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     usage: "NEWS [source] [words…]",
     description: "Every headline from every feed, kept for a few weeks: by publisher (NEWS FT, NEWS BBG, NEWS WP) or by words (NEWS natural gas).",
     takes_node: false,
-    // `NEWS XLU US` searches for the ticker; company news comes with Alpaca.
+    // `NEWS XLU US` searches the feeds for the ticker; CN has company news.
     takes_security: true,
     open,
 };

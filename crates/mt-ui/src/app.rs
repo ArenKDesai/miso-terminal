@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 
 use egui::{Align, Frame, Key, Layout, Margin, RichText, Stroke, Ui};
 use egui_dock::DockArea;
+use mt_core::instrument::Instrument;
 use mt_core::time::{MARKET_TZ_LABEL, now_market};
 use mt_core::{TRADING_HUBS, hub_short};
 use mt_data::{DataHub, EntryState};
@@ -54,6 +55,9 @@ struct CommandLine {
     feedback: Option<(String, bool)>,
     history: Vec<String>,
     history_pos: Option<usize>,
+    /// Suggestions for the text, and what they were computed from (the
+    /// text, the number of known nodes, the asset list's generation).
+    suggested: Option<((String, usize, u64), Vec<Suggestion>)>,
 }
 
 pub struct TerminalApp {
@@ -61,6 +65,7 @@ pub struct TerminalApp {
     miso: Miso,
     nws: mt_nws::Nws,
     eia: mt_eia::Eia,
+    alpaca: mt_alpaca::Alpaca,
     config: AppConfig,
     pub(crate) paths: AppPaths,
     registry: Registry,
@@ -112,10 +117,12 @@ impl TerminalApp {
 
     fn build(ctx: &egui::Context, deps: Deps, saved: Option<Workspace>) -> Self {
         let themes = ThemeRegistry::load(Some(&deps.paths.themes_dir));
+        let alpaca = mt_alpaca::Alpaca::new(&deps.config.markets, alpaca_ready(&deps.hub));
         let mut app = Self {
             miso: Miso::new(deps.config.endpoints.clone()),
             nws: mt_nws::Nws::default(),
             eia: mt_eia::Eia::default(),
+            alpaca,
             hub: deps.hub,
             registry: Registry::builtin(),
             skin: Skin::new(themes.resolve(&deps.config.theme).clone()),
@@ -298,6 +305,11 @@ impl TerminalApp {
         &self.skin.theme.meta.id
     }
 
+    #[cfg(test)]
+    pub(crate) fn config(&self) -> &AppConfig {
+        &self.config
+    }
+
     /// Re-read the themes folder now (after an install), not at the next poll.
     fn reload_themes(&mut self, ctx: &egui::Context) {
         self.themes_fingerprint = dir_fingerprint(&self.paths.themes_dir);
@@ -347,6 +359,28 @@ impl TerminalApp {
         nodes
     }
 
+    /// Completions for the command line, recomputed only when the text, the
+    /// known nodes or the asset list change.
+    fn suggestions(&mut self) -> Vec<Suggestion> {
+        let nodes = self.known_nodes();
+        let assets = if self.alpaca.is_ready() {
+            self.hub.peek(&self.alpaca.assets())
+        } else {
+            mt_data::Snapshot::default()
+        };
+        let key = (self.cmd.text.clone(), nodes.len(), assets.generation);
+        if let Some((k, s)) = &self.cmd.suggested
+            && *k == key
+        {
+            return s.clone();
+        }
+        let list = assets.data.unwrap_or_default();
+        let securities = |text: &str, limit: usize| crate::market::completions(&list, text, limit);
+        let s = command::suggest(&self.cmd.text, &self.registry, &nodes, &securities, 10);
+        self.cmd.suggested = Some((key, s.clone()));
+        s
+    }
+
     fn run_command(&mut self, ctx: &egui::Context, text: &str) {
         let nodes = self.known_nodes();
         match command::parse(text, &self.registry, |n| nodes.iter().any(|k| k == n)) {
@@ -356,6 +390,13 @@ impl TerminalApp {
                     && let Some(id) = route.arg(0)
                 {
                     self.set_theme(ctx, id);
+                    return;
+                }
+                if let Some(Instrument::Option(o)) = command::security_arg(&route) {
+                    self.feedback(
+                        format!("{o} is an option. Options arrive with OMON (markets phase 5)."),
+                        true,
+                    );
                     return;
                 }
                 if let Some(spec) = self.registry.find(&route.code)
@@ -371,8 +412,14 @@ impl TerminalApp {
                 self.feedback(route.to_string(), false);
                 self.workspace.open(route, &self.registry);
             }
+            // A bare security graphs it, as a bare node does.
+            Parsed::Instrument(Instrument::Security(sec)) => {
+                let route = Route::new("GP", [sec.to_string()]);
+                self.feedback(route.to_string(), false);
+                self.workspace.open(route, &self.registry);
+            }
             Parsed::Instrument(inst) => self.feedback(
-                format!("{inst} is a security. No function shows securities yet."),
+                format!("{inst} is an option. Options arrive with OMON (markets phase 5)."),
                 true,
             ),
             Parsed::Unknown(s) => self.feedback(
@@ -461,16 +508,32 @@ impl TerminalApp {
                     self.apply_theme(ctx);
                     self.save_config();
                 }
-                AppCommand::AddFavorite(node) => {
-                    let node = node.trim().to_ascii_uppercase();
-                    if !node.is_empty() && !self.config.ui.favorite_nodes.contains(&node) {
-                        self.config.ui.favorite_nodes.push(node);
+                AppCommand::AddFavorite(item) => {
+                    let (list, item) = match crate::market::security_of(&item) {
+                        Some(sec) => (&mut self.config.ui.favorite_securities, sec.to_string()),
+                        None => (
+                            &mut self.config.ui.favorite_nodes,
+                            item.trim().to_ascii_uppercase(),
+                        ),
+                    };
+                    if !item.is_empty() && !list.contains(&item) {
+                        list.push(item);
                         self.save_config();
                     }
                 }
-                AppCommand::RemoveFavorite(node) => {
-                    self.config.ui.favorite_nodes.retain(|n| n != &node);
+                AppCommand::RemoveFavorite(item) => {
+                    match crate::market::security_of(&item) {
+                        Some(sec) => {
+                            let sec = sec.to_string();
+                            self.config.ui.favorite_securities.retain(|s| s != &sec);
+                        }
+                        None => self.config.ui.favorite_nodes.retain(|n| n != &item),
+                    }
                     self.save_config();
+                }
+                AppCommand::CredentialsChanged => {
+                    self.alpaca =
+                        mt_alpaca::Alpaca::new(&self.config.markets, alpaca_ready(&self.hub));
                 }
                 AppCommand::ResetLayout => self.workspace = Workspace::default_layout(),
                 AppCommand::CloseTab => self.workspace.close_focused(),
@@ -505,7 +568,13 @@ impl TerminalApp {
                 AppCommand::MarkRead { ids, read } => self.mark_read(&ids, read),
                 AppCommand::ReplaceConfig(config) => {
                     let endpoints_changed = config.endpoints != self.config.endpoints;
+                    let markets_changed = config.markets != self.config.markets;
                     self.config = *config;
+                    if markets_changed {
+                        // A new feed means new queries and a new stream.
+                        self.alpaca =
+                            mt_alpaca::Alpaca::new(&self.config.markets, self.alpaca.is_ready());
+                    }
                     ctx.set_zoom_factor(self.config.ui.zoom.clamp(0.5, 3.0));
                     if endpoints_changed {
                         // Cached values stay until their next refresh, which uses the new URLs.
@@ -600,6 +669,10 @@ impl TerminalApp {
                 self.reload_themes(ctx);
                 tracing::info!("themes folder changed; reloaded");
             }
+        }
+        // The asset list behind ticker completion (fetched daily, kept on disk).
+        if self.alpaca.is_ready() {
+            self.hub.watch(&self.alpaca.assets());
         }
         if self.last_intraday_save.elapsed() >= INTRADAY_SAVE_EVERY {
             self.last_intraday_save = Instant::now();
@@ -708,8 +781,7 @@ impl TerminalApp {
     }
 
     fn command_line(&mut self, ui: &mut Ui, skin: &Skin, commands: &mut Vec<AppCommand>) {
-        let suggestions: Vec<Suggestion> =
-            command::suggest(&self.cmd.text, &self.registry, &self.known_nodes(), 10);
+        let suggestions = self.suggestions();
         let (up, down, tab, enter) = ui.input(|i| {
             (
                 i.key_pressed(Key::ArrowUp),
@@ -722,7 +794,9 @@ impl TerminalApp {
         let edit = egui::TextEdit::singleline(&mut self.cmd.text)
             .id_salt("mt-command")
             .font(egui::TextStyle::Monospace)
-            .hint_text("type a function or node, e.g. LMP, GP MINN.HUB, FUEL — Enter to go")
+            .hint_text(
+                "type a function, node or security, e.g. LMP, GP MINN.HUB, XLU US — Enter to go",
+            )
             .desired_width((ui.available_width() - 330.0).clamp(240.0, 720.0))
             .lock_focus(true);
         let resp = ui.add(edit);
@@ -950,6 +1024,16 @@ impl TerminalApp {
                         .small()
                         .color(skin.text_muted),
                 );
+                if self.alpaca.is_ready() {
+                    let s = crate::market::status(&self.hub, &self.alpaca);
+                    let color = crate::market::status_color(skin, &s);
+                    ui.label(
+                        RichText::new(format!("US {}", crate::market::status_text(&s)))
+                            .small()
+                            .color(color),
+                    );
+                    widgets::lamp(ui, color);
+                }
             });
         });
     }
@@ -1049,6 +1133,7 @@ impl eframe::App for TerminalApp {
             miso: &self.miso,
             nws: &self.nws,
             eia: &self.eia,
+            alpaca: &self.alpaca,
             skin: &self.skin,
             config: &self.config,
             paths: &self.paths,
@@ -1194,6 +1279,12 @@ fn zoomed_view(ui: &mut Ui, cx: &mut PanelCx<'_>, tab: &mut crate::workspace::Ta
             tab.set_body_rect(ui.max_rect().expand(pad));
             crate::workspace::draw_tab(ui, cx, tab);
         });
+}
+
+/// Whether Alpaca can be asked: keys are stored, or the data is a replay
+/// (which needs none).
+fn alpaca_ready(hub: &DataHub) -> bool {
+    !hub.ctx().is_live() || mt_alpaca::has_keys(hub.ctx().secrets().as_ref())
 }
 
 /// Disk-cache key for a market day's five-minute store.

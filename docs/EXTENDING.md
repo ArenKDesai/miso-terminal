@@ -112,6 +112,32 @@ requests per minute, give it a `Budget` in `FetchCtxOptions` (built in
 `main.rs`), shared by all of its hosts; LOG then shows how much is used.
 Fixtures never contain keys or account numbers.
 
+### Recordings for a source with keys
+
+`mt-alpaca`'s recorder (`examples/capture_alpaca.rs`) is the pattern for a
+source that needs keys or whose data is licensed. It runs the source's own
+queries through a recording `Transport`, so the recording is exactly what the
+app asks for, and by default rewrites the values (synthetic prices, sample
+text) before anything is written. The drift job records with `--verbatim` and
+keeps nothing. Where one endpoint answers differently by a parameter, name
+the recording by its value: `FixtureTransport` serves `bars@1Day.json` for
+`bars?timeframe=1Day&…` (letters, digits, `-` and `_`; values are tried in
+query order, so put the distinguishing parameter first).
+
+## Add a security list
+
+For yourself, in `config.toml`; `Q MINE` then shows it:
+
+```toml
+[[markets.lists]]
+name = "MINE"                  # a built-in's name (POWER, UTILITIES, …) replaces it
+title = "My utilities"
+symbols = ["XEL", "AEE US", "WEC"]
+```
+
+For everyone: add it to `builtin_lists()` in `crates/mt-alpaca/src/config.rs`.
+Keep the default list within the free plan's 30 streamed symbols.
+
 ## Add a news feed or topic
 
 For yourself: add the feed to `config.toml`, no code needed.

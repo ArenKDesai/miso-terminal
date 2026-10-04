@@ -1,13 +1,23 @@
 name: MISO format drift
 
-# Weekly: record live MISO responses (and the weather, gas and news sources) and
-# run every parser against them, so a format change or a feed that moved shows up
-# here before it shows up as a blank panel. One request per endpoint or feed,
-# well inside MISO's guidance and each publisher's.
+# Weekly: record live MISO responses (and the weather, gas, news and Alpaca
+# sources) and run every parser against them, so a format change or a feed that
+# moved shows up here before it shows up as a blank panel. One request per
+# endpoint or feed, well inside MISO's guidance and each publisher's.
+#
+# Alpaca needs keys even for market data: a throwaway paper account's, in the
+# repository secrets ALPACA_PAPER_KEY_ID and ALPACA_PAPER_SECRET_KEY (paper money
+# only, nobody's real account). Without them the Alpaca step checks the
+# repository's recordings instead.
 on:
   schedule:
     - cron: "17 14 * * 1" # Mondays 14:17 UTC (09:17 EST)
   workflow_dispatch:
+    inputs:
+      alpaca_fixtures:
+        description: "Also record a fresh set of Alpaca fixtures for the repository (synthetic prices, sample stories) as an artifact"
+        type: boolean
+        default: false
 
 jobs:
   drift:
@@ -24,13 +34,52 @@ jobs:
         run: cargo run -p mt-eia --example capture_gas -- "$RUNNER_TEMP/live"
       - name: Record live news feeds
         run: cargo run -p mt-news --example capture_news -- --verbatim "$RUNNER_TEMP/live"
+      - name: Record live Alpaca data
+        env:
+          APCA_API_KEY_ID: ${{ secrets.ALPACA_PAPER_KEY_ID }}
+          APCA_API_SECRET_KEY: ${{ secrets.ALPACA_PAPER_SECRET_KEY }}
+        run: |
+          if [ -z "$APCA_API_KEY_ID" ] || [ -z "$APCA_API_SECRET_KEY" ]; then
+            echo "::warning::No Alpaca keys in this repository's secrets; checking the recorded fixtures instead"
+            cp -r fixtures/data.alpaca.markets fixtures/paper-api.alpaca.markets fixtures/stream.data.alpaca.markets "$RUNNER_TEMP/live/"
+          else
+            cargo run -p mt-alpaca --example capture_alpaca -- --verbatim "$RUNNER_TEMP/live"
+          fi
       - name: Parse them
-        run: MT_FIXTURES="$RUNNER_TEMP/live" cargo test -p mt-miso -p mt-nws -p mt-eia -p mt-news --test parsers
+        run: MT_FIXTURES="$RUNNER_TEMP/live" cargo test -p mt-miso -p mt-nws -p mt-eia -p mt-news -p mt-alpaca --test parsers
       # Keep the recording when something fails, to tell a real format change
-      # from a transient (an odd response, a report not published yet).
+      # from a transient (an odd response, a report not published yet). Not
+      # Alpaca's: its market data is licensed to the account holder.
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: live-recording
-          path: ${{ runner.temp }}/live
+          path: |
+            ${{ runner.temp }}/live
+            !${{ runner.temp }}/live/data.alpaca.markets
+            !${{ runner.temp }}/live/paper-api.alpaca.markets
+            !${{ runner.temp }}/live/stream.data.alpaca.markets
+          retention-days: 14
+
+  # Run by hand: fixtures for the repository, recorded with the CI account's
+  # keys and rewritten as sample copies (no licensed prices, no stories' text).
+  # Download the artifact and copy its folders into fixtures/.
+  alpaca-fixtures:
+    if: github.event_name == 'workflow_dispatch' && inputs.alpaca_fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Record sample-copy fixtures
+        env:
+          APCA_API_KEY_ID: ${{ secrets.ALPACA_PAPER_KEY_ID }}
+          APCA_API_SECRET_KEY: ${{ secrets.ALPACA_PAPER_SECRET_KEY }}
+        run: cargo run -p mt-alpaca --example capture_alpaca -- "$RUNNER_TEMP/fixtures"
+      - name: Parse them
+        run: MT_FIXTURES="$RUNNER_TEMP/fixtures" cargo test -p mt-alpaca --test parsers
+      - uses: actions/upload-artifact@v7
+        with:
+          name: alpaca-fixtures
+          path: ${{ runner.temp }}/fixtures
           retention-days: 14

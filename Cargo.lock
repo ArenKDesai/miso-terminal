@@ -2561,6 +2561,7 @@ dependencies = [
  "anyhow",
  "directories",
  "eframe",
+ "mt-alpaca",
  "mt-core",
  "mt-data",
  "mt-miso",
@@ -2583,6 +2584,19 @@ checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
 dependencies = [
  "num-traits",
  "pxfm",
+]
+
+[[package]]
+name = "mt-alpaca"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "mt-core",
+ "mt-data",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -2687,6 +2701,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "chrono-tz",
  "eframe",
  "egui",
  "egui_dock",
@@ -2695,6 +2710,7 @@ dependencies = [
  "egui_plot",
  "fontdb",
  "image",
+ "mt-alpaca",
  "mt-core",
  "mt-data",
  "mt-eia",

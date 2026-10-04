@@ -73,15 +73,17 @@ pub enum Category {
     Overview,
     Prices,
     Grid,
+    Markets,
     News,
     System,
 }
 
 impl Category {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Overview,
         Self::Prices,
         Self::Grid,
+        Self::Markets,
         Self::News,
         Self::System,
     ];
@@ -91,6 +93,7 @@ impl Category {
             Self::Overview => "Overview",
             Self::Prices => "Prices",
             Self::Grid => "Grid conditions",
+            Self::Markets => "Stocks and ETFs",
             Self::News => "News",
             Self::System => "System",
         }
@@ -113,7 +116,8 @@ pub struct FunctionSpec {
     /// Whether the first argument is a pricing node (enables node completion).
     pub takes_node: bool,
     /// Whether arguments may be securities (`XLU US`) or options (OCC
-    /// symbols). The command line refuses them for functions that cannot.
+    /// symbols). The command line refuses them for functions that cannot,
+    /// and completes tickers for those that can.
     pub takes_security: bool,
     pub open: OpenFn,
 }

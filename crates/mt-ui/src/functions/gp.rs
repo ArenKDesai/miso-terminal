@@ -1,5 +1,6 @@
 //! GP: graph a node's price. Today's five-minute RT against the DA ex-post
 //! staircase, or N days of hourly DA against RT with summary statistics.
+//! For a security (`GP XLU US`) it opens `security_chart` instead.
 
 use chrono::Timelike;
 use egui::{RichText, Ui};
@@ -16,14 +17,24 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     aliases: &["GRAPH", "CHART"],
     name: "Graph price",
     category: Category::Prices,
-    usage: "GP <node> [days] [HEAT|DUR|5MIN]",
-    description: "Price chart for one node: today's 5-minute RT vs DA, hourly DA vs RT over N days, or five-minute RT from the local archive, by component.",
+    usage: "GP <node|security> [days] [HEAT|DUR|5MIN]",
+    description: "Price chart for one node: today's 5-minute RT vs DA, hourly DA vs RT over N days, or five-minute RT from the local archive, by component. For a security (GP XLU US 365), today's trading or daily closes, with volume.",
     takes_node: true,
-    takes_security: false,
+    takes_security: true,
     open,
 };
 
 fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
+    match args
+        .first()
+        .and_then(|a| mt_core::instrument::Instrument::parse_security(a))
+    {
+        Some(mt_core::instrument::Instrument::Security(sec)) => {
+            return super::security_chart::open(sec, args);
+        }
+        Some(other) => return Err(format!("{other} is an option; options arrive with OMON")),
+        None => {}
+    }
     let node = args
         .first()
         .map(|n| n.trim().to_ascii_uppercase())

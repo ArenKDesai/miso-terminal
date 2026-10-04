@@ -1,0 +1,4 @@
+[{"T":"success","msg":"connected"}]
+[{"T":"success","msg":"authenticated"}]
+[{"T":"subscription","news":["*"]}]
+[{"T":"n","author":"Sample Reporter","content":"","created_at":"2026-10-02T21:52:31Z","headline":"Sample: Power producers rally on capacity prices","id":48199999,"source":"benzinga","summary":"","symbols":["CTRA"],"updated_at":"2026-10-02T21:52:31Z","url":"https://www.benzinga.com/news/26/10/48199999/sample-story-4242"}]

@@ -28,9 +28,12 @@ pub enum AppCommand {
         light: String,
         dark: String,
     },
-    /// Add a node to the watchlist (`config.ui.favorite_nodes`).
+    /// Add a node or a security (`XLU US`) to the watchlist
+    /// (`config.ui.favorite_nodes` or `favorite_securities`).
     AddFavorite(String),
     RemoveFavorite(String),
+    /// API keys were stored or removed (SET): check for them again.
+    CredentialsChanged,
     ResetLayout,
     /// Close the active tab in the focused pane.
     CloseTab,
@@ -82,6 +85,8 @@ pub struct PanelCx<'a> {
     pub nws: &'a mt_nws::Nws,
     /// Fuel prices (EIA).
     pub eia: &'a mt_eia::Eia,
+    /// Stocks and ETFs (Alpaca); `alpaca.is_ready()` once keys are stored.
+    pub alpaca: &'a mt_alpaca::Alpaca,
     pub skin: &'a Skin,
     pub config: &'a AppConfig,
     pub paths: &'a AppPaths,

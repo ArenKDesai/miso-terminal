@@ -124,6 +124,80 @@ pub fn session(t: DateTime<Utc>, day: Option<&TradingDay>) -> Session {
     }
 }
 
+/// Where the market is and what happens next, for status lines.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MarketStatus {
+    pub session: Session,
+    /// The next change and what it is: `opens`, `closes`, `extended hours end`.
+    pub next: Option<(DateTime<Utc>, &'static str)>,
+}
+
+/// A date's hours from the exchange calendar. A date the calendar covers but
+/// does not list is a holiday; outside its range, standard weekday hours apply.
+pub fn trading_day(date: NaiveDate, calendar: &[TradingDay]) -> Option<TradingDay> {
+    if let Some(d) = calendar.iter().find(|d| d.date == date) {
+        return Some(*d);
+    }
+    let covered = calendar
+        .iter()
+        .map(|d| d.date)
+        .min()
+        .is_some_and(|lo| lo <= date)
+        && calendar
+            .iter()
+            .map(|d| d.date)
+            .max()
+            .is_some_and(|hi| date <= hi);
+    if covered {
+        None
+    } else {
+        TradingDay::standard(date)
+    }
+}
+
+/// The market's status at `now`, from the exchange calendar's days (holidays,
+/// early closes); days it does not cover get standard weekday hours.
+pub fn market_status(now: DateTime<Utc>, calendar: &[TradingDay]) -> MarketStatus {
+    let local = to_exchange(now).naive_local();
+    let today = trading_day(local.date(), calendar);
+    let session = today.map_or(Session::Closed, |d| d.session_at(local.time()));
+    let at = |d: &TradingDay, t: NaiveTime| exchange_to_utc(d.date.and_time(t));
+    let next = match (session, today) {
+        (Session::PreMarket, Some(d)) => at(&d, d.open).map(|t| (t, "opens")),
+        (Session::Regular, Some(d)) => at(&d, d.close).map(|t| (t, "closes")),
+        (Session::AfterHours, Some(d)) => {
+            at(&d, d.session_close).map(|t| (t, "extended hours end"))
+        }
+        _ => (0..14)
+            .filter_map(|i| trading_day(local.date() + chrono::Duration::days(i), calendar))
+            .filter_map(|d| at(&d, d.open))
+            .find(|open| *open > now)
+            .map(|t| (t, "opens")),
+    };
+    MarketStatus { session, next }
+}
+
+impl MarketStatus {
+    /// Let the broker's clock overrule the calendar about the regular session
+    /// (an unscheduled closure), if it answered in the last ten minutes.
+    pub fn with_clock(self, clock: &crate::equity::MarketClock, now: DateTime<Utc>) -> Self {
+        if (now - clock.at).num_minutes().abs() > 10 {
+            return self;
+        }
+        match (clock.is_open, self.session) {
+            (true, s) if s != Session::Regular => Self {
+                session: Session::Regular,
+                next: Some((clock.next_close, "closes")),
+            },
+            (false, Session::Regular) => Self {
+                session: Session::Closed,
+                next: Some((clock.next_open, "opens")),
+            },
+            _ => self,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,5 +277,53 @@ mod tests {
             ..TradingDay::standard(day("2026-11-27")).unwrap()
         };
         assert_eq!(early.session_at(hm(13, 30)), Session::AfterHours);
+    }
+
+    #[test]
+    fn status_says_what_happens_next() {
+        // Friday 2026-10-02, EDT; the calendar lists the 2nd and the 5th to
+        // the 9th, but not Thanksgiving-style gaps.
+        let cal: Vec<TradingDay> = ["2026-10-02", "2026-10-05", "2026-10-06"]
+            .iter()
+            .filter_map(|d| TradingDay::standard(day(d)))
+            .collect();
+        let at = |s: &str| market_status(utc(s), &cal);
+        let s = at("2026-10-02 12:00"); // 08:00 ET
+        assert_eq!(s.session, Session::PreMarket);
+        assert_eq!(s.next, Some((utc("2026-10-02 13:30"), "opens")));
+        let s = at("2026-10-02 15:00");
+        assert_eq!(s.next, Some((utc("2026-10-02 20:00"), "closes")));
+        let s = at("2026-10-02 21:55"); // 17:55 ET, after hours
+        assert_eq!(s.session, Session::AfterHours);
+        assert_eq!(s.next.unwrap().1, "extended hours end");
+        // The weekend: next open is Monday 09:30 ET.
+        let s = at("2026-10-03 15:00");
+        assert_eq!(s.session, Session::Closed);
+        assert_eq!(s.next, Some((utc("2026-10-05 13:30"), "opens")));
+        // A weekday the calendar covers but leaves out is a holiday.
+        let holiday: Vec<TradingDay> = cal
+            .iter()
+            .filter(|d| d.date != day("2026-10-05"))
+            .copied()
+            .collect();
+        let s = market_status(utc("2026-10-05 15:00"), &holiday);
+        assert_eq!(s.session, Session::Closed);
+        assert_eq!(s.next, Some((utc("2026-10-06 13:30"), "opens")));
+        // Without a calendar, standard hours.
+        assert_eq!(
+            market_status(utc("2026-10-07 15:00"), &[]).session,
+            Session::Regular
+        );
+        // A recent clock overrules the calendar; a stale one does not.
+        let clock = crate::equity::MarketClock {
+            at: utc("2026-10-02 15:00"),
+            is_open: false,
+            next_open: utc("2026-10-05 13:30"),
+            next_close: utc("2026-10-05 20:00"),
+        };
+        let s = at("2026-10-02 15:00").with_clock(&clock, utc("2026-10-02 15:01"));
+        assert_eq!(s.session, Session::Closed);
+        let s = at("2026-10-02 15:00").with_clock(&clock, utc("2026-10-02 16:00"));
+        assert_eq!(s.session, Session::Regular);
     }
 }

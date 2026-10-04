@@ -96,6 +96,19 @@ fn routes(registry: &Registry) -> Vec<Route> {
     out.push(Route::new("NEWS", ["natural", "gas"]));
     out.push(Route::new("NI", ["ENERGY"]));
     out.push(Route::new("NI", ["NOT-A-TOPIC"]));
+    // Securities.
+    out.push(Route::new("Q", ["UTILITIES"]));
+    out.push(Route::new("Q", ["WL"]));
+    out.push(Route::new("Q", ["NO-SUCH-LIST"]));
+    out.push(Route::new("Q", ["XEL US", "AEE US"]));
+    out.push(Route::new("GP", ["XLU US"]));
+    out.push(Route::new("GP", ["XLU US", "5"]));
+    out.push(Route::new("GP", ["XLU US", "365"]));
+    out.push(Route::new("GP", ["NOTATICKER US"]));
+    out.push(Route::new("DES", ["XLU US"]));
+    out.push(Route::new("DES", ["NOTATICKER US"]));
+    out.push(Route::new("CN", ["XLU US"]));
+    out.push(Route::new("WL", ["XLU US"]));
     out
 }
 
@@ -105,6 +118,7 @@ struct Harness {
     miso: Miso,
     nws: mt_nws::Nws,
     eia: mt_eia::Eia,
+    alpaca: mt_alpaca::Alpaca,
     config: AppConfig,
     paths: AppPaths,
     registry: Registry,
@@ -121,7 +135,15 @@ impl Harness {
             miso: Miso::default(),
             nws: mt_nws::Nws::default(),
             eia: mt_eia::Eia::default(),
-            config: AppConfig::default(),
+            // Fixtures need no keys.
+            alpaca: mt_alpaca::Alpaca::new(&mt_alpaca::MarketsConfig::default(), true),
+            config: AppConfig {
+                ui: crate::config::UiConfig {
+                    favorite_securities: vec!["XLU US".into(), "VST US".into()],
+                    ..crate::config::UiConfig::default()
+                },
+                ..AppConfig::default()
+            },
             paths: temp_paths("panels"),
             registry: Registry::builtin(),
             themes: ThemeRegistry::load(None),
@@ -167,6 +189,7 @@ impl Harness {
                     miso: &self.miso,
                     nws: &self.nws,
                     eia: &self.eia,
+                    alpaca: &self.alpaca,
                     skin,
                     config: &self.config,
                     paths: &self.paths,
@@ -219,11 +242,13 @@ fn every_function_renders_in_every_theme_with_and_without_data() {
     assert!(themes.len() > mt_theme::builtin().len());
 
     // No data: a paused hub never fetches, so panels must render placeholders.
-    let empty = Harness::new(hub(&rt));
+    // Without Alpaca keys, securities panels say how to add them.
+    let mut empty = Harness::new(hub(&rt));
     empty.hub.set_paused(true);
-    for theme in &themes {
+    for (i, theme) in themes.iter().enumerate() {
         let skin = Skin::new(theme.clone());
         empty.apply(&skin);
+        empty.alpaca = mt_alpaca::Alpaca::new(&mt_alpaca::MarketsConfig::default(), i == 0);
         for route in routes(&registry) {
             let mut panel = registry
                 .open(&route)
@@ -379,13 +404,46 @@ fn app_shell_runs_frames_and_executes_commands() {
     // WL absorbs `WL <node>` into the open watchlist (the default layout has one).
     app.apply_commands(&ctx, vec![AppCommand::Run("WL ALTE.ALTE".into())]);
     assert_eq!(app.workspace_mut().routes().len(), before + 1);
-    // Securities are recognised, and refused by functions that take nodes.
-    for cmd in ["XLU US GP 30", "xlu us", "GP XLU261218C00082500"] {
+    // Securities: `XLU US GP 30` charts one, and so does a bare security.
+    for (cmd, opens) in [("XLU US GP 30", "GP XLU US 30"), ("xlu us", "GP XLU US")] {
         app.apply_commands(&ctx, vec![AppCommand::Run(cmd.into())]);
         let (msg, error) = app.last_feedback().cloned().unwrap_or_default();
-        assert!(error && msg.contains("is a security"), "{cmd}: {msg}");
+        assert!(!error && msg == opens, "{cmd}: {msg}");
+        assert!(
+            app.workspace_mut()
+                .routes()
+                .iter()
+                .any(|r| r.to_string() == opens)
+        );
     }
-    assert_eq!(app.workspace_mut().routes().len(), before + 1);
+    // Options wait for OMON; functions that take only nodes refuse securities.
+    for (cmd, says) in [
+        ("GP XLU261218C00082500", "is an option"),
+        ("XLU261218C00082500", "is an option"),
+        ("HUBS XLU US", "is a security"),
+    ] {
+        app.apply_commands(&ctx, vec![AppCommand::Run(cmd.into())]);
+        let (msg, error) = app.last_feedback().cloned().unwrap_or_default();
+        assert!(error && msg.contains(says), "{cmd}: {msg}");
+    }
+    assert_eq!(app.workspace_mut().routes().len(), before + 3);
+    // A security on the watchlist goes to its own list.
+    app.apply_commands(&ctx, vec![AppCommand::AddFavorite("xel us".into())]);
+    assert!(
+        app.config()
+            .ui
+            .favorite_securities
+            .contains(&"XEL US".to_owned())
+    );
+    assert!(
+        !app.config()
+            .ui
+            .favorite_nodes
+            .iter()
+            .any(|n| n.contains("XEL"))
+    );
+    app.apply_commands(&ctx, vec![AppCommand::RemoveFavorite("XEL US".into())]);
+    assert!(app.config().ui.favorite_securities.is_empty());
     app.apply_commands(&ctx, vec![AppCommand::Run("THEME high-contrast".into())]);
     run(&mut app);
     assert_eq!(app.active_theme_id(), "high-contrast");

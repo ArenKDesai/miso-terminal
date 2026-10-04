@@ -6,11 +6,13 @@
 //! can feed the same panels without the panels changing.
 //!
 //! MISO data runs on fixed EST ([`time`]); securities run on New York time
-//! ([`exchange`]), are named `XLU US` ([`instrument`]) and are priced in exact
-//! decimals ([`money`]). News headlines and keyword topics are in [`news`].
+//! ([`exchange`]), are named `XLU US` ([`instrument`]), are quoted as trades,
+//! quotes and bars ([`equity`]) and are priced in exact decimals ([`money`])
+//! wherever an order is involved. News headlines and keyword topics are in [`news`].
 
 pub mod archive;
 pub mod constraints;
+pub mod equity;
 pub mod exchange;
 pub mod fuels;
 pub mod geo;

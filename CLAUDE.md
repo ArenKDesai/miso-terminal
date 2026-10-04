@@ -5,8 +5,8 @@ trading, when it comes, goes only through Alpaca, paper by default. It is a
 Rust workspace with an egui UI, and Windows is the primary platform. Read
 `docs/ARCHITECTURE.md` before structural changes and `docs/EXTENDING.md` for
 recipes. `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
-data, trading and portfolio tracking: Phase 0 (foundations) and Phase 1
-(news) are built, the README's roadmap tracks the rest.
+data, trading and portfolio tracking: Phase 0 (foundations), Phase 1 (news)
+and Phase 2 (market data) are built, the README's roadmap tracks the rest.
 
 ## Commands
 
@@ -19,6 +19,7 @@ cargo run -p mt-miso --example capture_fixtures       # re-record MISO fixtures 
 cargo run -p mt-nws --example capture_weather        # re-record weather fixtures (two per city)
 cargo run -p mt-eia --example capture_gas            # re-record the Henry Hub gas workbook
 cargo run -p mt-news --example capture_news          # re-record the news feeds (story text replaced by samples)
+cargo run -p mt-alpaca --example capture_alpaca      # re-record Alpaca (needs keys; prices made synthetic, stories sampled)
 cargo run -p mt-theme --example sync_everforge -- ..\everforge
 cargo run -p mt-ui --example render -- out.png --run "MAP MCC" --zoom   # offscreen PNG, fixtures, no window
 $env:UPDATE_SNAPSHOTS=force; cargo test -p mt-ui --test snapshots           # accept intended visual changes
@@ -60,6 +61,12 @@ with WM_CLOSE, which lets it save.
   (New York time and sessions), `money.rs` (exact decimals), beside the MISO model.
 - `crates/mt-nws`: National Weather Service source, the template for non-MISO sources.
 - `crates/mt-eia`: EIA Henry Hub gas spot, a second example of one.
+- `crates/mt-alpaca`: Alpaca stocks and ETFs: snapshots, bars, assets, clock,
+  calendar, company news (`queries.rs`), live prices and news (`stream.rs`, with
+  the free plan's symbol limit), snapshot + stream merging (`board.rs`) and the
+  `[markets]` config and built-in lists (`config.rs`). `mt-ui/src/market.rs`
+  holds what the securities panels share (status, board, formats, picker);
+  `functions/security_chart.rs` is GP for a security.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.
@@ -111,8 +118,16 @@ with WM_CLOSE, which lets it save.
 - Securities are written `XLU US` (`mt_core::instrument`); a bare token is a
   node or a code, never a ticker. Functions that accept securities set
   `takes_security`. Exchange times use `mt_core::exchange` (New York, with
-  daylight saving), never `mt_core::time`. Order and position amounts are
-  `Decimal` (`mt_core::money`), never `f64`.
+  daylight saving), never `mt_core::time`; charts of securities use
+  `widgets::chart::exchange_plot`. Order and position amounts are
+  `Decimal` (`mt_core::money`), never `f64`; quotes and charts may use `f64`.
+- Alpaca: panels check `cx.alpaca.is_ready()` (`market::needs_keys`) before
+  watching anything, so a user without keys sees a prompt, not failing feeds.
+  Every price shows its feed's label. Fixtures under `fixtures/*.alpaca.markets`
+  hold synthetic prices and sample stories (`capture_alpaca` without
+  `--verbatim`); never commit a verbatim Alpaca recording. No keys exist on the
+  main dev machine: the drift workflow (run by hand with `alpaca_fixtures`)
+  records fresh fixtures with the CI paper account and uploads them as an artifact.
 - The rolling five-minute feed can take most of a minute to download late in
   the day; today's store is saved to the disk cache and restored at launch.
 - News: headlines and summaries only, attributed and linked; never fetch or

@@ -234,8 +234,11 @@ impl StreamConn for WsConn {
 /// URL path has no extension. Date-stamped files (`20261001_da_expost_lmp.csv`)
 /// fall back to the newest fixture with the same suffix, so any date "replays"
 /// the recorded day. Requests other than GET look for the method before the
-/// extension (`orders.post.json`). Streams replay `<path>.jsonl`, one server
-/// frame per line, and then stay open and quiet.
+/// extension (`orders.post.json`). A query parameter can pick a variant of a
+/// recording: `bars?timeframe=1Day&…` is served `bars@1Day.json` when that
+/// file exists (values made of letters, digits, `-` and `_` are tried in
+/// order), else `bars.json`. Streams replay `<path>.jsonl`, one server frame
+/// per line, and then stay open and quiet.
 pub struct FixtureTransport {
     root: PathBuf,
     /// Shown in the status bar instead of the directory.
@@ -281,6 +284,33 @@ impl FixtureTransport {
         }
     }
 
+    /// Where a recording specific to one of the request's query values lives:
+    /// `bars@1Day.json` for `bars?timeframe=1Day`, in query order.
+    pub fn variant_paths(&self, req: &Request) -> Vec<PathBuf> {
+        let path = self.path_for_request(req);
+        let Some(query) = req.url.split_once('?').map(|(_, q)| q) else {
+            return Vec::new();
+        };
+        let (Some(stem), Some(ext)) = (
+            path.file_stem().and_then(|s| s.to_str()),
+            path.extension().and_then(|e| e.to_str()),
+        ) else {
+            return Vec::new();
+        };
+        let query = query.split('#').next().unwrap_or(query);
+        query
+            .split('&')
+            .filter_map(|pair| pair.split_once('=').map(|(_, v)| v))
+            .filter(|v| {
+                !v.is_empty()
+                    && v.len() <= 32
+                    && v.chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            })
+            .map(|v| path.with_file_name(format!("{stem}@{v}.{ext}")))
+            .collect()
+    }
+
     /// Where a recorded stream session for `url` lives.
     pub fn stream_path_for(&self, url: &str) -> PathBuf {
         self.path_for(url).with_extension("jsonl")
@@ -312,11 +342,13 @@ impl Transport for FixtureTransport {
     fn send<'a>(&'a self, req: &'a Request) -> BoxFuture<'a, Result<Response, FetchError>> {
         Box::pin(async move {
             let path = self.path_for_request(req);
-            let Some(path) = path
-                .exists()
-                .then_some(path.clone())
-                .or_else(|| Self::dated_fallback(&path))
-            else {
+            let found = self
+                .variant_paths(req)
+                .into_iter()
+                .find(|p| p.exists())
+                .or_else(|| path.exists().then_some(path.clone()))
+                .or_else(|| Self::dated_fallback(&path));
+            let Some(path) = found else {
                 return Ok(Response {
                     status: 404,
                     headers: Vec::new(),
@@ -421,6 +453,43 @@ mod tests {
             t.stream_path_for("wss://stream.example.com/v2/iex"),
             Path::new("/fx/stream.example.com/v2/iex.jsonl")
         );
+        let bars = Request::get(
+            "https://data.example.com/v2/stocks/bars?symbols=XLU,XEL&timeframe=1Day&start=2026-10-01T04:00:00Z&feed=iex",
+        );
+        assert_eq!(
+            t.variant_paths(&bars),
+            [
+                Path::new("/fx/data.example.com/v2/stocks/bars@1Day.json"),
+                Path::new("/fx/data.example.com/v2/stocks/bars@iex.json"),
+            ],
+            "only filename-safe values"
+        );
+        assert!(t.variant_paths(&Request::get("https://h/a")).is_empty());
+    }
+
+    #[tokio::test]
+    async fn query_values_pick_a_variant_recording() {
+        let root = std::env::temp_dir().join(format!("mt-variant-test-{}", std::process::id()));
+        let dir = root.join("host").join("v2");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("bars.json"), "default").unwrap();
+        std::fs::write(dir.join("bars@1Day.json"), "daily").unwrap();
+        let t = FixtureTransport::new(&root);
+        let body = |url: &str| {
+            let t = &t;
+            let url = url.to_owned();
+            async move { t.send(&Request::get(url)).await.unwrap().body }
+        };
+        assert_eq!(
+            body("https://host/v2/bars?timeframe=1Day").await.as_ref(),
+            b"daily"
+        );
+        assert_eq!(
+            body("https://host/v2/bars?timeframe=1Min").await.as_ref(),
+            b"default"
+        );
+        assert_eq!(body("https://host/v2/bars").await.as_ref(), b"default");
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[tokio::test]

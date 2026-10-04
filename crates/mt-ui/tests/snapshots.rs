@@ -56,6 +56,9 @@ fn the_terminal_looks_as_it_did() {
         ("gp-history", &["GP MINN.HUB 3"][..]),
         ("top", &["TOP"][..]),
         ("ni-energy", &["NI ENERGY"][..]),
+        ("q", &["Q"][..]),
+        ("gp-security", &["GP XLU US"][..]),
+        ("des", &["DES XLU US"][..]),
     ] {
         scenes.push((
             format!("zoom-{name}"),

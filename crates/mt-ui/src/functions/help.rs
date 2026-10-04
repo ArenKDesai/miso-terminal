@@ -68,7 +68,8 @@ impl Panel for Help {
             widgets::title_bar(ui, skin, "MISO Terminal", |_| {});
             ui.label(
                 "Type a function code on the command line and press Enter. Put a pricing node before or \
-                 after a code (MINN.HUB GP), or type a bare node to graph it. Click any node or hub to drill in.",
+                 after a code (MINN.HUB GP), or type a bare node to graph it. Click any node or hub to drill in. \
+                 Securities are a ticker and market code, XLU US: XLU US GP, DES XLU US, or XLU US alone.",
             );
             for cat in Category::ALL {
                 widgets::section(ui, skin, cat.label());
@@ -121,6 +122,12 @@ impl Panel for Help {
                  the Washington Post, checked every 5 to 15 minutes. Only headlines and summaries \
                  are kept, with their publisher and link; articles open in your browser, where \
                  your subscriptions apply.",
+            );
+            ui.label(
+                "Stock and ETF prices come from Alpaca, with your own account's keys (SET): on the \
+                 free plan real time from IEX alone (thinly traded names can lag) or every exchange \
+                 15 minutes late, and daily history from every exchange. Securities are shown in New \
+                 York time. Company news (CN) is Benzinga's, through Alpaca.",
             );
             ui.label(
                 RichText::new("For information only. Not an official MISO product, and not for operational or settlement decisions.")

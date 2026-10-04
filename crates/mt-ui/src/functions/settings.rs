@@ -2,6 +2,7 @@
 //! API keys are not config: they go straight to the credential store.
 
 use egui::{Grid, RichText, ScrollArea, Ui};
+use mt_core::equity::Feed;
 use mt_data::Secret;
 use mt_miso::MisoEndpoints;
 
@@ -16,7 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Settings",
     category: Category::System,
     usage: "SET",
-    description: "Display, price highlighting, data, news feed and endpoint settings (saved to config.toml), and API keys (kept in Windows Credential Manager).",
+    description: "Display, price highlighting, data, news feed, market data and endpoint settings (saved to config.toml), and API keys (kept in Windows Credential Manager).",
     takes_node: false,
     takes_security: false,
     open,
@@ -195,6 +196,8 @@ impl Panel for Settings {
 
             news(ui, cx, &mut draft);
 
+            markets(ui, cx, &mut draft);
+
             credentials(ui, cx, &mut self.keys);
 
             widgets::section(ui, skin, "MISO endpoints");
@@ -319,15 +322,64 @@ fn news(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig) {
     );
 }
 
+/// Where stock and ETF prices come from, and how many symbols stream.
+fn markets(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig) {
+    let skin = cx.skin;
+    widgets::section(ui, skin, "Stocks and ETFs (Alpaca)");
+    Grid::new("set-markets")
+        .num_columns(3)
+        .spacing([16.0, 6.0])
+        .show(ui, |ui| {
+            ui.label("Live prices");
+            egui::ComboBox::from_id_salt("set-feed")
+                .selected_text(draft.markets.feed.describe())
+                .width(300.0)
+                .show_ui(ui, |ui| {
+                    for f in Feed::ALL {
+                        ui.selectable_value(&mut draft.markets.feed, f, f.describe());
+                    }
+                });
+            ui.label(
+                RichText::new("daily history always comes from every exchange")
+                    .small()
+                    .color(skin.text_muted),
+            );
+            ui.end_row();
+            ui.label("Stream every trade and quote for");
+            ui.add(
+                egui::DragValue::new(&mut draft.markets.stream_symbols)
+                    .range(1..=10_000)
+                    .suffix(" symbols"),
+            );
+            ui.label(
+                RichText::new(format!(
+                    "the free plan allows {}; the rest update by the minute",
+                    mt_alpaca::config::FREE_PLAN_STREAM_SYMBOLS
+                ))
+                .small()
+                .color(skin.text_muted),
+            );
+            ui.end_row();
+        });
+    ui.label(
+        RichText::new(
+            "Lists for Q go under [[markets.lists]] (name, title, symbols) in config.toml; \
+             a built-in list's name (POWER, UTILITIES, GENERATORS, GAS, ETFS) replaces it.",
+        )
+        .small()
+        .color(skin.text_muted),
+    );
+}
+
 fn credentials(ui: &mut Ui, cx: &mut PanelCx<'_>, keys: &mut Keys) {
     let skin = cx.skin;
     let store = cx.hub.ctx().secrets().clone();
     widgets::section(ui, skin, "Credentials");
     ui.label(
         RichText::new(format!(
-            "Kept in {}, never in config.toml, saved layouts or logs. For Alpaca market \
-             data and paper trading, which are on the way: create paper keys in your \
-             Alpaca dashboard.",
+            "Kept in {}, never in config.toml, saved layouts or logs. Alpaca's keys bring \
+             stock and ETF prices (Q, GP, DES, CN) and, later, paper trading: sign up at \
+             alpaca.markets and create paper-trading keys in its dashboard.",
             store.describe()
         ))
         .small()
@@ -399,5 +451,28 @@ fn credentials(ui: &mut Ui, cx: &mut PanelCx<'_>, keys: &mut Keys) {
         keys.stored = None;
         // Streams refused with the old keys may try again.
         cx.hub.restart_streams();
+        cx.send(AppCommand::CredentialsChanged);
+    }
+    // Whether Alpaca accepts the keys: the market clock is the cheapest ask.
+    if cx.alpaca.is_ready() && cx.hub.ctx().is_live() {
+        let clock = cx.hub.watch(&cx.alpaca.clock());
+        let (color, text) = match (&clock.error, clock.updated) {
+            (Some(e), _) => (skin.negative, format!("Alpaca: {e}")),
+            (None, Some(t)) => (
+                skin.live,
+                format!(
+                    "Alpaca: connected (answered {})",
+                    crate::widgets::fmt::ago(t)
+                ),
+            ),
+            (None, None) => (skin.text_muted, "Alpaca: checking the keys…".to_owned()),
+        };
+        ui.horizontal(|ui| {
+            widgets::lamp(ui, color);
+            ui.label(RichText::new(text).small().color(skin.text_muted));
+            if ui.small_button("Check again").clicked() {
+                cx.hub.refresh(&cx.alpaca.clock());
+            }
+        });
     }
 }

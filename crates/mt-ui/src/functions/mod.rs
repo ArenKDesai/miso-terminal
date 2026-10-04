@@ -7,9 +7,11 @@ mod alrt;
 mod asm;
 mod bch;
 mod capacity;
+mod cn;
 mod compare;
 mod cons;
 mod dam;
+mod des;
 mod fuel;
 mod gas;
 pub(crate) mod gp;
@@ -24,8 +26,10 @@ mod news;
 mod ni;
 mod nsi;
 mod outages;
+mod quote;
 mod renew;
 mod seam;
+mod security_chart;
 mod settings;
 mod spread;
 mod theme;
@@ -61,9 +65,12 @@ pub fn all() -> Vec<FunctionSpec> {
         cons::SPEC,
         bch::SPEC,
         outages::SPEC,
+        quote::SPEC,
+        des::SPEC,
         top::SPEC,
         news::SPEC,
         ni::SPEC,
+        cn::SPEC,
         alrt::SPEC,
         log::SPEC,
         theme::SPEC,

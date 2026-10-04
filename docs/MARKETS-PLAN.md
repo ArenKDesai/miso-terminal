@@ -2,8 +2,9 @@
 
 A plan: headlines from the Financial Times, Bloomberg and the Washington Post;
 US stock, ETF and options data from Alpaca; paper trading through Alpaca, with
-live trading later; and account and portfolio tracking. Phase 0, the
-foundations, and Phase 1, news, are built (2026-10-04); the later phases are not yet.
+live trading later; and account and portfolio tracking. Phase 0 (foundations),
+Phase 1 (news) and Phase 2 (market data) are built (2026-10-04); the later phases
+are not yet.
 Facts about the sources were checked on 2026-10-04. The README's roadmap tracks
 progress against the phases below.
 
@@ -123,30 +124,65 @@ Alpaca's news API) moved to Phase 2 with the rest of the Alpaca client.
 - **Terms.** Headlines and summaries only, always attributed and linked; no
   stored or scraped article text.
 
-## Phase 2: Market data (stocks and ETFs)
+## Phase 2: Market data (stocks and ETFs) (built)
 
-- **Endpoints** on `data.alpaca.markets`: `v2/stocks` bars, quotes, trades and
-  multi-symbol snapshots, and `v1beta1/news`; streams on
-  `stream.data.alpaca.markets` (`v2/iex`, `v1beta1/news`). Exact paths are
-  confirmed against recorded fixtures before building on them.
-- **Designed for the free plan:** streams rather than polling; minute bars,
-  which are not limited to 30 symbols, for long watchlists; batched snapshots;
-  and every price labelled `IEX` or `SIP 15m delayed`. IEX carries a few percent
-  of volume, so last prices can lag on thinly traded names.
-- **Functions:** `Q` (quote monitor); `GP XLU US 30`, reusing the chart widgets
-  for one-minute intraday and daily history; `DES` (security description); WL
-  holds nodes and tickers together; market status from Alpaca's clock and
-  calendar.
-- **Completion** of tickers from Alpaca's asset list (`/v2/assets`, active US
-  equities), cached daily; functions that accept securities set
-  `takes_security`, which also turns on security completion for them.
-- **Company news:** `CN XLU US` from Alpaca's ticker-tagged news (Benzinga),
-  REST for history and the `v1beta1/news` stream for new stories, in the
-  Phase 1 browser. Until then `NEWS XLU US` searches the RSS headlines.
-- **The energy angle.** A default "Power & gas" list: MISO-footprint utilities
-  (AEE, XEL, LNT, WEC, DTE, CMS, ETR, CNP, MGEE, NI, OTTR), generators (VST, NRG,
-  CEG, TLN), ETFs (XLU, XLE, UNG) and gas producers. Later, a stock against a
-  MISO hub price on one chart.
+Built on 2026-10-04, in a new crate, `mt-alpaca` (our own client on `mt-data`,
+as decided above). Paths and message formats were taken from Alpaca's own
+`alpaca-py` client and are checked weekly against live answers by the drift job.
+
+| Dataset | Endpoint | Refresh |
+|---|---|---|
+| Snapshots (latest trade, quote, minute bar, today's and the previous daily bar) | `data.alpaca.markets/v2/stocks/snapshots`, 100 symbols a request | a minute in any session, ten minutes when closed |
+| Bars (1 and 15 minutes, daily), many symbols a request, every page followed | `data.alpaca.markets/v2/stocks/bars` | a minute while trading; daily bars every 30 minutes |
+| Asset list (active US stocks and ETFs) | `paper-api.alpaca.markets/v2/assets` | daily, kept in the cache (`local://alpaca/assets`) |
+| Clock and calendar | `paper-api.alpaca.markets/v2/clock`, `/v2/calendar` | 5 minutes; 12 hours |
+| Company news (Benzinga) | `data.alpaca.markets/v1beta1/news`, never the article text | 5 minutes |
+| Live trades, quotes and minute bars | `wss://stream.data.alpaca.markets/v2/{iex,delayed_sip,sip}` | streamed |
+| Live news | `wss://stream.data.alpaca.markets/v1beta1/news` | streamed |
+
+- **Feeds.** `[markets] feed` (and SET): `iex` (the default: real time, IEX
+  alone), `delayed_sip` (every exchange, 15 minutes late, free) or `sip` (paid).
+  Daily history always comes from every exchange: the free plan serves the
+  consolidated tape up to 15 minutes ago, so daily bars ask for it with an end
+  16 minutes back. Every figure carries its feed's label.
+- **The free plan's limits.** One budget of 180 requests a minute covers every
+  Alpaca host. The stream admits trades and quotes for the first 30 symbols
+  (`[markets] stream_symbols`) and minute bars for all; symbols past the limit
+  are held back and admitted when others are dropped, and a `405` from the
+  server shows in the panels. One connection per stream endpoint, shared by
+  every panel.
+- **Rows.** `mt_alpaca::board::row` brings each minute-old snapshot up to date
+  with what the stream has delivered since: the newest trade or bar sets the last
+  price, later prices widen the day's range, and the change is measured from the
+  close before the last trade's session (Monday's first trade against Friday's
+  close, not Thursday's).
+- **Functions:** `Q` (quote monitor: last, change, bid and ask, volume, the day's
+  range, today's 15-minute chart, sortable, `Q POWER`, `Q WL`, `Q XEL US AEE US`);
+  `GP XLU US` (the latest session minute by minute against the previous close,
+  `5` days at 15 minutes, or daily closes for up to ten years, with volume); `DES`
+  (the asset record, today's trading, the 52-week range and returns); `CN`
+  (company news in the Phase 1 headline browser, REST plus the news stream); and
+  securities in `WL` beside nodes. Charts of securities are in New York time
+  (`widgets::chart::exchange_plot`), never MISO's EST. Panels without keys explain
+  how to add them; the status bar shows the US market's session (from the
+  calendar, overruled by Alpaca's clock when they disagree).
+- **Completion.** The command line offers tickers and company names from the
+  asset list for functions that take securities, `GP XLU US` for a bare ticker,
+  and the functions that take a security after one (`XLU US D…`). A bare
+  security opens `GP`, as a bare node does; options are refused until `OMON`.
+- **The energy angle.** Built-in lists for `Q`: `POWER` (all of the below, the
+  default), `UTILITIES` (AEE, XEL, LNT, WEC, DTE, CMS, ETR, CNP, MGEE, NI, OTTR),
+  `GENERATORS` (VST, NRG, CEG, TLN), `ETFS` (XLU, XLE, UNG) and `GAS` (UNG, EQT, AR,
+  RRC, CTRA, EXE); `[[markets.lists]]` adds or replaces lists. Still to come: a
+  stock against a MISO hub price on one chart.
+- **Recordings.** `cargo run -p mt-alpaca --example capture_alpaca` records every
+  dataset through the queries themselves, plus short stream sessions (the live
+  feed with the default list, Alpaca's always-on test feed, news). By default
+  every price, size and volume is replaced with a synthetic one (a smooth function
+  of symbol and time, consistent across files) and every story's words with
+  sample text, so the repository holds no licensed market data or articles;
+  `--verbatim` is for the drift job. A recording can be picked by a query value
+  (`bars@1Day.json`), a `FixtureTransport` feature added for this.
 
 ## Phase 3: Account and portfolio
 

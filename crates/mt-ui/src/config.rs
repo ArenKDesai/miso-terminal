@@ -20,6 +20,9 @@ pub struct AppConfig {
     /// News feeds and topics (TOP, NEWS, NI): built-ins to turn off, feeds
     /// and topics to add, how long headlines are kept.
     pub news: mt_news::NewsConfig,
+    /// Stocks and ETFs from Alpaca (Q, GP, DES, CN): the price feed, the
+    /// stream's symbol limit and lists for Q (`[[markets.lists]]`).
+    pub markets: mt_alpaca::MarketsConfig,
     /// Alert rules (see the ALRT function), as `[[alerts]]` tables.
     pub alerts: Vec<crate::alerts::AlertRule>,
 }
@@ -32,6 +35,7 @@ impl Default for AppConfig {
             data: DataConfig::default(),
             endpoints: MisoEndpoints::default(),
             news: mt_news::NewsConfig::default(),
+            markets: mt_alpaca::MarketsConfig::default(),
             alerts: Vec::new(),
         }
     }
@@ -48,6 +52,8 @@ pub struct UiConfig {
     pub price_extreme: f64,
     /// Nodes listed first in pickers and shown in the GP quick list.
     pub favorite_nodes: Vec<String>,
+    /// Securities on the watchlist (`XLU US`).
+    pub favorite_securities: Vec<String>,
     /// Switch between `light_theme` and `dark_theme` with the Windows setting
     /// (Settings > Personalization > Colors). Overrides `theme` when on.
     pub follow_system_theme: bool,
@@ -91,6 +97,7 @@ impl Default for UiConfig {
                 .iter()
                 .map(|s| (*s).to_owned())
                 .collect(),
+            favorite_securities: Vec::new(),
             follow_system_theme: false,
             light_theme: "default-light".into(),
             dark_theme: mt_theme::DEFAULT_THEME_ID.into(),
@@ -201,6 +208,7 @@ mod tests {
         assert_eq!(cfg.ui.price_alert, UiConfig::default().price_alert);
         assert_eq!(cfg.endpoints, MisoEndpoints::default());
         assert_eq!(cfg.news, mt_news::NewsConfig::default());
+        assert_eq!(cfg.markets, mt_alpaca::MarketsConfig::default());
     }
 
     #[test]
