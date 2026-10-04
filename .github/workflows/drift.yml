@@ -64,8 +64,11 @@ jobs:
   # Run by hand: fixtures for the repository, recorded with the CI account's
   # keys and rewritten as sample copies (no licensed prices, no stories' text).
   # Download the artifact and copy its folders into fixtures/.
+  # After the drift job, never beside it: an account gets one stream
+  # connection per endpoint (a second is refused with 406).
   alpaca-fixtures:
-    if: github.event_name == 'workflow_dispatch' && inputs.alpaca_fixtures
+    needs: drift
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.alpaca_fixtures
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

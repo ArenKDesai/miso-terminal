@@ -6,8 +6,9 @@ use mt_core::equity::Feed;
 use mt_core::instrument::{Security, is_ticker};
 use serde::{Deserialize, Serialize};
 
-/// What the free plan allows: trades and quotes for 30 symbols at a time.
-pub const FREE_PLAN_STREAM_SYMBOLS: usize = 30;
+/// What the free plan allows: 30 trade and quote subscriptions in all (a
+/// symbol's trades count one, its quotes another). Minute bars are unlimited.
+pub const FREE_PLAN_STREAM_LIMIT: usize = 30;
 
 /// The list `Q` opens with.
 pub const DEFAULT_LIST: &str = "POWER";
@@ -20,9 +21,10 @@ pub struct MarketsConfig {
     /// (every exchange, real time; a paid Alpaca plan). Daily history always
     /// comes from every exchange.
     pub feed: Feed,
-    /// Symbols that stream every trade and quote; the rest update with
-    /// minute bars and snapshots. The free plan allows 30.
-    pub stream_symbols: usize,
+    /// Trade and quote subscriptions on the stream: every symbol's trades
+    /// first, then quotes while room remains; the rest update with minute
+    /// bars and snapshots. The free plan allows 30 in all.
+    pub stream_limit: usize,
     /// Lists for `Q`, as `[[markets.lists]]` (name, title, symbols). A
     /// built-in list's name replaces it.
     pub lists: Vec<SecurityList>,
@@ -32,7 +34,7 @@ impl Default for MarketsConfig {
     fn default() -> Self {
         Self {
             feed: Feed::Iex,
-            stream_symbols: FREE_PLAN_STREAM_SYMBOLS,
+            stream_limit: FREE_PLAN_STREAM_LIMIT,
             lists: Vec::new(),
         }
     }
@@ -142,8 +144,8 @@ impl MarketsConfig {
     }
 
     /// The stream limit, never zero.
-    pub fn stream_symbols(&self) -> usize {
-        self.stream_symbols.max(1)
+    pub fn stream_limit(&self) -> usize {
+        self.stream_limit.max(1)
     }
 }
 
@@ -160,7 +162,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(cfg.feed, Feed::DelayedSip);
-        assert_eq!(cfg.stream_symbols, FREE_PLAN_STREAM_SYMBOLS);
+        assert_eq!(cfg.stream_limit, FREE_PLAN_STREAM_LIMIT);
         let power = cfg.list("POWER").unwrap();
         assert_eq!(power.display_title(), "Mine");
         let tickers: Vec<String> = power.securities().into_iter().map(|s| s.ticker).collect();
@@ -170,8 +172,8 @@ mod tests {
         let default = MarketsConfig::default().list(DEFAULT_LIST).unwrap();
         assert_eq!(default.securities().len(), 23);
         assert!(
-            default.securities().len() <= FREE_PLAN_STREAM_SYMBOLS,
-            "the default list streams in full"
+            default.securities().len() <= FREE_PLAN_STREAM_LIMIT,
+            "every trade streams for the whole default list"
         );
         assert_eq!(normalize_symbol("brk.b"), Some("BRK.B".into()));
         assert_eq!(normalize_symbol("XLU US Equity"), Some("XLU".into()));

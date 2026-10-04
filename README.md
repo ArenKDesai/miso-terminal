@@ -112,7 +112,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `CONS` | Binding constraints | RT binding constraints, shadow prices and how long each has bound; reserve and sub-regional constraints |
 | `BCH` | Constraint history | A day's binding constraints in DA and RT side by side, matched by MISO's constraint ID: hours bound, cost ($/MW) and peak shadow price, sortable and filterable, with the selected constraint's DA and RT shadow prices through the day (`BCH 2026-09-30`) |
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
-| `Q` | Quote monitor | Live prices for a list of stocks and ETFs (Alpaca): last, change, bid and ask, volume, the day's range and today's chart, every trade streaming for up to 30 symbols on the free plan. `Q` is the Power & gas list (utilities in MISO's footprint, independent generators, energy ETFs, gas producers); also `Q UTILITIES`, `Q GAS`, `Q WL` (your watchlist) or any securities (`Q XEL US AEE US`) |
+| `Q` | Quote monitor | Live prices for a list of stocks and ETFs (Alpaca): last, change, bid and ask, volume, the day's range and today's chart, with every trade streaming (the free plan allows 30 trade and quote subscriptions). `Q` is the Power & gas list (utilities in MISO's footprint, independent generators, energy ETFs, gas producers); also `Q UTILITIES`, `Q GAS`, `Q WL` (your watchlist) or any securities (`Q XEL US AEE US`) |
 | `DES` | Security description | What a stock or ETF is and where it lists, how it trades with Alpaca (shortable, marginable, fractional), today's prices, and its 52-week range and returns (`DES XLU US`) |
 | `TOP` | Top stories | The newest top stories from the Financial Times, Bloomberg and the Washington Post in one list. Click one for its summary; Enter or a double-click opens the article in your browser, where you are signed in |
 | `NEWS` | News search | Every headline from every feed, kept for three weeks so search reaches back across restarts: by publisher (`NEWS FT`, `NEWS BBG`, `NEWS WP`), by words (`NEWS natural gas`), unread only, and mark read |
@@ -170,9 +170,9 @@ Stock and ETF prices come from **Alpaca** with your own free account's keys (sto
 in `SET`, in Windows Credential Manager): on the free plan, real time from the IEX
 exchange alone (a few percent of US volume, so thinly traded names can lag) or every
 exchange fifteen minutes late; daily history always from every exchange. Every figure
-says which. Snapshots refresh each minute and a stream adds every trade and quote for
-up to 30 symbols (the free plan's limit), minute bars for the rest, within Alpaca's 200
-requests a minute. Company news is Benzinga's, through Alpaca: headlines and
+says which. Snapshots refresh each minute and a stream adds every trade (and quotes while
+room remains: the free plan allows 30 trade and quote subscriptions in all) and
+minute bars for the rest, within Alpaca's 200 requests a minute. Company news is Benzinga's, through Alpaca: headlines and
 summaries only, linked to the article.
 
 All MISO times are **market time, EST all year** (UTC-5, no daylight saving);

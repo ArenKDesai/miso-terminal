@@ -191,12 +191,15 @@ secret store (`Request::secret_header`; a replay sends none). Its facade,
 them. One `Budget` covers every Alpaca host (180 of the 200 requests a minute
 the key allows).
 
-The free plan streams trades and quotes for 30 symbols and minute bars for
-any number, so `MarketStream` keeps track of what it has sent: trades and
-quotes for the first `stream_symbols` symbols, bars for all, and the rest held
-back until room frees up. The hub's subscription union stays unaware of the
-limit. Panels watch a minute-old snapshot and the stream together and merge
-them per security with `mt_alpaca::board::row` (`mt_ui::market::Board`).
+The free plan allows 30 trade and quote subscriptions in all (a symbol's
+trades count one, its quotes another; more is refused with a `405`, as the
+drift job found) and minute bars for any number. So `MarketStream` keeps
+track of what it has sent: every symbol's trades first, then quotes while room
+remains (a new symbol's trades displace a quote), bars for all, and the rest
+held back until room frees up. Should the server refuse anyway, it halves its
+limit and reconnects. The hub's subscription union stays unaware of the limit.
+Panels watch a minute-old snapshot and the stream together and merge them per
+security with `mt_alpaca::board::row` (`mt_ui::market::Board`).
 
 Bars are fetched for many symbols at once and every page is followed (a
 repeated page token, which a replay produces, ends it). Daily bars come from
@@ -310,7 +313,7 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; streams against a scripted server (shared connections, subscription unions, reconnect and resubscribe, refused logins, lingering topics, pause); a real WebSocket round trip on localhost; conditional GETs, status mapping, budgets and `429`s; secrets kept out of the log; the Windows Credential Manager round trip; transports; disk cache |
 | `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
-| `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions, the symbol limit, refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed |
+| `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions within the plan's limit (trades before quotes, halving after a `405`), refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed |
 | `mt-news` | RSS 2.0, RSS 1.0 and Atom (CDATA, escaped HTML, entities, dates, Atom links, no article bodies); every built-in feed against its recording (sample text in the feed's real structure; live in the drift job via `MT_FIXTURES`); identities, merging, combining, keyword rules, config overrides, read marks |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
 | `mt-ui` | Command parsing, completion and hints; alert engine (headline alerts included); series maths; the headline browser and archived headlines and read marks across a restart; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart |

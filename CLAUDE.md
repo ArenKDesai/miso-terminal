@@ -63,7 +63,7 @@ with WM_CLOSE, which lets it save.
 - `crates/mt-eia`: EIA Henry Hub gas spot, a second example of one.
 - `crates/mt-alpaca`: Alpaca stocks and ETFs: snapshots, bars, assets, clock,
   calendar, company news (`queries.rs`), live prices and news (`stream.rs`, with
-  the free plan's symbol limit), snapshot + stream merging (`board.rs`) and the
+  the free plan's 30 trade and quote subscriptions: trades first), snapshot + stream merging (`board.rs`) and the
   `[markets]` config and built-in lists (`config.rs`). `mt-ui/src/market.rs`
   holds what the securities panels share (status, board, formats, picker);
   `functions/security_chart.rs` is GP for a security.

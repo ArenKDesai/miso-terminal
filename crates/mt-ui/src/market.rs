@@ -152,7 +152,7 @@ impl Board {
         )
     }
 
-    /// The stream's complaint, if any (a symbol limit, a busy connection).
+    /// The stream's complaint, if any (a subscription limit, a busy connection).
     pub fn notice(&self) -> Option<String> {
         self.live
             .data()

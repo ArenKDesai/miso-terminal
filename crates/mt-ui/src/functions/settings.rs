@@ -345,16 +345,12 @@ fn markets(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig) {
                     .color(skin.text_muted),
             );
             ui.end_row();
-            ui.label("Stream every trade and quote for");
-            ui.add(
-                egui::DragValue::new(&mut draft.markets.stream_symbols)
-                    .range(1..=10_000)
-                    .suffix(" symbols"),
-            );
+            ui.label("Live trade and quote subscriptions");
+            ui.add(egui::DragValue::new(&mut draft.markets.stream_limit).range(1..=10_000));
             ui.label(
                 RichText::new(format!(
-                    "the free plan allows {}; the rest update by the minute",
-                    mt_alpaca::config::FREE_PLAN_STREAM_SYMBOLS
+                    "the free plan allows {} in all: trades first, then quotes; the rest update by the minute",
+                    mt_alpaca::config::FREE_PLAN_STREAM_LIMIT
                 ))
                 .small()
                 .color(skin.text_muted),

@@ -5,8 +5,8 @@
 //! Built for Alpaca's free plan: real-time prices from IEX alone, or every
 //! exchange fifteen minutes late ([`Feed`]); 200 requests a minute per key,
 //! which the shared [`budgets`] keeps to 180; one stream connection per
-//! endpoint, with trades and quotes for 30 symbols at a time (minute bars have
-//! no limit). Every price says which feed it came from.
+//! endpoint and account, with 30 trade and quote subscriptions in all (minute
+//! bars have no limit). Every price says which feed it came from.
 //!
 //! The keys are the user's own, read from the secret store ([`KEY_ID`],
 //! [`SECRET_KEY`]) for each request and never written anywhere else; a replay
@@ -104,7 +104,7 @@ pub(crate) fn request(ctx: &FetchCtx, url: String) -> Result<Request, FetchError
 pub struct Alpaca {
     endpoints: Arc<Endpoints>,
     feed: Feed,
-    stream_symbols: usize,
+    stream_limit: usize,
     ready: bool,
 }
 
@@ -121,7 +121,7 @@ impl Alpaca {
         Self {
             endpoints: Arc::new(Endpoints::default()),
             feed: config.feed,
-            stream_symbols: config.stream_symbols(),
+            stream_limit: config.stream_limit(),
             ready,
         }
     }
@@ -197,7 +197,7 @@ impl Alpaca {
         MarketStream::new(
             format!("{}/v2/{}", self.endpoints.stream, self.feed_path()),
             self.feed,
-            self.stream_symbols,
+            self.stream_limit,
         )
     }
 

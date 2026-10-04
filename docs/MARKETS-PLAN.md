@@ -146,11 +146,16 @@ as decided above). Paths and message formats were taken from Alpaca's own
   consolidated tape up to 15 minutes ago, so daily bars ask for it with an end
   16 minutes back. Every figure carries its feed's label.
 - **The free plan's limits.** One budget of 180 requests a minute covers every
-  Alpaca host. The stream admits trades and quotes for the first 30 symbols
-  (`[markets] stream_symbols`) and minute bars for all; symbols past the limit
-  are held back and admitted when others are dropped, and a `405` from the
-  server shows in the panels. One connection per stream endpoint, shared by
-  every panel.
+  Alpaca host. The stream may hold 30 trade and quote subscriptions in all: a
+  first live run subscribed both for the 23 symbols of the default list and was
+  refused with `405 symbol limit exceeded`, so the limit counts a symbol's
+  trades and quotes separately. `MarketStream` subscribes every symbol's trades
+  first, then quotes while room remains (`[markets] stream_limit`, 30), and
+  minute bars for all; what does not fit is held back and admitted when room
+  frees up, and a `405` anyway halves the limit and reconnects. Bid and ask
+  still refresh each minute from the snapshots. One connection per stream
+  endpoint and account, shared by every panel (a second program on the same
+  account gets `406`).
 - **Rows.** `mt_alpaca::board::row` brings each minute-old snapshot up to date
   with what the stream has delivered since: the newest trade or bar sets the last
   price, later prices widen the day's range, and the change is measured from the

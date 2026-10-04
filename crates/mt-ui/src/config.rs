@@ -21,7 +21,7 @@ pub struct AppConfig {
     /// and topics to add, how long headlines are kept.
     pub news: mt_news::NewsConfig,
     /// Stocks and ETFs from Alpaca (Q, GP, DES, CN): the price feed, the
-    /// stream's symbol limit and lists for Q (`[[markets.lists]]`).
+    /// stream's subscription limit and lists for Q (`[[markets.lists]]`).
     pub markets: mt_alpaca::MarketsConfig,
     /// Alert rules (see the ALRT function), as `[[alerts]]` tables.
     pub alerts: Vec<crate::alerts::AlertRule>,

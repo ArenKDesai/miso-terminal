@@ -4,10 +4,12 @@
 //! Every frame is a JSON array of messages tagged by `T`. After connecting
 //! the server says `connected`; the login (`{"action":"auth",…}`) is answered
 //! `authenticated` or an error; subscriptions are acknowledged with the full
-//! list per channel. The free plan streams trades and quotes for 30 symbols
-//! at a time, and minute bars for any number, so [`MarketStream`] admits
-//! trades and quotes for its first `cap` symbols and holds the rest back
-//! (they still get bars) until room frees up.
+//! list per channel. The free plan allows 30 trade and quote subscriptions in
+//! all (a symbol's trades count one, its quotes another; more is refused with
+//! a `405`) and minute bars for any number. So [`MarketStream`] subscribes
+//! every symbol's trades first, then quotes while room remains, and holds the
+//! rest back (they still get bars) until room frees up. Should the server
+//! refuse anyway, it halves its limit and reconnects.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
@@ -22,6 +24,8 @@ use crate::{KEY_ID, SECRET_KEY, parse};
 
 /// Headlines a news stream keeps.
 const LIVE_NEWS_KEEP: usize = 300;
+/// The server's code for too many trade and quote subscriptions.
+const SYMBOL_LIMIT: u64 = 405;
 
 /// The topics for live prices of `symbols`: trades, quotes and minute bars.
 pub fn market_topics<S: AsRef<str>>(symbols: impl IntoIterator<Item = S>) -> Vec<String> {
@@ -101,39 +105,82 @@ pub struct LiveMarket {
     pub trades: HashMap<String, Trade>,
     pub quotes: HashMap<String, Quote>,
     pub bars: HashMap<String, Bar>,
-    /// Symbols the server confirmed for trades or quotes (the rest get bars).
+    /// Symbols whose every trade streams (the server's confirmation); the
+    /// rest update with minute bars.
     pub ticking: BTreeSet<String>,
-    /// The server's latest complaint (a symbol limit, say), if any.
+    /// The server's latest complaint (a subscription limit, say), if any.
     pub notice: Option<String>,
 }
 
-/// What has been sent for trades and quotes, against the symbol limit.
-#[derive(Debug, Default)]
+/// A trade or quote subscription: `("trades", "XLU")`.
+type Pair = (String, String);
+
+/// Trade and quote subscriptions sent, against the plan's limit.
+#[derive(Debug)]
 struct Wire {
-    /// `(channel, symbol)` pairs subscribed.
-    sent: BTreeSet<(String, String)>,
-    /// Pairs held back by the limit.
-    held: BTreeSet<(String, String)>,
+    /// How many trade and quote subscriptions may be open (halved if the
+    /// server says the limit is exceeded anyway).
+    cap: usize,
+    sent: BTreeSet<Pair>,
+    /// Subscriptions held back by the limit.
+    held: BTreeSet<Pair>,
 }
 
 impl Wire {
-    fn symbols(&self) -> BTreeSet<&str> {
-        self.sent.iter().map(|(_, s)| s.as_str()).collect()
+    fn new(cap: usize) -> Self {
+        Self {
+            cap: cap.max(1),
+            sent: BTreeSet::new(),
+            held: BTreeSet::new(),
+        }
     }
 
-    /// Room for `sym`? Records the pair as sent or held.
-    fn admit(&mut self, cap: usize, ch: &str, sym: &str) -> bool {
-        let syms = self.symbols();
-        let ok = syms.contains(sym) || syms.len() < cap;
-        let pair = (ch.to_owned(), sym.to_owned());
-        if ok {
-            self.held.remove(&pair);
-            self.sent.insert(pair);
-        } else {
-            self.held.insert(pair);
-        }
-        ok
+    /// Trades come before quotes: a symbol's last price matters more than
+    /// its bid and ask, which the minute snapshots carry anyway.
+    fn priority(p: &Pair) -> (bool, String) {
+        (p.0 != "trades", p.1.clone())
     }
+
+    /// Send what fits, trades first; a trade may displace a quote. Returns
+    /// the pairs to subscribe and the quotes displaced (to unsubscribe).
+    fn admit(&mut self, pairs: impl IntoIterator<Item = Pair>) -> (Vec<Pair>, Vec<Pair>) {
+        let mut pairs: Vec<Pair> = pairs.into_iter().collect();
+        pairs.sort_by_key(Self::priority);
+        let (mut add, mut evict) = (Vec::new(), Vec::new());
+        for p in pairs {
+            if self.sent.contains(&p) {
+                continue;
+            }
+            if self.sent.len() >= self.cap && p.0 == "trades" {
+                let quote = self.sent.iter().rev().find(|(c, _)| c == "quotes").cloned();
+                if let Some(q) = quote {
+                    self.sent.remove(&q);
+                    self.held.insert(q.clone());
+                    evict.push(q);
+                }
+            }
+            if self.sent.len() < self.cap {
+                self.held.remove(&p);
+                self.sent.insert(p.clone());
+                add.push(p);
+            } else {
+                self.held.insert(p);
+            }
+        }
+        (add, evict)
+    }
+}
+
+fn messages(action_name: &str, pairs: &[Pair], bars: &[String]) -> Option<String> {
+    let mut channels: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+    for (ch, sym) in pairs {
+        let ch = if ch == "trades" { "trades" } else { "quotes" };
+        channels.entry(ch).or_default().push(sym.clone());
+    }
+    if !bars.is_empty() {
+        channels.insert("bars", bars.to_vec());
+    }
+    action(action_name, &channels)
 }
 
 /// `wss://stream.data.alpaca.markets/v2/<feed>`.
@@ -141,24 +188,27 @@ impl Wire {
 pub struct MarketStream {
     url: String,
     feed: Feed,
-    cap: usize,
     wire: Arc<Mutex<Wire>>,
 }
 
 impl MarketStream {
-    pub(crate) fn new(url: String, feed: Feed, cap: usize) -> Self {
+    /// `limit`: trade and quote subscriptions allowed at once.
+    pub(crate) fn new(url: String, feed: Feed, limit: usize) -> Self {
         Self {
             url,
             feed,
-            cap: cap.max(1),
-            wire: Arc::default(),
+            wire: Arc::new(Mutex::new(Wire::new(limit))),
         }
     }
 
     /// Alpaca's test feed: made-up trades and quotes for `FAKEPACA`, around
     /// the clock (the recorder uses it to check the message formats).
     pub fn test_feed(endpoints: &crate::Endpoints) -> Self {
-        Self::new(format!("{}/v2/test", endpoints.stream), Feed::Iex, 30)
+        Self::new(
+            format!("{}/v2/test", endpoints.stream),
+            Feed::Iex,
+            crate::config::FREE_PLAN_STREAM_LIMIT,
+        )
     }
 
     /// The feed's name in the URL: `iex`, `delayed_sip`, `sip` or `test`.
@@ -202,51 +252,43 @@ impl Stream for MarketStream {
     }
 
     fn subscribe(&self, topics: &[String]) -> Vec<String> {
-        let mut wire = self.wire.lock();
-        let mut add: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        let mut bars = Vec::new();
+        let mut pairs = Vec::new();
         for (ch, sym) in topics.iter().filter_map(|t| split_topic(t)) {
             match ch {
-                "bars" => add.entry("bars").or_default().push(sym.to_owned()),
-                "trades" | "quotes" if wire.admit(self.cap, ch, sym) => {
-                    add.entry(if ch == "trades" { "trades" } else { "quotes" })
-                        .or_default()
-                        .push(sym.to_owned());
-                }
+                "bars" => bars.push(sym.to_owned()),
+                "trades" | "quotes" => pairs.push((ch.to_owned(), sym.to_owned())),
                 _ => {}
             }
         }
-        action("subscribe", &add).into_iter().collect()
+        let (add, evict) = self.wire.lock().admit(pairs);
+        messages("unsubscribe", &evict, &[])
+            .into_iter()
+            .chain(messages("subscribe", &add, &bars))
+            .collect()
     }
 
     fn unsubscribe(&self, topics: &[String]) -> Vec<String> {
         let mut wire = self.wire.lock();
-        let mut drop: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        let mut bars = Vec::new();
+        let mut dropped = Vec::new();
         for (ch, sym) in topics.iter().filter_map(|t| split_topic(t)) {
             let pair = (ch.to_owned(), sym.to_owned());
             match ch {
-                "bars" => drop.entry("bars").or_default().push(sym.to_owned()),
-                "trades" | "quotes" if wire.sent.remove(&pair) => drop
-                    .entry(if ch == "trades" { "trades" } else { "quotes" })
-                    .or_default()
-                    .push(sym.to_owned()),
+                "bars" => bars.push(sym.to_owned()),
+                "trades" | "quotes" if wire.sent.remove(&pair) => dropped.push(pair),
                 _ => {
                     wire.held.remove(&pair);
                 }
             }
         }
-        // Room may have freed up for symbols held back.
-        let mut add: BTreeMap<&str, Vec<String>> = BTreeMap::new();
-        let held: Vec<(String, String)> = wire.held.iter().cloned().collect();
-        for (ch, sym) in held {
-            if wire.admit(self.cap, &ch, &sym) {
-                add.entry(if ch == "trades" { "trades" } else { "quotes" })
-                    .or_default()
-                    .push(sym);
-            }
-        }
-        action("unsubscribe", &drop)
+        // Room may have freed up for what was held back.
+        let held: Vec<Pair> = wire.held.iter().cloned().collect();
+        let (add, evict) = wire.admit(held);
+        dropped.extend(evict);
+        messages("unsubscribe", &dropped, &bars)
             .into_iter()
-            .chain(action("subscribe", &add))
+            .chain(messages("subscribe", &add, &[]))
             .collect()
     }
 
@@ -291,19 +333,32 @@ impl Stream for MarketStream {
                     }
                 }
                 (Some("subscription"), _) => {
-                    let list = |k: &str| -> Vec<String> {
-                        m.get(k)
-                            .and_then(Value::as_array)
-                            .map(|a| {
-                                a.iter()
-                                    .filter_map(Value::as_str)
-                                    .map(str::to_owned)
-                                    .collect()
-                            })
-                            .unwrap_or_default()
-                    };
-                    state.ticking = list("trades").into_iter().chain(list("quotes")).collect();
+                    state.ticking = m
+                        .get("trades")
+                        .and_then(Value::as_array)
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(Value::as_str)
+                                .map(str::to_owned)
+                                .collect()
+                        })
+                        .unwrap_or_default();
                     changed(&mut result);
+                }
+                (Some("error"), _)
+                    if m.get("code").and_then(Value::as_u64) == Some(SYMBOL_LIMIT) =>
+                {
+                    // The plan allows fewer than we thought: halve the
+                    // limit and reconnect, which subscribes again.
+                    let mut wire = self.wire.lock();
+                    wire.cap = (wire.sent.len().min(wire.cap) / 2).max(1);
+                    let what = format!(
+                        "Alpaca {} stream: subscription limit exceeded; now streaming {} trades and quotes",
+                        self.feed.label(),
+                        wire.cap
+                    );
+                    state.notice = Some(what.clone());
+                    return Err(FetchError::Network(what));
                 }
                 _ => match control(&m, self.feed.label())? {
                     Some(Control::Ready) => result = Applied::Ready,
@@ -319,9 +374,10 @@ impl Stream for MarketStream {
     }
 
     fn on_connect(&self, state: &mut LiveMarket) {
-        *self.wire.lock() = Wire::default();
+        let mut wire = self.wire.lock();
+        wire.sent.clear();
+        wire.held.clear();
         state.ticking.clear();
-        state.notice = None;
     }
 }
 
@@ -459,7 +515,11 @@ mod tests {
             ),
         );
         assert_eq!(applied, Ok(Applied::Changed));
-        assert_eq!(st.ticking.iter().collect::<Vec<_>>(), ["XEL", "XLU"]);
+        assert_eq!(
+            st.ticking.iter().collect::<Vec<_>>(),
+            ["XLU"],
+            "every trade streams for the symbols confirmed for trades"
+        );
         let data = r#"[{"T":"t","S":"XLU","i":1,"x":"V","p":82.51,"s":100,"t":"2026-10-02T19:59:58.1Z","c":["@"],"z":"B"},
             {"T":"q","S":"XLU","bx":"V","bp":82.5,"bs":2,"ax":"V","ap":82.52,"as":3,"t":"2026-10-02T19:59:59Z","c":["R"],"z":"B"},
             {"T":"b","S":"AEE","o":90,"h":90.2,"l":89.9,"c":90.1,"v":1200,"t":"2026-10-02T19:59:00Z","n":12,"vw":90.05},
@@ -472,13 +532,30 @@ mod tests {
         );
         assert_eq!(st.quotes["XLU"].ask, 82.52);
         assert_eq!(st.bars["AEE"].close, 90.1);
-        // Complaints are kept; refused logins stop the stream.
+        // Over the limit after all: halve it and reconnect.
+        s.subscribe(&market_topics(["XLU", "XEL", "AEE", "CMS"]));
         let limit = r#"[{"T":"error","code":405,"msg":"symbol limit exceeded"}]"#;
-        assert_eq!(s.apply(&mut st, &frame(limit)), Ok(Applied::Changed));
+        assert!(matches!(
+            s.apply(&mut st, &frame(limit)),
+            Err(FetchError::Network(_))
+        ));
         assert!(
             st.notice
                 .as_deref()
-                .is_some_and(|n| n.contains("symbol limit"))
+                .is_some_and(|n| n.contains("now streaming 4"))
+        );
+        s.on_connect(&mut st);
+        let msgs = s.subscribe(&market_topics(["XLU", "XEL", "AEE", "CMS", "WEC"]));
+        let v: Value = serde_json::from_str(&msgs[0]).unwrap();
+        assert_eq!(v["trades"].as_array().map(Vec::len), Some(4));
+        assert!(v.get("quotes").is_none(), "{v}");
+        // Other complaints are kept; refused logins stop the stream.
+        let other = r#"[{"T":"error","code":407,"msg":"slow client"}]"#;
+        assert_eq!(s.apply(&mut st, &frame(other)), Ok(Applied::Changed));
+        assert!(
+            st.notice
+                .as_deref()
+                .is_some_and(|n| n.contains("slow client"))
         );
         let refused = r#"[{"T":"error","code":402,"msg":"auth failed"}]"#;
         assert!(matches!(
@@ -495,39 +572,53 @@ mod tests {
             Err(FetchError::Parse { .. })
         ));
         s.on_connect(&mut st);
-        assert!(st.ticking.is_empty() && st.notice.is_none());
+        assert!(st.ticking.is_empty());
         assert!(st.trades.contains_key("XLU"), "prices survive a reconnect");
     }
 
     #[test]
-    fn trades_and_quotes_respect_the_symbol_limit() {
-        let s = MarketStream::new("wss://x/v2/iex".into(), Feed::Iex, 2);
+    fn trades_first_then_quotes_within_the_limit() {
+        // The free plan's 30 counts trade and quote subscriptions together.
+        let s = MarketStream::new("wss://x/v2/iex".into(), Feed::Iex, 4);
         let msgs = s.subscribe(&market_topics(["XLU", "XEL", "AEE"]));
         assert_eq!(msgs.len(), 1);
         let v: Value = serde_json::from_str(&msgs[0]).unwrap();
         assert_eq!(v["action"], "subscribe");
-        assert_eq!(v["trades"], serde_json::json!(["XLU", "XEL"]));
-        assert_eq!(v["quotes"], serde_json::json!(["XLU", "XEL"]));
+        assert_eq!(v["trades"], serde_json::json!(["AEE", "XEL", "XLU"]));
+        assert_eq!(
+            v["quotes"],
+            serde_json::json!(["AEE"]),
+            "quotes with the room left"
+        );
         assert_eq!(
             v["bars"],
             serde_json::json!(["XLU", "XEL", "AEE"]),
             "bars for every symbol"
         );
-        // Dropping XEL makes room for AEE, held back until now.
+        // Dropping XEL frees a slot for a quote held back.
         let msgs = s.unsubscribe(&topics(&["trades:XEL", "quotes:XEL", "bars:XEL"]));
-        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs.len(), 2, "{msgs:?}");
         let un: Value = serde_json::from_str(&msgs[0]).unwrap();
         assert_eq!(un["action"], "unsubscribe");
         assert_eq!(un["trades"], serde_json::json!(["XEL"]));
+        assert_eq!(un["bars"], serde_json::json!(["XEL"]));
+        assert!(un.get("quotes").is_none(), "quotes for XEL were never sent");
         let sub: Value = serde_json::from_str(&msgs[1]).unwrap();
         assert_eq!(sub["action"], "subscribe");
-        assert_eq!(sub["trades"], serde_json::json!(["AEE"]));
-        assert!(sub.get("bars").is_none());
-        // Dropping a held-back pair sends nothing for it.
+        assert_eq!(sub["quotes"], serde_json::json!(["XLU"]));
+        // A new symbol's trades displace a quote.
+        let msgs = s.subscribe(&topics(&["trades:CMS"]));
+        assert_eq!(msgs.len(), 2, "{msgs:?}");
+        let un: Value = serde_json::from_str(&msgs[0]).unwrap();
+        assert_eq!(un["action"], "unsubscribe");
+        assert_eq!(un["quotes"].as_array().map(Vec::len), Some(1));
+        let sub: Value = serde_json::from_str(&msgs[1]).unwrap();
+        assert_eq!(sub["trades"], serde_json::json!(["CMS"]));
+        // Dropping something held back sends nothing for it.
         let s = MarketStream::new("wss://x/v2/iex".into(), Feed::Iex, 1);
-        s.subscribe(&market_topics(["XLU", "XEL"]));
-        let msgs = s.unsubscribe(&topics(&["trades:XEL", "quotes:XEL"]));
-        assert!(msgs.is_empty(), "{msgs:?}");
+        s.subscribe(&topics(&["trades:XLU", "trades:XEL"]));
+        // (symbols in order: XEL is sent, XLU held back)
+        assert!(s.unsubscribe(&topics(&["trades:XLU"])).is_empty());
         assert!(s.subscribe(&[]).is_empty());
     }
 
