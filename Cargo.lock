@@ -2564,6 +2564,7 @@ dependencies = [
  "mt-core",
  "mt-data",
  "mt-miso",
+ "mt-news",
  "mt-ui",
  "tauri-winrt-notification",
  "tokio",
@@ -2645,6 +2646,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mt-news"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "mt-core",
+ "mt-data",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "tokio",
+ "toml",
+]
+
+[[package]]
 name = "mt-nws"
 version = "0.1.0"
 dependencies = [
@@ -2684,6 +2699,7 @@ dependencies = [
  "mt-data",
  "mt-eia",
  "mt-miso",
+ "mt-news",
  "mt-nws",
  "mt-theme",
  "parking_lot",

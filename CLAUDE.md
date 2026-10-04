@@ -5,8 +5,8 @@ trading, when it comes, goes only through Alpaca, paper by default. It is a
 Rust workspace with an egui UI, and Windows is the primary platform. Read
 `docs/ARCHITECTURE.md` before structural changes and `docs/EXTENDING.md` for
 recipes. `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
-data, trading and portfolio tracking: Phase 0 (foundations) is built, the
-README's roadmap tracks the rest.
+data, trading and portfolio tracking: Phase 0 (foundations) and Phase 1
+(news) are built, the README's roadmap tracks the rest.
 
 ## Commands
 
@@ -18,6 +18,7 @@ cargo run -- --offline                 # UI work against recorded fixtures, no n
 cargo run -p mt-miso --example capture_fixtures       # re-record MISO fixtures (one hit per endpoint)
 cargo run -p mt-nws --example capture_weather        # re-record weather fixtures (two per city)
 cargo run -p mt-eia --example capture_gas            # re-record the Henry Hub gas workbook
+cargo run -p mt-news --example capture_news          # re-record the news feeds (story text replaced by samples)
 cargo run -p mt-theme --example sync_everforge -- ..\everforge
 cargo run -p mt-ui --example render -- out.png --run "MAP MCC" --zoom   # offscreen PNG, fixtures, no window
 $env:UPDATE_SNAPSHOTS=force; cargo test -p mt-ui --test snapshots           # accept intended visual changes
@@ -59,13 +60,17 @@ with WM_CLOSE, which lets it save.
   (New York time and sessions), `money.rs` (exact decimals), beside the MISO model.
 - `crates/mt-nws`: National Weather Service source, the template for non-MISO sources.
 - `crates/mt-eia`: EIA Henry Hub gas spot, a second example of one.
+- `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
+  (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
+  feeds for panels and holds the headline browser TOP, NEWS and NI share.
 - Example names must be unique across the workspace (they share
   `target/debug/examples/`; duplicates race at link time on Windows).
 
 ## Conventions
 
 - Crate boundaries are load-bearing. `mt-core`, `mt-data`, `mt-miso`,
-  `mt-nws`, `mt-eia` and `mt-theme` must not depend on egui; CI tests them on Linux.
+  `mt-nws`, `mt-eia`, `mt-news` and `mt-theme` must not depend on egui; CI
+  tests them on Linux.
 - New panel = new file in `crates/mt-ui/src/functions/` + one line in
   `functions/mod.rs` + a README row (a test checks the README). Add any
   argument variants to `routes()` in `smoke_tests.rs`.
@@ -110,6 +115,10 @@ with WM_CLOSE, which lets it save.
   `Decimal` (`mt_core::money`), never `f64`.
 - The rolling five-minute feed can take most of a minute to download late in
   the day; today's store is saved to the disk cache and restored at launch.
+- News: headlines and summaries only, attributed and linked; never fetch or
+  store article text, and never commit publishers' text (news fixtures are
+  sample copies from `capture_news`; snapshots render those). Articles open through `AppCommand::OpenHeadline`, which
+  only accepts http(s) links. Check a feed's robots.txt before adding it.
 - Python helpers run through `uv` (inline script metadata), never global pip.
 - Disk on the main dev machine is tight; `cargo clean` reclaims stale
   artifacts after profile changes.

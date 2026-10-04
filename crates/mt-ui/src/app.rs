@@ -83,6 +83,10 @@ pub struct TerminalApp {
     intraday_saved: u64,
     remote: Option<crate::remote::RemoteInbox>,
     notifier: Option<std::sync::Arc<dyn crate::notify::Notifier>>,
+    /// Which headlines have been opened (saved in the cache).
+    pub(crate) news_read: mt_news::ReadMarks,
+    /// Every feed's headlines, for headline alerts.
+    alert_news: crate::news::Combined,
 }
 
 impl TerminalApp {
@@ -137,11 +141,14 @@ impl TerminalApp {
             intraday_saved: 0,
             remote: deps.remote,
             notifier: deps.notifier,
+            news_read: mt_news::ReadMarks::default(),
+            alert_news: crate::news::Combined::default(),
             config: deps.config,
             paths: deps.paths,
         };
         app.apply_theme(ctx);
         app.restore_intraday();
+        app.restore_news();
         if let Some(inbox) = &app.remote {
             inbox.attach(ctx);
         }
@@ -174,6 +181,53 @@ impl TerminalApp {
             store.intervals().len()
         );
         self.hub.seed_stale(&self.miso.rt_intraday(), store, as_of);
+    }
+
+    /// Headlines and read marks from the last session, without those past
+    /// their keep window. The headlines show at once (marked stale) and the
+    /// feeds refresh as soon as something watches them.
+    fn restore_news(&mut self) {
+        let Some(cache) = self.hub.ctx().cache() else {
+            return;
+        };
+        let now = mt_core::time::now_utc();
+        let keep_days = self.config.news.keep_days;
+        let mut restored = 0;
+        for q in crate::news::queries(&self.config, false) {
+            let Some(mut feed) = mt_news::load_archive(cache, &q.feed().id) else {
+                continue;
+            };
+            feed.items = mt_news::merge(&feed.items, Vec::new(), keep_days, now);
+            restored += feed.items.len();
+            let as_of = feed.fetched.unwrap_or(chrono::DateTime::UNIX_EPOCH);
+            self.hub.seed_stale(&q, feed, as_of);
+        }
+        if restored > 0 {
+            tracing::info!("restored {restored} headlines from the last session");
+        }
+        if let Some(mut marks) = cache
+            .get(mt_news::READ_KEY)
+            .and_then(|b| mt_news::ReadMarks::from_bytes(&b))
+        {
+            marks.prune(keep_days, now);
+            self.news_read = marks;
+        }
+    }
+
+    fn mark_read(&mut self, ids: &[String], read: bool) {
+        let now = mt_core::time::now_utc();
+        let mut changed = false;
+        for id in ids {
+            changed |= self.news_read.set(id, read, now);
+        }
+        if let (true, Some(cache)) = (changed, self.hub.ctx().cache().cloned()) {
+            let bytes = self.news_read.to_bytes();
+            std::thread::spawn(move || {
+                if let Err(e) = cache.put(mt_news::READ_KEY, &bytes) {
+                    tracing::warn!("could not save read headlines: {e}");
+                }
+            });
+        }
     }
 
     /// Write today's five-minute store to the cache if it changed since the
@@ -435,6 +489,20 @@ impl TerminalApp {
                     }
                 }
                 AppCommand::RevealPath(path) => reveal(&path),
+                AppCommand::OpenHeadline { id, link } => {
+                    // Feed content is untrusted: only web links leave the app.
+                    if link.starts_with("https://") || link.starts_with("http://") {
+                        ctx.open_url(egui::OpenUrl::new_tab(&link));
+                        self.mark_read(&[id], true);
+                        self.feedback(
+                            format!("Opened {} in your browser", mt_data::host_of(&link)),
+                            false,
+                        );
+                    } else {
+                        self.feedback(format!("Not opening {link:?}: not a web link"), true);
+                    }
+                }
+                AppCommand::MarkRead { ids, read } => self.mark_read(&ids, read),
                 AppCommand::ReplaceConfig(config) => {
                     let endpoints_changed = config.endpoints != self.config.endpoints;
                     self.config = *config;
@@ -474,6 +542,11 @@ impl TerminalApp {
             .then(|| self.hub.watch(&self.miso.regional_transfer()));
         let load = feeds.load.then(|| self.hub.watch(&self.miso.load()));
         let ace = feeds.ace.then(|| self.hub.watch(&self.miso.ace()));
+        let headlines = feeds.news.then(|| {
+            self.alert_news
+                .watch(&self.hub, &crate::news::queries(&self.config, false));
+            self.alert_news.items().clone()
+        });
         let price = |node: &str| -> Option<(chrono::NaiveDateTime, f64)> {
             if let Some(b) = board.data()
                 && let Some(p) = b.row(node).and_then(|r| r.rt_5min)
@@ -489,6 +562,7 @@ impl TerminalApp {
             transfer: transfer.as_ref().and_then(|c| c.data()),
             load: load.as_ref().and_then(|c| c.data()),
             ace: ace.as_ref().and_then(|c| c.data()),
+            headlines: headlines.as_deref().map(Vec::as_slice),
         };
         let fired = self.alerts.evaluate(rules, &data);
         if let Some(last) = fired.last() {
@@ -982,6 +1056,7 @@ impl eframe::App for TerminalApp {
             themes: &self.themes,
             notices: &self.notices,
             alerts: &self.alerts,
+            news_read: &self.news_read,
             can_notify: self.notifier.is_some(),
             commands: &mut commands,
         };

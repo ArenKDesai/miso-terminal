@@ -233,16 +233,24 @@ fn main() -> Result<()> {
         } else {
             mt_data::os_store("miso-terminal")
         },
-        ..FetchCtxOptions::default()
+        // Pacing publishers ask for (FT's robots.txt: one request a second);
+        // a replay has nobody to be polite to.
+        budgets: if replaying {
+            Vec::new()
+        } else {
+            mt_news::budgets()
+        },
     };
     if let Some(cache) = cache.clone() {
         let max = config.data.cache_max_mb.saturating_mul(1024 * 1024);
         let archive_days = config.data.archive_days;
+        let news_days = config.news.keep_days;
         runtime.spawn_blocking(move || {
-            let keep = [
+            let mut keep = vec![
                 mt_miso::archive_dir(&cache),
                 mt_miso::lmp_archive_dir(&cache),
             ];
+            keep.extend(mt_news::archive_dirs(&cache));
             let (files, bytes) = cache.prune(max, &keep);
             if files > 0 {
                 tracing::info!("pruned {files} cached reports ({} MB)", bytes / 1_048_576);
@@ -250,6 +258,10 @@ fn main() -> Result<()> {
             let days = mt_miso::prune_archive(&cache, archive_days, mt_core::time::market_today());
             if days > 0 {
                 tracing::info!("removed {days} days from the five-minute archive");
+            }
+            let feeds = mt_news::prune_archives(&cache, news_days);
+            if feeds > 0 {
+                tracing::info!("removed {feeds} news feeds not fetched in {news_days} days");
             }
         });
     }

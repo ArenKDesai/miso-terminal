@@ -20,6 +20,8 @@ mod lmp;
 mod load;
 mod log;
 mod map;
+mod news;
+mod ni;
 mod nsi;
 mod outages;
 mod renew;
@@ -27,6 +29,7 @@ mod seam;
 mod settings;
 mod spread;
 mod theme;
+mod top;
 mod transfer;
 mod watchlist;
 mod wx;
@@ -58,6 +61,9 @@ pub fn all() -> Vec<FunctionSpec> {
         cons::SPEC,
         bch::SPEC,
         outages::SPEC,
+        top::SPEC,
+        news::SPEC,
+        ni::SPEC,
         alrt::SPEC,
         log::SPEC,
         theme::SPEC,

@@ -15,7 +15,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Alerts",
     category: Category::System,
     usage: "ALRT",
-    description: "Alerts on prices, spreads, constraints, N–S transfer, load vs forecast and ACE: add rules, see which hold now, and what fired.",
+    description: "Alerts on prices, spreads, constraints, N–S transfer, load vs forecast, ACE and headlines: add rules, see which hold now, and what fired.",
     takes_node: false,
     takes_security: false,
     open,
@@ -43,10 +43,11 @@ enum Kind {
     TransferAbove,
     LoadAboveForecast,
     AceAbove,
+    HeadlineMentions,
 }
 
 impl Kind {
-    const ALL: [Self; 8] = [
+    const ALL: [Self; 9] = [
         Self::PriceAbove,
         Self::PriceBelow,
         Self::SpreadAbove,
@@ -55,6 +56,7 @@ impl Kind {
         Self::TransferAbove,
         Self::LoadAboveForecast,
         Self::AceAbove,
+        Self::HeadlineMentions,
     ];
 
     fn label(self) -> &'static str {
@@ -67,6 +69,7 @@ impl Kind {
             Self::TransferAbove => "N–S transfer at or above % of limit",
             Self::LoadAboveForecast => "Load above forecast by at least %",
             Self::AceAbove => "|ACE| at or above MW",
+            Self::HeadlineMentions => "Headline mentions",
         }
     }
 
@@ -79,7 +82,7 @@ impl Kind {
             Self::TransferAbove => 90.0,
             Self::LoadAboveForecast => 3.0,
             Self::AceAbove => 1_000.0,
-            Self::ConstraintBinds => 0.0,
+            Self::ConstraintBinds | Self::HeadlineMentions => 0.0,
         }
     }
 }
@@ -113,6 +116,14 @@ impl Alrt {
                 }
             }
             Kind::ConstraintBinds => return None,
+            Kind::HeadlineMentions
+                if !mt_core::news::Matcher::from_list(&self.contains).is_empty() =>
+            {
+                AlertRule::HeadlineMentions {
+                    keywords: self.contains.trim().to_owned(),
+                }
+            }
+            Kind::HeadlineMentions => return None,
             Kind::ShadowPriceAbove => AlertRule::ShadowPriceAbove {
                 value: self.value.abs(),
             },
@@ -225,6 +236,17 @@ impl Panel for Alrt {
                                 .desired_width(220.0),
                         );
                     }
+                    Kind::HeadlineMentions => {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.contains)
+                                .hint_text("MISO, PJM, power prices…")
+                                .desired_width(260.0),
+                        )
+                        .on_hover_text(
+                            "Words or phrases, comma-separated. Capitals match capitals only \
+                             (MISO is not the soup); utilit* matches any ending.",
+                        );
+                    }
                     Kind::ShadowPriceAbove => {
                         ui.add(egui::DragValue::new(&mut self.value).speed(5.0).prefix("$"));
                     }
@@ -259,7 +281,7 @@ impl Panel for Alrt {
             });
             ui.label(
                 RichText::new(
-                    "Rules fire once when they become true and re-arm when they clear. A firing rule \
+                    "Rules fire once when they become true and re-arm when they clear; a headline rule fires for each new match from the last hour. A firing rule \
                      flashes the taskbar button. Rules are saved in config.toml under [[alerts]].",
                 )
                 .small()

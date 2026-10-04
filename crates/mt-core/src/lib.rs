@@ -7,7 +7,7 @@
 //!
 //! MISO data runs on fixed EST ([`time`]); securities run on New York time
 //! ([`exchange`]), are named `XLU US` ([`instrument`]) and are priced in exact
-//! decimals ([`money`]).
+//! decimals ([`money`]). News headlines and keyword topics are in [`news`].
 
 pub mod archive;
 pub mod constraints;
@@ -17,6 +17,7 @@ pub mod geo;
 pub mod grid;
 pub mod instrument;
 pub mod money;
+pub mod news;
 pub mod num;
 pub mod prices;
 pub mod seams;

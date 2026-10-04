@@ -112,6 +112,35 @@ requests per minute, give it a `Budget` in `FetchCtxOptions` (built in
 `main.rs`), shared by all of its hosts; LOG then shows how much is used.
 Fixtures never contain keys or account numbers.
 
+## Add a news feed or topic
+
+For yourself: add the feed to `config.toml`, no code needed.
+
+```toml
+[[news.feeds]]
+id = "eia-today"                # unique; a built-in's id replaces that feed
+source = "EIA"                  # shown with every headline
+section = "Today in Energy"
+url = "https://www.eia.gov/rss/todayinenergy.xml"
+top = false                     # true puts it in TOP and on HOME
+
+[[news.topics]]
+name = "MISO"                   # NI MISO; a built-in's name replaces it
+keywords = ["MISO", "Midcontinent Independent", "capacity auction*"]
+```
+
+For everyone: add it to `builtin_feeds()` (or `builtin_topics()`) in
+`crates/mt-news/src/config.rs`, check that the site's robots.txt allows the
+feed's path and whether it asks for a crawl delay (add a `Budget` to
+`mt_news::budgets()` if so), run `cargo run -p mt-news --example capture_news`
+to record it, and run `cargo test -p mt-news`. The recorder replaces each
+story's words (title, summary, byline, the words in its URL) with sample text
+and keeps the feed's structure, so the repository never republishes a
+publisher's headlines; the drift job records with `--verbatim` and keeps
+nothing. Fixture files are named by the feed's URL path (a path without an
+extension gets `.json`, whatever the content). Feeds must be headlines and summaries only: the parser never keeps
+article bodies, and articles open in the reader's browser.
+
 ## Add a streaming source
 
 For a WebSocket feed (quotes, trade updates, news), implement

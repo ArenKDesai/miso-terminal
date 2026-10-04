@@ -18,6 +18,7 @@ mt-data = { path = "crates/mt-data" }
 mt-miso = { path = "crates/mt-miso" }
 mt-nws = { path = "crates/mt-nws" }
 mt-eia = { path = "crates/mt-eia" }
+mt-news = { path = "crates/mt-news" }
 mt-theme = { path = "crates/mt-theme" }
 mt-ui = { path = "crates/mt-ui" }
 
@@ -44,6 +45,8 @@ toml = "1"
 csv = "1.4"
 # MISO publishes some daily reports (binding constraints) only as legacy .xls.
 calamine = { version = "0.36", default-features = false }
+# News feeds (RSS and Atom).
+quick-xml = "0.41"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
 flate2 = "1.1"
 # Exact decimals for money (orders, positions); never f64 where an order is involved.
@@ -101,6 +104,8 @@ opt-level = 2
 [profile.dev.package.mt-nws]
 opt-level = 2
 [profile.dev.package.mt-eia]
+opt-level = 2
+[profile.dev.package.mt-news]
 opt-level = 2
 
 # egui and wgpu are painfully slow unoptimized; optimize dependencies even in dev builds.

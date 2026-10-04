@@ -54,6 +54,8 @@ fn the_terminal_looks_as_it_did() {
         ("dam", &["DAM TODAY"][..]),
         ("seam", &["SEAM"][..]),
         ("gp-history", &["GP MINN.HUB 3"][..]),
+        ("top", &["TOP"][..]),
+        ("ni-energy", &["NI ENERGY"][..]),
     ] {
         scenes.push((
             format!("zoom-{name}"),

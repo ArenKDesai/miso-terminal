@@ -16,7 +16,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Settings",
     category: Category::System,
     usage: "SET",
-    description: "Display, price highlighting, data and endpoint settings (saved to config.toml), and API keys (kept in Windows Credential Manager).",
+    description: "Display, price highlighting, data, news feed and endpoint settings (saved to config.toml), and API keys (kept in Windows Credential Manager).",
     takes_node: false,
     takes_security: false,
     open,
@@ -193,6 +193,8 @@ impl Panel for Settings {
                     ui.end_row();
                 });
 
+            news(ui, cx, &mut draft);
+
             credentials(ui, cx, &mut self.keys);
 
             widgets::section(ui, skin, "MISO endpoints");
@@ -259,6 +261,62 @@ impl Panel for Settings {
 
         self.draft = (&draft != live).then_some(draft);
     }
+}
+
+/// How long headlines are kept, and which feeds are read.
+fn news(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig) {
+    let skin = cx.skin;
+    widgets::section(ui, skin, "News feeds");
+    ui.horizontal(|ui| {
+        ui.label("Keep headlines for");
+        ui.add(
+            egui::DragValue::new(&mut draft.news.keep_days)
+                .range(0..=365)
+                .suffix(" days"),
+        );
+        ui.label(
+            RichText::new("for NEWS search across restarts; 0 keeps them all")
+                .small()
+                .color(skin.text_muted),
+        );
+    });
+    let feeds = draft.news.all_feeds();
+    Grid::new("set-news")
+        .num_columns(3)
+        .striped(true)
+        .spacing([16.0, 4.0])
+        .show(ui, |ui| {
+            for f in &feeds {
+                let mut on = draft.news.is_enabled(&f.id);
+                let name = if f.section.is_empty() {
+                    f.source.clone()
+                } else {
+                    format!("{} · {}", f.source, f.section)
+                };
+                if ui.checkbox(&mut on, name).changed() {
+                    let disabled = &mut draft.news.disabled_feeds;
+                    disabled.retain(|d| !d.eq_ignore_ascii_case(&f.id));
+                    if !on {
+                        disabled.push(f.id.clone());
+                    }
+                }
+                ui.label(
+                    RichText::new(if f.top { "top stories" } else { "" })
+                        .small()
+                        .color(skin.text_muted),
+                );
+                ui.label(RichText::new(&f.url).small().color(skin.text_muted));
+                ui.end_row();
+            }
+        });
+    ui.label(
+        RichText::new(
+            "Add RSS or Atom feeds under [[news.feeds]] (id, source, section, url, top) \
+             and topics for NI under [[news.topics]] (name, keywords) in config.toml.",
+        )
+        .small()
+        .color(skin.text_muted),
+    );
 }
 
 fn credentials(ui: &mut Ui, cx: &mut PanelCx<'_>, keys: &mut Keys) {

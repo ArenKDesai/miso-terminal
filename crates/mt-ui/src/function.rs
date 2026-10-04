@@ -73,17 +73,25 @@ pub enum Category {
     Overview,
     Prices,
     Grid,
+    News,
     System,
 }
 
 impl Category {
-    pub const ALL: [Self; 4] = [Self::Overview, Self::Prices, Self::Grid, Self::System];
+    pub const ALL: [Self; 5] = [
+        Self::Overview,
+        Self::Prices,
+        Self::Grid,
+        Self::News,
+        Self::System,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::Overview => "Overview",
             Self::Prices => "Prices",
             Self::Grid => "Grid conditions",
+            Self::News => "News",
             Self::System => "System",
         }
     }

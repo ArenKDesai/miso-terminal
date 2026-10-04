@@ -3,7 +3,7 @@
 A plan: headlines from the Financial Times, Bloomberg and the Washington Post;
 US stock, ETF and options data from Alpaca; paper trading through Alpaca, with
 live trading later; and account and portfolio tracking. Phase 0, the
-foundations, is built (2026-10-04); the later phases are not yet.
+foundations, and Phase 1, news, are built (2026-10-04); the later phases are not yet.
 Facts about the sources were checked on 2026-10-04. The README's roadmap tracks
 progress against the phases below.
 
@@ -69,28 +69,54 @@ describe each piece and [EXTENDING](EXTENDING.md#add-a-streaming-source) the rec
 - **Wording.** The README and CLAUDE.md now say read-only for MISO, with
   trading (when it comes) only through Alpaca and paper by default.
 
-## Phase 1: News
+## Phase 1: News (built)
 
-Needs no Alpaca, so it can ship first.
+Built on 2026-10-04. It needs no Alpaca; company news (`CN XLU US`, from
+Alpaca's news API) moved to Phase 2 with the rest of the Alpaca client.
 
-| Source | Feeds | Items (2026-10-04) |
+| Source | Feeds (13) | Items (2026-10-04) |
 |---|---|---|
-| Financial Times | `ft.com/rss/home`, and `?format=rss` on `markets`, `energy`, `global-economy` | 10 to 25 each |
-| Bloomberg | `bloomberg.com/feeds/<section>/news.rss` for markets, politics, technology, economics, industries | 2 to 20 each (`green` returns 404, `wealth` is empty) |
-| Washington Post | `feeds.washingtonpost.com/rss/<section>` for business, business/economy, politics, national | 3 in business; the all-stories feed timed out |
+| Financial Times | `ft.com/rss/home/international` (`/rss/home` redirects there), and `?format=rss` on `markets`, `energy`, `global-economy` | 10 to 25 each |
+| Bloomberg | `www.bloomberg.com/feeds/<section>/news.rss` for markets, economics, industries, politics, technology (the older `feeds.bloomberg.com` addresses redirect there) | 3 to 20 each (`green` returns 404, `wealth` is empty) |
+| Washington Post | `feeds.washingtonpost.com/rss/<section>` for business, business/economy, politics, national | 3 to 14 each; the all-stories feed timed out |
 
-- **`mt-news`** parses RSS (`quick-xml`) into items (title, summary, link, id,
-  time, source); de-duplicates by id or by the link with tracking parameters
-  removed (FT adds `?syn-…`); refreshes each feed every 5 minutes; and keeps a
-  few weeks of headlines on disk so search works across restarts.
-- **Functions:** `TOP` (merged top stories); `NEWS [source|keyword]`;
-  `NI ENERGY`-style topic filters from keyword rules in config (MISO, PJM, FERC,
-  natural gas, power prices, utilities…); `CN XLU US` for a company's news (from
-  Alpaca). Enter opens the article in the browser and marks it read. A
-  top-headlines tile on HOME, and an ALRT rule for headlines matching keywords.
-- **Health.** Every feed shows in LOG, the feed list is editable in config, and
-  the weekly drift job checks the feeds. Feeds do disappear: the Washington
-  Post's homepage feed stopped in July 2026.
+- **`mt-news`** parses RSS 2.0, RSS 1.0 and Atom (`quick-xml`) into
+  `mt_core::news::Headline`s (title, summary as plain text, link, author,
+  time, source, sections), and never keeps article bodies (`content:encoded`,
+  Atom `content`). A story's identity is the publisher's id scoped to its site,
+  or its link with tracking parameters removed (FT adds `?syn-…`); the same
+  story in two feeds shows once with both sections. Each feed is a `FeedQuery`
+  (so LOG lists each one's health), refreshed every 5 minutes or the feed's
+  own `ttl` if longer (FT asks for 15), and merged into what it already had.
+  Headlines are kept for `news.keep_days` (21) in the disk cache under
+  `local://news/<feed id>`, shown at launch before the first fetch, and
+  searchable across restarts. A request budget spaces FT requests a second
+  apart, as its robots.txt asks; every feed path is allowed by its site's
+  robots.txt.
+- **Functions:** `TOP` (the top-stories feeds merged, newest first); `NEWS
+  [source] [words]` (every headline kept; `NEWS FT`, `NEWS natural gas`);
+  `NI <topic>` from keyword rules (ENERGY, POWER, GRID, GAS, OIL, UTILITIES,
+  POLICY, CLIMATE, MACRO; `NI` alone lists them with counts). A keyword in
+  capitals matches capitals only (`MISO` is not the soup) and `utilit*` matches
+  any ending. All three share one browser: publisher and search filters,
+  unread only, ↑/↓ and Enter, a preview with the summary, *Open in browser*,
+  *Copy link* and read marks (kept in the cache, `local://news-read/ids`).
+  Only `http`/`https` links are opened. HOME has a top-stories section, and
+  ALRT a *Headline mentions* rule: it fires for each new matching headline
+  published in the last hour.
+- **Configuration:** the feed and topic lists are built in, so a release can
+  fix a feed that moved. `[news]` in config.toml turns feeds off
+  (`disabled_feeds`, also checkboxes in SET), adds or replaces feeds
+  (`[[news.feeds]]`: id, source, section, url, top) and topics
+  (`[[news.topics]]`: name, keywords), and sets `keep_days`.
+- **Health.** Every feed shows in LOG; panels show how many feeds are failing
+  and which. `cargo run -p mt-news --example capture_news` records them for the
+  repository with every story's words replaced by sample text (the structure
+  stays: CDATA, ids, dates), so the repository and release zips never
+  republish headlines. The weekly drift job records them live (`--verbatim`),
+  runs the parser tests on them (every feed parses; every publisher has
+  headlines) and keeps nothing. Feeds do disappear: the
+  Washington Post's homepage feed stopped in July 2026.
 - **Bandwidth.** Phase 0's conditional GETs apply automatically: Bloomberg's
   feeds send ETags and answer `304` when unchanged; FT's send ETags but
   answered `200` again (checked 2026-10-04); the Washington Post's send none.
@@ -114,6 +140,9 @@ Needs no Alpaca, so it can ship first.
 - **Completion** of tickers from Alpaca's asset list (`/v2/assets`, active US
   equities), cached daily; functions that accept securities set
   `takes_security`, which also turns on security completion for them.
+- **Company news:** `CN XLU US` from Alpaca's ticker-tagged news (Benzinga),
+  REST for history and the `v1beta1/news` stream for new stories, in the
+  Phase 1 browser. Until then `NEWS XLU US` searches the RSS headlines.
 - **The energy angle.** A default "Power & gas" list: MISO-footprint utilities
   (AEE, XEL, LNT, WEC, DTE, CMS, ETR, CNP, MGEE, NI, OTTR), generators (VST, NRG,
   CEG, TLN), ETFs (XLU, XLE, UNG) and gas producers. Later, a stock against a

@@ -9,6 +9,7 @@ use std::collections::{HashMap, VecDeque};
 
 use chrono::NaiveDateTime;
 use chrono::Timelike;
+use mt_core::news::{Headline, Matcher};
 use mt_core::{Ace, BindingConstraints, RegionalTransfer, SystemLoad};
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +17,8 @@ use crate::widgets::fmt;
 
 /// Keep this many fired alerts for the ALRT history.
 const HISTORY: usize = 200;
+/// Headlines count for alerts this long after they were published.
+pub const HEADLINE_WINDOW: chrono::TimeDelta = chrono::TimeDelta::hours(1);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -36,6 +39,9 @@ pub enum AlertRule {
     LoadAboveForecast { pct: f64 },
     /// |Area control error| at or above `mw`.
     AceAbove { mw: f64 },
+    /// A headline from the last hour mentions any of `keywords` (comma-separated,
+    /// as in NI topics). Fires again for each newer matching headline.
+    HeadlineMentions { keywords: String },
 }
 
 /// Which feeds a rule reads, so the shell only watches what is needed.
@@ -46,6 +52,7 @@ pub struct Feeds {
     pub transfer: bool,
     pub load: bool,
     pub ace: bool,
+    pub news: bool,
 }
 
 impl Feeds {
@@ -56,6 +63,7 @@ impl Feeds {
             transfer: self.transfer || o.transfer,
             load: self.load || o.load,
             ace: self.ace || o.ace,
+            news: self.news || o.news,
         }
     }
 }
@@ -74,6 +82,7 @@ impl AlertRule {
             Self::TransferAbove { pct } => format!("N–S transfer ≥ {pct:.0}% of limit"),
             Self::LoadAboveForecast { pct } => format!("load ≥ {pct:.1}% above forecast"),
             Self::AceAbove { mw } => format!("|ACE| ≥ {} MW", fmt::mw(*mw)),
+            Self::HeadlineMentions { keywords } => format!("headline mentions “{keywords}”"),
         }
     }
 
@@ -99,6 +108,10 @@ impl AlertRule {
                 ace: true,
                 ..Feeds::default()
             },
+            Self::HeadlineMentions { .. } => Feeds {
+                news: true,
+                ..Feeds::default()
+            },
         }
     }
 
@@ -111,9 +124,33 @@ impl AlertRule {
         }
     }
 
-    /// Whether the condition holds now, with a detail line; `None` when the
-    /// data it needs has not arrived.
-    fn check(&self, data: &AlertData<'_>) -> Option<(bool, String)> {
+    /// Whether the condition holds now, with a detail line and a token that,
+    /// when it changes while the condition holds, fires the rule again (the
+    /// newest matching headline). `None` when the data has not arrived.
+    fn check(&self, data: &AlertData<'_>) -> Option<(bool, String, Option<String>)> {
+        let Self::HeadlineMentions { keywords } = self else {
+            return self.check_condition(data).map(|(hit, d)| (hit, d, None));
+        };
+        let matcher = Matcher::from_list(keywords);
+        let since = mt_core::time::now_utc() - HEADLINE_WINDOW;
+        let newest = data
+            .headlines?
+            .iter()
+            .filter(|h| h.time() >= since)
+            .filter(|h| !matcher.is_empty() && matcher.matches(h))
+            .max_by_key(|h| h.time());
+        Some(match newest {
+            Some(h) => (
+                true,
+                format!("{}: {}", h.source, h.title),
+                Some(h.id.clone()),
+            ),
+            None => (false, String::new(), None),
+        })
+    }
+
+    /// Whether a level condition holds now, with a detail line.
+    fn check_condition(&self, data: &AlertData<'_>) -> Option<(bool, String)> {
         match self {
             Self::PriceAbove { node, value } | Self::PriceBelow { node, value } => {
                 let (at, price) = (data.price)(node)?;
@@ -214,6 +251,7 @@ impl AlertRule {
                     ),
                 ))
             }
+            Self::HeadlineMentions { .. } => None,
         }
     }
 }
@@ -227,6 +265,8 @@ pub struct AlertData<'a> {
     pub transfer: Option<&'a RegionalTransfer>,
     pub load: Option<&'a SystemLoad>,
     pub ace: Option<&'a Ace>,
+    /// Headlines from every feed (any order).
+    pub headlines: Option<&'a [Headline]>,
 }
 
 impl<'a> AlertData<'a> {
@@ -241,6 +281,7 @@ impl<'a> AlertData<'a> {
             transfer: None,
             load: None,
             ace: None,
+            headlines: None,
         }
     }
 }
@@ -253,10 +294,11 @@ pub struct AlertEvent {
     pub detail: String,
 }
 
-/// Rule state per rule description: `Some(true)` while the condition holds.
+/// Rule state per rule description: whether the condition holds, and the
+/// token it last fired for.
 #[derive(Default)]
 pub struct AlertEngine {
-    state: HashMap<String, bool>,
+    state: HashMap<String, (bool, Option<String>)>,
     pub history: VecDeque<AlertEvent>,
     /// Fired since the ALRT function was last looked at.
     pub unseen: usize,
@@ -268,11 +310,14 @@ impl AlertEngine {
         let mut fired = Vec::new();
         for rule in rules {
             let key = rule.describe();
-            let Some((hit, detail)) = rule.check(data) else {
+            let Some((hit, detail, token)) = rule.check(data) else {
                 continue;
             };
-            let was = self.state.insert(key.clone(), hit).unwrap_or(false);
-            if hit && !was {
+            let (was, was_token) = self
+                .state
+                .insert(key.clone(), (hit, token.clone()))
+                .unwrap_or((false, None));
+            if hit && (!was || (token.is_some() && token != was_token)) {
                 fired.push(AlertEvent {
                     at: chrono::Local::now(),
                     rule: key,
@@ -295,7 +340,7 @@ impl AlertEngine {
 
     /// Whether a rule's condition currently holds (`None` = not evaluated yet).
     pub fn is_active(&self, rule: &AlertRule) -> Option<bool> {
-        self.state.get(&rule.describe()).copied()
+        self.state.get(&rule.describe()).map(|(hit, _)| *hit)
     }
 }
 
@@ -400,6 +445,7 @@ mod tests {
             transfer: Some(&transfer),
             load: Some(&load),
             ace: Some(&ace),
+            headlines: None,
         };
         let rules = vec![
             AlertRule::SpreadAbove {
@@ -438,6 +484,58 @@ mod tests {
             .fold(Feeds::default(), |f, r| f.union(r.feeds()));
         assert!(feeds.prices && feeds.transfer && feeds.load && feeds.ace && !feeds.constraints);
         assert_eq!(rules[0].nodes(), vec!["A", "B"]);
+    }
+
+    #[test]
+    fn headline_alerts_fire_for_each_new_match_in_the_window() {
+        let now = mt_core::time::now_utc();
+        let headline = |id: &str, title: &str, mins_ago: i64| Headline {
+            id: id.into(),
+            source: "Bloomberg".into(),
+            title: title.into(),
+            summary: String::new(),
+            link: String::new(),
+            author: None,
+            published: Some(now - chrono::Duration::minutes(mins_ago)),
+            seen: now,
+            sections: Vec::new(),
+        };
+        let rules = vec![AlertRule::HeadlineMentions {
+            keywords: "MISO, power prices".into(),
+        }];
+        let mut engine = AlertEngine::default();
+        let mut run = |items: &[Headline]| {
+            let none = |_: &str| None;
+            let data = AlertData {
+                headlines: Some(items),
+                ..AlertData::prices(&none, None)
+            };
+            engine
+                .evaluate(&rules, &data)
+                .into_iter()
+                .map(|e| e.detail)
+                .collect::<Vec<_>>()
+        };
+        let old = headline("a", "MISO capacity prices jump", 180);
+        let soup = headline("b", "A miso soup for autumn", 5);
+        assert!(
+            run(&[old.clone(), soup.clone()]).is_empty(),
+            "too old, wrong case"
+        );
+        let first = headline("c", "Power prices spike in MISO", 10);
+        assert_eq!(
+            run(&[old.clone(), first.clone()]),
+            ["Bloomberg: Power prices spike in MISO"]
+        );
+        assert!(
+            run(std::slice::from_ref(&first)).is_empty(),
+            "the same headline fires once"
+        );
+        let second = headline("d", "MISO calls max-gen alert", 1);
+        assert_eq!(run(&[first, second]).len(), 1, "a newer match fires again");
+        assert!(run(&[soup]).is_empty());
+        assert_eq!(engine.is_active(&rules[0]), Some(false), "re-armed");
+        assert!(rules[0].feeds().news);
     }
 
     #[test]

@@ -1,5 +1,5 @@
-//! HOME: the launchpad. Headline numbers, the trading hubs, the generation mix
-//! and the constraints that matter right now.
+//! HOME: the launchpad. Headline numbers, the trading hubs, the generation mix,
+//! the constraints that matter right now, weather and the top stories.
 
 use egui::{Grid, RichText, ScrollArea, Ui};
 use mt_core::{TRADING_HUBS, hub_short};
@@ -14,17 +14,24 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Launchpad",
     category: Category::Overview,
     usage: "HOME",
-    description: "Headline grid numbers, trading-hub prices, generation mix and top binding constraints.",
+    description: "Headline grid numbers, trading-hub prices, generation mix, top binding constraints, weather and top stories.",
     takes_node: false,
     takes_security: false,
     open,
 };
 
+/// Top stories on the launchpad.
+const HEADLINES: usize = 6;
+
 fn open(_: &[String]) -> Result<Box<dyn Panel>, String> {
-    Ok(Box::new(Home))
+    Ok(Box::new(Home {
+        news: crate::news::Combined::default(),
+    }))
 }
 
-struct Home;
+struct Home {
+    news: crate::news::Combined,
+}
 
 impl Panel for Home {
     fn title(&self) -> String {
@@ -330,6 +337,68 @@ impl Panel for Home {
             if widgets::link(ui, skin, "Forecasts by zone → WX").clicked() {
                 cx.open(Route::code("WX"));
             }
+
+            self.headlines(ui, cx);
         });
+    }
+}
+
+impl Home {
+    /// The newest top stories; a click opens the article in the browser.
+    fn headlines(&mut self, ui: &mut Ui, cx: &mut PanelCx<'_>) {
+        let skin = cx.skin;
+        self.news
+            .watch(cx.hub, &crate::news::queries(cx.config, true));
+        widgets::section(ui, skin, "Top stories");
+        let items = self.news.items().clone();
+        if items.is_empty() {
+            ui.horizontal(|ui| crate::news::health_label(ui, skin, self.news.health()));
+            return;
+        }
+        let mut opened = None;
+        Grid::new("home-news")
+            .num_columns(3)
+            .spacing([10.0, 4.0])
+            .show(ui, |ui| {
+                for h in items.iter().take(HEADLINES) {
+                    ui.label(
+                        RichText::new(crate::news::list_time(h.time()))
+                            .monospace()
+                            .color(skin.text_muted),
+                    );
+                    ui.label(
+                        RichText::new(mt_news::short_name(&h.source))
+                            .text_style(crate::skin::label_style())
+                            .color(skin.accent),
+                    )
+                    .on_hover_text(&h.source);
+                    let color = if cx.news_read.is_read(&h.id) {
+                        skin.text_muted
+                    } else {
+                        skin.info
+                    };
+                    let resp = ui
+                        .add(
+                            egui::Label::new(RichText::new(&h.title).color(color))
+                                .sense(egui::Sense::click()),
+                        )
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    let resp = if h.summary.is_empty() {
+                        resp
+                    } else {
+                        resp.on_hover_text(&h.summary)
+                    };
+                    if resp.clicked() {
+                        opened = Some(h.clone());
+                    }
+                    ui.end_row();
+                }
+            });
+        if let Some(h) = opened {
+            crate::news::open(cx, &h);
+        }
+        if widgets::link(ui, skin, "All top stories → TOP").clicked() {
+            cx.open(Route::code("TOP"));
+        }
     }
 }

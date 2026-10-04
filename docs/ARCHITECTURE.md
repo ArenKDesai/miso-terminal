@@ -153,6 +153,33 @@ the days after it ends are downloaded as daily reports. Without an archive,
 windows are capped at 90 days of downloads. The DuckDB is linked by the script,
 not the app, which keeps a large C++ build out of the terminal.
 
+### News
+
+`mt-news` reads publishers' RSS and Atom feeds: one `FeedQuery` per feed, so
+the hub, LOG, retries and conditional GETs treat each like any other source.
+A feed's fetch builds on its previous value: new headlines merge in by
+identity (the publisher's id scoped to its site, or the link without tracking
+parameters), keep when they were first seen, drop out after `news.keep_days`,
+and are written to `local://news/<feed id>`. At launch the shell seeds each
+feed from that archive with `seed_stale`, as it does today's prices, so
+headlines and search are there before the first fetch. A feed's own RSS `ttl`
+can lengthen its 5-minute refresh, and a `Budget` spaces FT requests a second
+apart for its robots.txt crawl delay.
+
+`mt_ui::news::Combined` watches a set of feeds and merges them into one list,
+rebuilt only when a feed's generation changes; TOP, NEWS, NI, HOME and the
+alert engine each hold one. `mt_ui::news::Browser` is the list the three news
+functions share (filters cached per list, keyboard focus on the list itself).
+Opening an article is an `AppCommand::OpenHeadline`: the shell accepts only
+`http`/`https` links, hands them to the system browser through egui, and
+records the read mark (`local://news-read/ids`). The feed and topic lists are
+built into `mt-news`, so a release can fix a feed that moved; `[news]` in
+config.toml turns feeds off and adds or replaces feeds and topics by id.
+
+Headline alerts are edge-triggered like the rest, with one addition: a rule
+can return a token (the newest matching headline's id), and a new token fires
+the rule again while it holds.
+
 ### Feeds with memory
 
 `Query::fetch` receives the previous value. `RtIntradayQuery` uses that to seed
@@ -254,8 +281,9 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; streams against a scripted server (shared connections, subscription unions, reconnect and resubscribe, refused logins, lingering topics, pause); a real WebSocket round trip on localhost; conditional GETs, status mapping, budgets and `429`s; secrets kept out of the log; the Windows Credential Manager round trip; transports; disk cache |
 | `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
+| `mt-news` | RSS 2.0, RSS 1.0 and Atom (CDATA, escaped HTML, entities, dates, Atom links, no article bodies); every built-in feed against its recording (sample text in the feed's real structure; live in the drift job via `MT_FIXTURES`); identities, merging, combining, keyword rules, config overrides, read marks |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
-| `mt-ui` | Command parsing, completion and hints; alert engine; series maths; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart |
+| `mt-ui` | Command parsing, completion and hints; alert engine (headline alerts included); series maths; the headline browser and archived headlines and read marks across a restart; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart |
 | visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen at their recording time, compared with committed images: every theme's layout and several zoomed panels |
 
 The smoke test iterates the registry, so a new function gets coverage without

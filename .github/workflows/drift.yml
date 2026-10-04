@@ -1,8 +1,9 @@
 name: MISO format drift
 
-# Weekly: record live MISO responses and run every parser against them, so a
-# format change on MISO's side shows up here before it shows up as a blank panel.
-# One request per endpoint (about 20 in total), well inside MISO's guidance.
+# Weekly: record live MISO responses (and the weather, gas and news sources) and
+# run every parser against them, so a format change or a feed that moved shows up
+# here before it shows up as a blank panel. One request per endpoint or feed,
+# well inside MISO's guidance and each publisher's.
 on:
   schedule:
     - cron: "17 14 * * 1" # Mondays 14:17 UTC (09:17 EST)
@@ -21,8 +22,10 @@ jobs:
         run: cargo run -p mt-nws --example capture_weather -- "$RUNNER_TEMP/live"
       - name: Record live gas prices
         run: cargo run -p mt-eia --example capture_gas -- "$RUNNER_TEMP/live"
+      - name: Record live news feeds
+        run: cargo run -p mt-news --example capture_news -- --verbatim "$RUNNER_TEMP/live"
       - name: Parse them
-        run: MT_FIXTURES="$RUNNER_TEMP/live" cargo test -p mt-miso -p mt-nws -p mt-eia --test parsers
+        run: MT_FIXTURES="$RUNNER_TEMP/live" cargo test -p mt-miso -p mt-nws -p mt-eia -p mt-news --test parsers
       # Keep the recording when something fails, to tell a real format change
       # from a transient (an odd response, a report not published yet).
       - uses: actions/upload-artifact@v7

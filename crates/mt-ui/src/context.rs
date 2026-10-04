@@ -62,6 +62,16 @@ pub enum AppCommand {
     ReplaceConfig(Box<AppConfig>),
     /// Open a folder in the system file manager.
     RevealPath(std::path::PathBuf),
+    /// Open a headline's article in the default browser and mark it read.
+    OpenHeadline {
+        id: String,
+        link: String,
+    },
+    /// Mark headlines read (or unread).
+    MarkRead {
+        ids: Vec<String>,
+        read: bool,
+    },
 }
 
 /// Everything a panel can use while drawing. Built fresh per panel per frame.
@@ -81,6 +91,8 @@ pub struct PanelCx<'a> {
     pub notices: &'a [String],
     /// Alert state and the history of fired alerts.
     pub alerts: &'a AlertEngine,
+    /// Which headlines have been opened.
+    pub news_read: &'a mt_news::ReadMarks,
     /// Whether system notifications are available on this platform.
     pub can_notify: bool,
     pub(crate) commands: &'a mut Vec<AppCommand>,

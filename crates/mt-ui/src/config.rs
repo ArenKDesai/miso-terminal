@@ -17,6 +17,9 @@ pub struct AppConfig {
     pub ui: UiConfig,
     pub data: DataConfig,
     pub endpoints: MisoEndpoints,
+    /// News feeds and topics (TOP, NEWS, NI): built-ins to turn off, feeds
+    /// and topics to add, how long headlines are kept.
+    pub news: mt_news::NewsConfig,
     /// Alert rules (see the ALRT function), as `[[alerts]]` tables.
     pub alerts: Vec<crate::alerts::AlertRule>,
 }
@@ -28,6 +31,7 @@ impl Default for AppConfig {
             ui: UiConfig::default(),
             data: DataConfig::default(),
             endpoints: MisoEndpoints::default(),
+            news: mt_news::NewsConfig::default(),
             alerts: Vec::new(),
         }
     }
@@ -196,6 +200,7 @@ mod tests {
         assert_eq!(cfg.ui.zoom, 1.25);
         assert_eq!(cfg.ui.price_alert, UiConfig::default().price_alert);
         assert_eq!(cfg.endpoints, MisoEndpoints::default());
+        assert_eq!(cfg.news, mt_news::NewsConfig::default());
     }
 
     #[test]

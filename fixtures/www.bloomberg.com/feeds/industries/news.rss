@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+    <channel>
+        <title><![CDATA[Bloomberg Industries]]></title>
+        <description><![CDATA[Bloomberg Industries]]></description>
+        <link>http://bloomberg.com/industries/</link>
+        <image>
+            <url>http://www.bloomberg.com/feeds/static/images/bloomberg_logo_blue.png</url>
+            <title>Bloomberg Industries</title>
+            <link>http://bloomberg.com/industries/</link>
+        </image>
+        <generator>RSS for Node</generator>
+        <lastBuildDate>Sun, 04 Oct 2026 22:19:56 GMT</lastBuildDate>
+        <atom:link href="https://www.bloomberg.com/feeds/industries/news.rss" rel="self" type="application/rss+xml"/>
+        <copyright><![CDATA[Copyright 2026 BLOOMBERG L.P. ALL RIGHTS RESERVED]]></copyright>
+        <language><![CDATA[en]]></language>
+        <item>
+            <title><![CDATA[Sample: FERC face a busy week]]></title>
+            <description><![CDATA[Sample summary for a test fixture: utilities hold steady ahead of an auction. The publisher's text is not kept here.]]></description>
+            <link>https://www.bloomberg.com/news/articles/2026-10-03/sample-story-7425</link>
+            <guid isPermaLink="false">TMCLIPT9NJLS00</guid>
+            <dc:creator><![CDATA[Sample Reporter]]></dc:creator>
+            <pubDate>Sat, 03 Oct 2026 21:23:41 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[Sample: Utilities rise as a cold snap nears]]></title>
+            <description><![CDATA[Sample summary for a test fixture: treasury yields signal a pause. The publisher's text is not kept here.]]></description>
+            <link>https://www.bloomberg.com/news/articles/2026-10-04/sample-story-33101</link>
+            <guid isPermaLink="false">TMEJTAT9NJLU00</guid>
+            <dc:creator><![CDATA[Sample Reporter]]></dc:creator>
+            <pubDate>Sun, 04 Oct 2026 21:55:14 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[Sample: Stocks weigh new transmission lines]]></title>
+            <description><![CDATA[Sample summary for a test fixture: miso beat expectations. The publisher's text is not kept here.]]></description>
+            <link>https://www.bloomberg.com/news/articles/2026-10-04/sample-story-74746</link>
+            <guid isPermaLink="false">TMEC1GKK3NYB00</guid>
+            <dc:creator><![CDATA[Sample Reporter]]></dc:creator>
+            <pubDate>Sun, 04 Oct 2026 20:36:03 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[Sample: FERC draw scrutiny from regulators]]></title>
+            <description><![CDATA[Sample summary for a test fixture: data centers climb on record demand. The publisher's text is not kept here.]]></description>
+            <link>https://www.bloomberg.com/news/articles/2026-10-04/sample-story-39308</link>
+            <guid isPermaLink="false">TM8MZYT9NJLS00</guid>
+            <dc:creator><![CDATA[Sample Reporter]]></dc:creator>
+            <pubDate>Sun, 04 Oct 2026 13:30:00 GMT</pubDate>
+        </item>
+    </channel>
+</rss>

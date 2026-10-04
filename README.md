@@ -1,10 +1,10 @@
 # MISO Terminal
 
 A Bloomberg-style information terminal for the Midcontinent ISO, written in Rust.
-It covers prices, load, generation, interchange, constraints, the seams, gas and
-weather in one keyboard-driven, tiled workspace. It is read-only for MISO: it shows
-MISO's public data (plus EIA gas prices and NWS forecasts) and never submits anything
-to MISO. Trading, when it comes, goes only through Alpaca, and paper by default (see
+It covers prices, load, generation, interchange, constraints, the seams, gas,
+weather and the news in one keyboard-driven, tiled workspace. It is read-only for MISO:
+it shows MISO's public data (plus EIA gas prices, NWS forecasts and publishers'
+headline feeds) and never submits anything to MISO. Trading, when it comes, goes only through Alpaca, and paper by default (see
 the [markets plan](docs/MARKETS-PLAN.md)).
 
 ![MISO Terminal in its default theme](docs/screenshots/home-default.png)
@@ -88,7 +88,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 
 | Code | Name | What it shows |
 |---|---|---|
-| `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices (RT, next-interval ex-ante, DA) with 5-min sparklines, fuel mix, top constraints |
+| `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices (RT, next-interval ex-ante, DA) with 5-min sparklines, fuel mix, top constraints, weather and the top stories |
 | `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable, and filterable by name, region and node type (hub, load zone, interface, generator). `LMP ALL` lists all ~2,600 CP nodes with this hour's DA and RT − DA |
 | `HUBS` | Hub statistics | All eight trading hubs over N days: DA, RT and DART averages, on-peak and off-peak blocks, RT volatility, extremes and how often RT beat DA |
 | `DAM` | Day-ahead strip | Hourly DA prices at the eight hubs for one day (tomorrow once posted, else today), with on-peak, off-peak and all-hours averages, by component, or as the change from the day before (`DAM TOMORROW`) |
@@ -111,9 +111,12 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `CONS` | Binding constraints | RT binding constraints, shadow prices and how long each has bound; reserve and sub-regional constraints |
 | `BCH` | Constraint history | A day's binding constraints in DA and RT side by side, matched by MISO's constraint ID: hours bound, cost ($/MW) and peak shadow price, sortable and filterable, with the selected constraint's DA and RT shadow prices through the day (`BCH 2026-09-30`) |
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
-| `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast and ACE: add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
+| `TOP` | Top stories | The newest top stories from the Financial Times, Bloomberg and the Washington Post in one list. Click one for its summary; Enter or a double-click opens the article in your browser, where you are signed in |
+| `NEWS` | News search | Every headline from every feed, kept for three weeks so search reaches back across restarts: by publisher (`NEWS FT`, `NEWS BBG`, `NEWS WP`), by words (`NEWS natural gas`), unread only, and mark read |
+| `NI` | News by topic | Headlines on a topic from keyword rules: `NI ENERGY`, `POWER`, `GRID`, `GAS`, `OIL`, `UTILITIES`, `POLICY`, `CLIMATE`, `MACRO`. `NI` alone lists the topics with today's counts. Change them or add your own in config |
+| `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast, ACE and headlines (`MISO, PJM, power prices`): add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, live streams and request budgets (when a source uses them), fetch activity, cache and file locations |
-| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits and MISO endpoints, saved to config.toml; API keys, kept in Windows Credential Manager |
+| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits, news feeds and MISO endpoints, saved to config.toml; API keys, kept in Windows Credential Manager |
 | `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
 | `HELP` | Help | Functions, keyboard shortcuts, data notes |
 
@@ -129,15 +132,18 @@ pick a suggestion, `F1` opens help, `F5` refreshes every open feed,
 `Ctrl+Shift+L` resets the layout. Function keys open functions: F2 HOME, F3 LMP,
 F4 MAP, F6 WL, F7 HUBS, F8 WX, F9 ALRT and F10 LOG by default. Remap them, or
 bind any command (`F11 = "GP ALTE.ALTE 14"`), under `[ui.hotkeys]` in config.toml.
+In a headline list (TOP, NEWS, NI), click a headline, then `↑`/`↓` move,
+`PgUp`/`PgDn`/`Home`/`End` jump, and `Enter` opens the article in your browser.
 
 Securities are written Bloomberg-style, ticker then market code (`XLU US`; options
 by OCC symbol, `XLU261218C00082500`), so they never clash with node names like
 `AECI` or `TVA`. The command line already reads them (`XLU US GP 30` is `GP` for
-`XLU US`); the functions that show them come with the markets work.
+`XLU US`); the functions that show them come with the markets work. Until then,
+`NEWS XLU US` searches the headlines for the ticker.
 
 ## Data
 
-Everything comes from MISO's public sources:
+Market data comes from MISO's public sources:
 
 - The **real-time data API** at <https://public-api.misoenergy.org/>, which
   replaced the old `MISORTWDDataBroker` feeds on 2025-12-12. MISO asks that each
@@ -147,6 +153,13 @@ Everything comes from MISO's public sources:
   (`<yyyymmdd>_da_expost_lmp.csv`, `_rt_lmp_final.csv`, `_rt_lmp_prelim.csv`).
   The final RT report trails by about a week; until it lands, GP uses the
   preliminary one and says so.
+
+News comes from the public RSS headline feeds of the **Financial Times**, **Bloomberg**
+and the **Washington Post** (13 sections between them), checked every 5 minutes, or
+less often when a feed asks (FT's ask for 15). The terminal keeps headlines and
+summaries only, always with the publisher's name and link; articles open in your
+own browser, where your subscriptions apply, and their text is never fetched. Turn
+feeds off in `SET`, or add any RSS or Atom feed under `[[news.feeds]]` in config.toml.
 
 All times are **market time, EST all year** (UTC-5, no daylight saving).
 Five-minute intervals are stamped by their start (00:00 through 23:55).
@@ -198,6 +211,8 @@ crates/
   mt-data       source-agnostic data hub: queries, cache, refresh, transports
   mt-miso       MISO endpoints, response parsers (fixture-tested), queries
   mt-nws        National Weather Service forecasts (the template for non-MISO sources)
+  mt-eia        EIA Henry Hub gas spot prices
+  mt-news       news headlines: RSS and Atom feeds, de-duplication, topics, a local archive
   mt-theme      theme model, TOML loading, validation, built-ins (no UI toolkit)
   mt-ui         egui front end: shell, command line, workspace, functions
   miso-terminal the binary: paths, logging, runtime, window
@@ -228,11 +243,13 @@ and portfolio tracking through Alpaca. See the
       resubscribe) in `mt-data`; API keys in Windows Credential Manager, entered
       in SET; instrument syntax (`XLU US`, OCC options) on the command line; New
       York exchange time; exact decimals for money. Streams and budgets show in LOG.
-- [ ] **Phase 1, news:** FT, Bloomberg and Washington Post headlines (RSS) in
-      `TOP`, `NEWS` and `NI`, opening in your signed-in browser; headline alerts.
+- [x] **Phase 1, news:** FT, Bloomberg and Washington Post headlines (RSS, 13
+      feeds) in `TOP`, `NEWS` and `NI`, a top-stories tile on HOME, opening in your
+      signed-in browser; read marks, three weeks of headlines kept for search,
+      keyword topics, headline alerts, feed health in LOG and the weekly drift job.
 - [ ] **Phase 2, market data:** Alpaca stocks and ETFs (free plan, IEX real-time):
-      `Q`, `GP` for tickers, `DES`, tickers in WL, a "Power & gas" list, and
-      ticker completion from Alpaca's asset list.
+      `Q`, `GP` for tickers, `DES`, tickers in WL, a "Power & gas" list,
+      ticker completion from Alpaca's asset list, and company news (`CN XLU US`).
 - [ ] **Phase 3, account and portfolio:** `PORT`, `ACCT`, `PNL`, `ACT` on a paper
       account, with a PAPER band in the status bar.
 - [ ] **Phase 4, paper trading:** confirm-only order tickets, the `ORD` blotter,
@@ -349,4 +366,6 @@ FITNESS FOR A PARTICULAR PURPOSE. See [`LICENSE`](LICENSE) for the full text.
 The bundled fonts (IBM Plex Sans, JetBrains Mono, Space Grotesk) are under the
 SIL Open Font License 1.1; their licences are in [`assets/fonts/`](assets/fonts/).
 Market data comes from MISO, the National Weather Service and the EIA, and is
+subject to their terms. Headlines belong to their publishers (the Financial Times,
+Bloomberg, the Washington Post), are shown with their names and links, and are
 subject to their terms.

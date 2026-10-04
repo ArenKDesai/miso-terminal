@@ -35,11 +35,11 @@ jobs:
           path: target/release/miso-terminal.exe
 
   linux-core:
-    # The data, MISO and theme layers are platform-neutral; keep them that way.
+    # The data, source and theme layers are platform-neutral; keep them that way.
     name: Linux (non-UI crates)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test -p mt-core -p mt-data -p mt-miso -p mt-nws -p mt-eia -p mt-theme
+      - run: cargo test -p mt-core -p mt-data -p mt-miso -p mt-nws -p mt-eia -p mt-news -p mt-theme

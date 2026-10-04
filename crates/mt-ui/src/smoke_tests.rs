@@ -92,6 +92,10 @@ fn routes(registry: &Registry) -> Vec<Route> {
     out.push(Route::new("SPRD", ["MINN.HUB", "ILLINOIS.HUB", "3"]));
     out.push(Route::new("WL", ["ALTE.ALTE"]));
     out.push(Route::new("THEME", ["default-light"]));
+    out.push(Route::new("NEWS", ["FT"]));
+    out.push(Route::new("NEWS", ["natural", "gas"]));
+    out.push(Route::new("NI", ["ENERGY"]));
+    out.push(Route::new("NI", ["NOT-A-TOPIC"]));
     out
 }
 
@@ -106,6 +110,7 @@ struct Harness {
     registry: Registry,
     themes: ThemeRegistry,
     alerts: crate::alerts::AlertEngine,
+    news_read: mt_news::ReadMarks,
 }
 
 impl Harness {
@@ -121,6 +126,7 @@ impl Harness {
             registry: Registry::builtin(),
             themes: ThemeRegistry::load(None),
             alerts: crate::alerts::AlertEngine::default(),
+            news_read: mt_news::ReadMarks::default(),
         }
     }
 
@@ -168,6 +174,7 @@ impl Harness {
                     themes: &self.themes,
                     notices: &[],
                     alerts: &self.alerts,
+                    news_read: &self.news_read,
                     // Exercise the notification controls too.
                     can_notify: true,
                     commands: &mut commands,
@@ -502,6 +509,135 @@ fn intraday_prices_survive_a_restart() {
     eframe::App::on_exit(&mut app);
     assert!(cache.get(&key).is_some(), "saved on exit");
     let _ = std::fs::remove_dir_all(paths.config_file.parent().unwrap());
+}
+
+#[test]
+fn headlines_and_read_marks_survive_a_restart() {
+    use mt_core::news::Headline;
+    use mt_data::{DiskCache, Query};
+
+    let rt = runtime();
+    let paths = temp_paths("news");
+    let cache = DiskCache::new(paths.cache_dir.join("http"));
+    let feed = mt_news::builtin_feeds().remove(0);
+    let now = mt_core::time::now_utc();
+    let headline = |id: &str, days_ago: i64| Headline {
+        id: id.into(),
+        source: feed.source.clone(),
+        title: format!("Story {id}"),
+        summary: String::new(),
+        link: format!("https://www.ft.com/content/{id}"),
+        author: None,
+        published: Some(now - chrono::Duration::days(days_ago)),
+        seen: now,
+        sections: vec![feed.section.clone()],
+    };
+    let archived = mt_news::FeedHeadlines {
+        items: vec![headline("new", 1), headline("expired", 60)],
+        ttl_minutes: Some(15),
+        fetched: Some(now - chrono::Duration::hours(2)),
+        latest: 2,
+    };
+    cache
+        .put(&mt_news::archive_key(&feed.id), &archived.to_bytes())
+        .unwrap();
+    let ctx = FetchCtx::new(
+        Arc::new(FixtureTransport::new(fixtures())),
+        Some(cache.clone()),
+        FetchCtxOptions::default(),
+        EventLog::default(),
+    );
+    let hub = DataHub::new(rt.handle().clone(), ctx);
+    hub.set_paused(true); // nothing may come from the network in this test
+    let deps = |hub: &DataHub| Deps {
+        hub: hub.clone(),
+        config: AppConfig::default(),
+        config_error: None,
+        paths: paths.clone(),
+        reset_layout: true,
+        startup_commands: Vec::new(),
+        remote: None,
+        notifier: None,
+    };
+    let ctx = egui::Context::default();
+    let mut app = TerminalApp::headless(&ctx, deps(&hub));
+    let query = mt_news::FeedQuery::new(feed.clone(), AppConfig::default().news.keep_days);
+    let snap = hub.peek(&query);
+    let ids: Vec<&str> = snap
+        .data()
+        .expect("restored before any fetch")
+        .items
+        .iter()
+        .map(|h| h.id.as_str())
+        .collect();
+    assert_eq!(ids, ["new"], "expired headlines are not restored");
+    assert!(query.key().starts_with("news/"));
+
+    app.apply_commands(
+        &ctx,
+        vec![
+            AppCommand::OpenHeadline {
+                id: "new".into(),
+                link: "https://www.ft.com/content/new".into(),
+            },
+            AppCommand::OpenHeadline {
+                id: "evil".into(),
+                link: "file:///C:/Windows/notepad.exe".into(),
+            },
+        ],
+    );
+    let (msg, error) = app.last_feedback().cloned().unwrap_or_default();
+    assert!(error && msg.contains("not a web link"), "{msg}");
+    assert!(app.news_read.is_read("new") && !app.news_read.is_read("evil"));
+    // Marks are written by a background thread.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while cache.get(mt_news::READ_KEY).is_none() {
+        assert!(Instant::now() < deadline, "read marks were not saved");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let again = TerminalApp::headless(&egui::Context::default(), deps(&hub));
+    assert!(
+        again.news_read.is_read("new"),
+        "read marks survive a restart"
+    );
+    let _ = std::fs::remove_dir_all(paths.config_file.parent().unwrap());
+}
+
+#[test]
+fn the_headline_browser_previews_filters_and_opens() {
+    let rt = runtime();
+    let h = Harness::new(hub(&rt));
+    let skin = Skin::new(mt_theme::builtin().remove(0));
+    h.apply(&skin);
+    let mut combined = crate::news::Combined::default();
+    let feeds = crate::news::queries(&h.config, false);
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while combined.health().loaded < feeds.len() {
+        assert!(Instant::now() < deadline, "{:?}", combined.health());
+        combined.watch(&h.hub, &feeds);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(combined.health().failing.is_empty());
+    let items = combined.items().clone();
+    assert!(items.len() > 50, "{} headlines", items.len());
+    let ids: std::collections::HashSet<&str> = items.iter().map(|h| h.id.as_str()).collect();
+    assert_eq!(ids.len(), items.len(), "combined without duplicates");
+    let mut browser = crate::news::Browser::new("test");
+    browser.select(&items[0].id);
+    browser.source = Some(mt_news::config::BLOOMBERG.into());
+    browser.query = "the".into();
+    let commands = h.draw_with(&skin, |ui, cx| {
+        browser.ui(ui, cx, &items, None, None);
+    });
+    assert!(commands.is_empty(), "drawing opens nothing: {commands:?}");
+    // A topic narrows the list; an unknown word as a topic still draws.
+    let energy = h.config.news.topic("energy").unwrap().matcher();
+    let odd = mt_core::news::Matcher::from_list("zzzz");
+    for (name, m) in [("ENERGY", &energy), ("ZZZZ", &odd)] {
+        h.draw_with(&skin, |ui, cx| {
+            browser.ui(ui, cx, &items, Some((name, m)), Some(5));
+        });
+    }
 }
 
 #[test]

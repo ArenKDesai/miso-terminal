@@ -47,6 +47,10 @@ pub const SHORTCUTS: &[(&str, &str)] = &[
         "Zoom, open in a new window, copy as an image, or save as PNG",
     ),
     ("Ctrl+Shift+L", "Reset the layout"),
+    (
+        "↑ ↓ / Enter in a headline list",
+        "Move through TOP, NEWS or NI after clicking a headline; Enter opens it in your browser",
+    ),
 ];
 
 impl Panel for Help {
@@ -106,11 +110,17 @@ impl Panel for Help {
 
             widgets::section(ui, skin, "Data");
             ui.label(
-                "All data is MISO's public market information: the real-time data API \
+                "Market data is MISO's public market information: the real-time data API \
                  (public-api.misoenergy.org) and the daily market reports (docs.misoenergy.org). \
                  Times are market time, EST all year (no daylight saving). Real-time feeds refresh \
                  once a minute, as MISO asks. Final RT reports trail by about a week; until then GP \
                  uses the preliminary report.",
+            );
+            ui.label(
+                "Headlines come from the public RSS feeds of the Financial Times, Bloomberg and \
+                 the Washington Post, checked every 5 to 15 minutes. Only headlines and summaries \
+                 are kept, with their publisher and link; articles open in your browser, where \
+                 your subscriptions apply.",
             );
             ui.label(
                 RichText::new("For information only. Not an official MISO product, and not for operational or settlement decisions.")

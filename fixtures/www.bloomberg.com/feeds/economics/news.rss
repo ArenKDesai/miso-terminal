@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+    <channel>
+        <title><![CDATA[Bloomberg Economics]]></title>
+        <description><![CDATA[Bloomberg Economics]]></description>
+        <link>https://bloomberg.com/economicsRouter/</link>
+        <image>
+            <url>http://www.bloomberg.com/feeds/static/images/bloomberg_logo_blue.png</url>
+            <title>Bloomberg Economics</title>
+            <link>https://bloomberg.com/economicsRouter/</link>
+        </image>
+        <generator>RSS for Node</generator>
+        <lastBuildDate>Sun, 04 Oct 2026 22:19:01 GMT</lastBuildDate>
+        <atom:link href="https://www.bloomberg.com/feeds/economics/news.rss" rel="self" type="application/rss+xml"/>
+        <copyright><![CDATA[Copyright 2026 BLOOMBERG L.P. ALL RIGHTS RESERVED]]></copyright>
+        <language><![CDATA[en]]></language>
+        <item>
+            <title><![CDATA[Sample: Power prices fall as supply returns]]></title>
+            <description><![CDATA[Sample summary for a test fixture: lawmakers slip on mild forecasts. The publisher's text is not kept here.]]></description>
+            <link>https://www.bloomberg.com/news/articles/2026-10-04/sample-story-90019</link>
+            <guid isPermaLink="false">TMEINNT3BZLT00</guid>
+            <dc:creator><![CDATA[Sample Reporter]]></dc:creator>
+            <pubDate>Sun, 04 Oct 2026 21:22:51 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[Sample: FERC draw scrutiny from regulators]]></title>
+            <description><![CDATA[Sample summary for a test fixture: data centers hold steady ahead of an auction. The publisher's text is not kept here.]]></description>
+            <link>https://www.bloomberg.com/news/articles/2026-10-04/sample-story-92169</link>
+            <guid isPermaLink="false">TMDZXIT9NJLS00</guid>
+            <dc:creator><![CDATA[Sample Reporter]]></dc:creator>
+            <pubDate>Sun, 04 Oct 2026 15:52:43 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[Sample: Refiners rise as a cold snap nears]]></title>
+            <description><![CDATA[Sample summary for a test fixture: miso signal a pause. The publisher's text is not kept here.]]></description>
+            <link>https://www.bloomberg.com/news/articles/2026-10-03/sample-story-46083</link>
+            <guid isPermaLink="false">TM2OCVKK3NY800</guid>
+            <dc:creator><![CDATA[Sample Reporter]]></dc:creator>
+            <pubDate>Sat, 03 Oct 2026 20:00:00 GMT</pubDate>
+        </item>
+        <item>
+            <title><![CDATA[Sample: Shipping rates draw scrutiny from regulators]]></title>
+            <description><![CDATA[Sample summary for a test fixture: power prices climb on record demand. The publisher's text is not kept here.]]></description>
+            <link>https://www.bloomberg.com/news/articles/2026-10-04/sample-story-6903</link>
+            <guid isPermaLink="false">TMCOAXKK3NY900</guid>
+            <dc:creator><![CDATA[Sample Reporter]]></dc:creator>
+            <pubDate>Sun, 04 Oct 2026 01:34:11 GMT</pubDate>
+        </item>
+    </channel>
+</rss>
