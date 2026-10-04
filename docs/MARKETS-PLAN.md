@@ -147,7 +147,7 @@ as decided above). Paths and message formats were taken from Alpaca's own
   16 minutes back. Every figure carries its feed's label.
 - **The free plan's limits.** One budget of 180 requests a minute covers every
   Alpaca host. The stream may hold 30 trade and quote subscriptions in all: a
-  first live run subscribed both for the 23 symbols of the default list and was
+  first live run subscribed both for the 23 symbols then in the default list and was
   refused with `405 symbol limit exceeded`, so the limit counts a symbol's
   trades and quotes separately. `MarketStream` subscribes every symbol's trades
   first, then quotes while room remains (`[markets] stream_limit`, 30), and
@@ -178,7 +178,7 @@ as decided above). Paths and message formats were taken from Alpaca's own
 - **The energy angle.** Built-in lists for `Q`: `POWER` (all of the below, the
   default), `UTILITIES` (AEE, XEL, LNT, WEC, DTE, CMS, ETR, CNP, MGEE, NI, OTTR),
   `GENERATORS` (VST, NRG, CEG, TLN), `ETFS` (XLU, XLE, UNG) and `GAS` (UNG, EQT, AR,
-  RRC, CTRA, EXE); `[[markets.lists]]` adds or replaces lists. Still to come: a
+  RRC, EXE; Coterra stopped trading in May 2026); `[[markets.lists]]` adds or replaces lists. Still to come: a
   stock against a MISO hub price on one chart.
 - **Recordings.** `cargo run -p mt-alpaca --example capture_alpaca` records every
   dataset through the queries themselves, plus short stream sessions (the live

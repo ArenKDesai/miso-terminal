@@ -98,7 +98,8 @@ const UTILITIES: &[&str] = &[
 ];
 const GENERATORS: &[&str] = &["VST", "NRG", "CEG", "TLN"];
 const ETFS: &[&str] = &["XLU", "XLE", "UNG"];
-const GAS: &[&str] = &["EQT", "AR", "RRC", "CTRA", "EXE"];
+// Coterra (CTRA) stopped trading in May 2026.
+const GAS: &[&str] = &["EQT", "AR", "RRC", "EXE"];
 
 /// The built-in lists. `POWER` is the energy desk's default: utilities in
 /// MISO's footprint, independent generators, sector ETFs and gas producers.
@@ -170,7 +171,7 @@ mod tests {
         assert!(cfg.list("banks").is_some());
         assert_eq!(cfg.all_lists().len(), builtin_lists().len() + 1);
         let default = MarketsConfig::default().list(DEFAULT_LIST).unwrap();
-        assert_eq!(default.securities().len(), 23);
+        assert_eq!(default.securities().len(), 22);
         assert!(
             default.securities().len() <= FREE_PLAN_STREAM_LIMIT,
             "every trade streams for the whole default list"

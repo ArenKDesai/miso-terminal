@@ -171,8 +171,8 @@ fn replay<S: Stream>(s: &S, path: &Path) -> (S::State, bool) {
 fn streams() {
     let alpaca = mt_alpaca::Alpaca::default();
     let dir = root().join("stream.data.alpaca.markets");
-    // The live feed: logged in, and all the default list's symbols accepted
-    // (the free plan's limit is 30).
+    // The live feed: logged in, and every trade of the default list's symbols
+    // accepted (the free plan allows 30 trade and quote subscriptions).
     let (live, ready): (LiveMarket, bool) =
         replay(&alpaca.market_stream(), &dir.join("v2/iex.jsonl"));
     assert!(ready, "never logged in");
@@ -181,11 +181,13 @@ fn streams() {
         .list(mt_alpaca::config::DEFAULT_LIST)
         .unwrap()
         .securities();
-    assert_eq!(
-        live.ticking.len(),
-        list.len(),
-        "every symbol streams trades and quotes"
-    );
+    for sec in &list {
+        assert!(
+            live.ticking.contains(&sec.ticker),
+            "{} does not stream its trades",
+            sec.ticker
+        );
+    }
     // The test feed trades around the clock: the message formats.
     let test = MarketStream::test_feed(alpaca.endpoints());
     let (fake, ready): (LiveMarket, bool) = replay(&test, &dir.join("v2/test.jsonl"));

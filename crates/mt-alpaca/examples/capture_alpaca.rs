@@ -408,8 +408,9 @@ mod sample {
         }
     }
 
-    fn size(sym: &str, t: &str, scale: f64) -> f64 {
-        (1.0 + unit(&format!("{sym}/{t}/size")) * scale).round()
+    /// A whole number of shares (or round lots, for quotes).
+    fn size(sym: &str, t: &str, scale: f64) -> u64 {
+        (1.0 + unit(&format!("{sym}/{t}/size")) * scale).round() as u64
     }
 
     fn time(v: &Value) -> Option<DateTime<Utc>> {
@@ -474,10 +475,10 @@ mod sample {
             v["vw"] = (((hi + lo + close) / 3.0 * 10_000.0).round() / 10_000.0).into();
         }
         if v.get("v").is_some() {
-            v["v"] = volume.round().max(1.0).into();
+            v["v"] = (volume.round().max(1.0) as u64).into();
         }
         if v.get("n").is_some() {
-            v["n"] = (volume / 150.0).round().max(1.0).into();
+            v["n"] = ((volume / 150.0).round().max(1.0) as u64).into();
         }
     }
 
