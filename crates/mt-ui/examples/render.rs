@@ -8,7 +8,7 @@
 //! Options:
 //!   --run CMD        run a command first (repeatable)
 //!   --zoom           zoom the focused panel (as Ctrl+M does)
-//!   --theme ID       theme id, e.g. amber-terminal
+//!   --theme ID       theme id, e.g. default-light
 //!   --theme-file F   install a theme file first (repeatable), e.g.
 //!                    themes/gallery/everforge-light.toml with --theme everforge-light
 //!   --size WxH       window size in points (default 1600x960)

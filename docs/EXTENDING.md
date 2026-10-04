@@ -112,8 +112,10 @@ lives in the disk cache under `local://` keys, read and written with
 - **New gallery theme** (downloadable, not compiled in): add
   `themes/gallery/<id>.toml` and a 960 × 576 preview at
   `docs/screenshots/themes/<id>.webp` (render it with `--theme-file`; see
-  `themes/README.md`). The tests validate contrast and round-trip it, and the
-  docs site lists it with a download button.
+  `themes/README.md`), then `uv run tools/build_docs.py site --update-fixture`
+  to refresh the recorded gallery index. The tests validate contrast and
+  round-trip it and check the index; the docs site lists it with a download
+  button and THEME offers it to install.
 - **New built-in:** add `themes/<id>.toml` (see `themes/README.md`) and list it
   in `mt_theme::BUILTIN_SOURCES`. The tests validate contrast and round-trip it,
   and the visual regression test adds its layout (accept the new snapshot).

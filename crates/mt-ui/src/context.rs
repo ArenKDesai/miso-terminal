@@ -15,6 +15,13 @@ pub enum AppCommand {
     /// Run a command-line string as if typed.
     Run(String),
     SetTheme(String),
+    /// Write a gallery theme into the themes folder (and switch to it).
+    InstallTheme {
+        theme: Box<mt_theme::GalleryTheme>,
+        activate: bool,
+    },
+    /// Delete an installed theme's `<id>.toml` from the themes folder.
+    UninstallTheme(String),
     /// Follow the OS light/dark setting with these two themes (or stop following).
     SetThemeFollow {
         follow: bool,

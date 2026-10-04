@@ -20,6 +20,16 @@ pub struct Theme {
     pub fonts: Fonts,
 }
 
+/// Whether `id` is a usable theme id: lowercase letters, digits and '-'. Ids
+/// name theme files, so this also keeps them safe as file names.
+pub fn is_valid_id(id: &str) -> bool {
+    !id.is_empty()
+        && !id.starts_with('-')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Meta {
     /// Stable identifier used in config files and the THEME command, e.g. `default`.
@@ -209,13 +219,7 @@ impl Theme {
         let mut out = Vec::new();
         let mut push = |severity, message: String| out.push(Issue { severity, message });
 
-        if self.meta.id.is_empty()
-            || !self
-                .meta
-                .id
-                .chars()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
-        {
+        if !is_valid_id(&self.meta.id) {
             push(
                 Severity::Error,
                 format!(

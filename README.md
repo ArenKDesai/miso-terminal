@@ -16,17 +16,17 @@ public data (plus EIA gas prices and NWS forecasts) and never submits anything t
   reports are cached on disk, so history loads instantly the second time, and an
   optional local archive reaches back to 2023. Alerts arrive as Windows notifications.
 - **Themed.** Ships with **Default** (the trading-desk look: black, orange
-  labels, white figures), Amber Terminal and High Contrast. More themes, such as
-  Everforge Dark and Light, are in the [theme gallery](themes/README.md#gallery)
-  to download. Drop a TOML file into the themes folder to add your own; it
-  hot-reloads while you edit it.
+  labels, white figures), Default Light and High Contrast. Install more from the
+  [gallery](themes/README.md#gallery) in one click inside `THEME`: Catppuccin,
+  Everforge, Gruvbox, Monokai, Rosé Pine and Tokyo Night. Drop a TOML file into
+  the themes folder to add your own; it hot-reloads while you edit it.
 - **Built for Windows.** A single `.exe` with a native window, Windows certificate
   store TLS (corporate proxies work), a per-user or portable data layout and an
   embedded icon. The data, MISO and theme crates also build and test on Linux.
 
 | | |
 |---|---|
-| ![GP history](docs/screenshots/gp-history.png) | ![Amber Terminal](docs/screenshots/amber-terminal.png) |
+| ![GP history](docs/screenshots/gp-history.png) | ![Default Light](docs/screenshots/default-light.png) |
 
 ![MAP: real-time congestion across the footprint](docs/screenshots/map.png)
 
@@ -140,16 +140,17 @@ positive, negative, chart series, fuel colours, fonts and spacing. Panels only
 use those slots, so any theme works with any panel. See [`themes/README.md`](themes/README.md)
 for the format.
 
-- **Built-in:** `default`, `amber-terminal`, `high-contrast`.
-- **Gallery:** more themes to download (Everforge Dark and Light so far), in
-  `themes/gallery/` and on the [docs site](themes/README.md#gallery). Drop the file
-  into the themes folder (`THEME` → *Open themes folder*).
+- **Built-in:** `default`, `default-light`, `high-contrast`.
+- **Gallery:** `catppuccin-mocha`, `everforge-dark`, `everforge-light`,
+  `gruvbox-dark`, `monokai`, `rose-pine` and `tokyo-night`. Install, update or
+  remove them in `THEME` (*Gallery*), or download them from the
+  [docs site](themes/README.md#gallery). Their files are in `themes/gallery/`.
 - **Yours:** run `THEME`, click *Copy to edit*, then edit the file in the themes
   folder. It reloads every time you save. A theme whose `id` matches a built-in
   replaces it. Validation flags unreadable contrast.
 - **Fonts:** IBM Plex Sans, JetBrains Mono and Space Grotesk (all SIL OFL) are
-  bundled, so the gallery themes work without installing anything. Themes can name any installed font, or a
-  font file dropped into the fonts folder.
+  bundled, so the gallery themes work without installing anything. Themes can
+  name any installed font, or a font file dropped into the fonts folder.
 - **Everforge stays in sync with its tokens.** The two Everforge gallery themes
   are generated from the Everforge design tokens:
   `cargo run -p mt-theme --example sync_everforge -- ..\everforge`
@@ -257,8 +258,13 @@ each piece plugs in.
 - [x] A high-contrast accessibility theme (`high-contrast`).
 - [x] A `default` theme in the Bloomberg Terminal's style; Everforge moves to a
       downloadable theme gallery on the docs site (`themes/gallery/`).
-- [ ] Browse and install gallery themes from inside `THEME` (one click instead of
-      downloading a file), and a built-in light theme for *Follow Windows light/dark*.
+- [x] Browse, install, update and remove gallery themes inside `THEME`, from an
+      index the docs site publishes (`themes/index.json`).
+- [x] `default-light`, a built-in light theme for *Follow Windows light/dark*.
+- [x] Gallery themes: Catppuccin Mocha, Gruvbox Dark, Monokai, Rosé Pine and
+      Tokyo Night (Amber Terminal retired).
+- [ ] Light variants in the gallery (Catppuccin Latte, Gruvbox Light, Rosé Pine
+      Dawn, Tokyo Night Day).
 - [ ] Optionally make `miso-terminal` a target in Everforge's own `build.py`
       (per its port policy) instead of the sync example here.
 

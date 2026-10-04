@@ -219,12 +219,11 @@ impl TerminalApp {
         let wanted = self.wanted_theme(ctx);
         let theme = self.themes.resolve(&wanted).clone();
         if !theme.meta.id.eq_ignore_ascii_case(&wanted) {
-            // Most likely a theme that used to be built in (the Everforge pair).
+            // Most likely a theme that used to be built in (Everforge, Amber Terminal).
             self.notices.push(format!(
-                "Theme {wanted:?} is not installed; using {}. Download more themes from {} \
-                 and put them in the themes folder (THEME).",
-                theme.meta.name,
-                mt_theme::GALLERY_URL
+                "Theme {wanted:?} is not installed; using {}. Install more themes from \
+                 the gallery in THEME.",
+                theme.meta.name
             ));
         }
         self.skin = Skin::new(theme);
@@ -238,6 +237,18 @@ impl TerminalApp {
         });
         let skin = &self.skin;
         ctx.all_styles_mut(|style| skin.apply_style(style));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn active_theme_id(&self) -> &str {
+        &self.skin.theme.meta.id
+    }
+
+    /// Re-read the themes folder now (after an install), not at the next poll.
+    fn reload_themes(&mut self, ctx: &egui::Context) {
+        self.themes_fingerprint = dir_fingerprint(&self.paths.themes_dir);
+        self.themes.reload();
+        self.apply_theme(ctx);
     }
 
     fn set_theme(&mut self, ctx: &egui::Context, id: &str) {
@@ -303,6 +314,40 @@ impl TerminalApp {
                 AppCommand::Open(route) => self.workspace.open(route, &self.registry),
                 AppCommand::Run(text) => self.run_command(ctx, &text),
                 AppCommand::SetTheme(id) => self.set_theme(ctx, &id),
+                AppCommand::InstallTheme { theme, activate } => {
+                    let (id, name) = (theme.theme.meta.id.clone(), theme.theme.meta.name.clone());
+                    match mt_theme::gallery::install(&theme, &self.paths.themes_dir) {
+                        Ok(_) => {
+                            self.reload_themes(ctx);
+                            if activate {
+                                self.set_theme(ctx, &id);
+                            } else {
+                                self.feedback(
+                                    format!("Installed {name}. THEME {id} switches to it."),
+                                    false,
+                                );
+                            }
+                        }
+                        Err(e) => self.feedback(format!("Could not install {name}: {e}"), true),
+                    }
+                }
+                AppCommand::UninstallTheme(id) => {
+                    match mt_theme::gallery::uninstall(&id, &self.paths.themes_dir) {
+                        Ok(path) => {
+                            // Removing the theme in use goes back to the default, not to a notice.
+                            if self.config.theme.eq_ignore_ascii_case(&id) {
+                                self.config.theme = mt_theme::DEFAULT_THEME_ID.into();
+                                self.save_config();
+                            }
+                            self.reload_themes(ctx);
+                            self.feedback(format!("Removed {}.", path.display()), false);
+                        }
+                        Err(e) => self.feedback(
+                            format!("Could not remove {id}.toml from the themes folder: {e}"),
+                            true,
+                        ),
+                    }
+                }
                 AppCommand::AddAlert(rule) => {
                     if !self.config.alerts.contains(&rule) {
                         self.config.alerts.push(rule);
@@ -457,11 +502,8 @@ impl TerminalApp {
         }
         if self.last_theme_poll.elapsed() >= THEME_POLL {
             self.last_theme_poll = Instant::now();
-            let fp = dir_fingerprint(&self.paths.themes_dir);
-            if fp != self.themes_fingerprint {
-                self.themes_fingerprint = fp;
-                self.themes.reload();
-                self.apply_theme(ctx);
+            if dir_fingerprint(&self.paths.themes_dir) != self.themes_fingerprint {
+                self.reload_themes(ctx);
                 tracing::info!("themes folder changed; reloaded");
             }
         }

@@ -2,21 +2,24 @@
 
 A theme is one TOML file of semantic colour, font and spacing slots, so any
 theme works with any panel. Three themes are built in; more are in the
-[gallery](#gallery) to download. Switch with `THEME`, or `THEME <id>`.
+[gallery](#gallery), one click away in `THEME`. Switch with `THEME`, or
+`THEME <id>`.
 
 ## Built in
 
 `default` (the trading-desk look: black, orange labels, white figures, blue
-selection), `amber-terminal` (amber phosphor on black, monospace throughout) and
-`high-contrast` (white and gold on black, heavier and larger type, 2 px borders;
-every text pairing 7:1 or better). Their files are in `themes/` and are
+selection), `default-light` (the same look on paper; the light half of *Follow
+Windows light/dark*) and `high-contrast` (white and gold on black, heavier and
+larger type, 2 px borders; every text pairing 7:1 or better). Their files are in `themes/` and are
 compiled into the binary.
 
 <!-- builtin-cards -->
 
 ## Gallery
 
-Themes that do not ship with the terminal. To install one:
+Themes that do not ship with the terminal. The easy way to install one is in
+the terminal: run `THEME` and click *Install* (or *Install and use*) under
+*Gallery*. The same list can install updates and remove themes. By hand:
 
 1. Download its `.toml` file.
 2. In the terminal, run `THEME` and click *Open themes folder*
@@ -25,10 +28,16 @@ Themes that do not ship with the terminal. To install one:
 
 <!-- gallery-cards -->
 
+Catppuccin, Gruvbox, Monokai, Rosé Pine and Tokyo Night use their projects'
+published palettes (Catppuccin, Gruvbox, Rosé Pine and Tokyo Night are MIT
+licensed; each file names its source). Which colour fills which of the
+terminal's slots is this repository's choice.
+
 The gallery's files live in [`themes/gallery/`](gallery/). To add a theme, put
-its file there, named after its `id` (`my-theme.toml`). A test checks that every
-gallery theme loads, passes the contrast checks and has an id of its own. Render
-a preview for this page with
+its file there, named after its `id` (`my-theme.toml`), and refresh the recorded
+index with `uv run tools/build_docs.py site --update-fixture`. Tests check that
+every gallery theme loads, passes the contrast checks, has an id of its own and
+is in the recorded index. Render a preview for this page with
 
 ```powershell
 cargo run -p mt-ui --example render -- out.png --theme my-theme --theme-file themes\gallery\my-theme.toml
@@ -105,8 +114,8 @@ text that is hard to read (body text under 4.5:1). Warnings are worth a look.
 To switch with Windows' light/dark setting, turn on *Follow Windows light/dark*
 in `THEME` and pick one theme for each mode (or set `follow_system_theme`,
 `light_theme` and `dark_theme` under `[ui]` in `config.toml`). Picking a theme by
-hand turns following off again. No built-in theme is light: install Everforge
-Light (or another light theme) from the gallery first.
+hand turns following off again. By default the pair is Default Light and
+Default.
 
 ## Everforge
 

@@ -1,0 +1,56 @@
+# Default Light: the Default theme's trading-desk look on paper. Orange labels
+# and accents (darkened to stay readable on white), near-black figures, blue
+# selection, green and red for up and down; dense, square and flat. Hand-written.
+
+[meta]
+id = "default-light"
+name = "Default Light"
+dark = false
+description = "Default's trading-desk look on paper: orange labels, black figures, blue selection."
+
+[palette]
+background = "#f2f2ef"
+surface = "#ffffff"
+surface_alt = "#d6e4ff"
+border = "#d0d0cc"
+border_strong = "#6b6b6b"
+text = "#1a1a1a"
+text_strong = "#000000"
+text_muted = "#a84d00"
+accent = "#c25400"
+on_accent = "#ffffff"
+live = "#006f91"
+positive = "#00845a"
+negative = "#d1241c"
+warning = "#946c00"
+info = "#1f5fd6"
+
+[chart]
+series = ["#c25400", "#1f5fd6", "#00845a", "#d1241c", "#946c00", "#7a3fc4", "#3a3a3a", "#8a8a8a"]
+grid = "#e2e2de"
+
+[fuel]
+coal = "#6b6b6b"
+gas = "#c25400"
+nuclear = "#7a3fc4"
+wind = "#1f5fd6"
+solar = "#d4a300"
+hydro = "#0088a8"
+storage = "#00845a"
+imports = "#3a3a3a"
+other = "#a0a0a0"
+
+[style]
+rounding = 0.0
+spacing = 4.0
+padding = 6.0
+stroke = 1.0
+shadow_offset = 0.0
+chamfer = 0.0
+
+[fonts]
+body = { family = "IBM Plex Sans", weight = 400, size = 13.5 }
+mono = { family = "JetBrains Mono", weight = 400, size = 13.0 }
+heading = { family = "IBM Plex Sans", weight = 600, size = 15.0 }
+label = { family = "IBM Plex Sans", weight = 600, size = 11.0 }
+readout = { family = "JetBrains Mono", weight = 500, size = 24.0 }

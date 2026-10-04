@@ -1,0 +1,58 @@
+# Gruvbox Dark.
+# Palette: Gruvbox palette, dark medium (github.com/morhetz/gruvbox, MIT).
+# Which colour fills which slot is this repository's choice.
+
+[meta]
+id = "gruvbox-dark"
+name = "Gruvbox Dark"
+dark = true
+description = "Retro groove: warm charcoal, cream text, orange, yellow and aqua."
+author = "Pavel Pertsev"
+source = "Gruvbox palette, dark medium (github.com/morhetz/gruvbox, MIT)"
+
+[palette]
+background = "#1d2021"
+surface = "#282828"
+surface_alt = "#504945"
+border = "#3c3836"
+border_strong = "#7c6f64"
+text = "#ebdbb2"
+text_strong = "#fbf1c7"
+text_muted = "#a89984"
+accent = "#fe8019"
+on_accent = "#282828"
+live = "#8ec07c"
+positive = "#b8bb26"
+negative = "#fb4934"
+warning = "#fabd2f"
+info = "#83a598"
+
+[chart]
+series = ["#fe8019", "#83a598", "#b8bb26", "#fb4934", "#d3869b", "#fabd2f", "#8ec07c", "#a89984"]
+grid = "#3c3836"
+
+[fuel]
+coal = "#928374"
+gas = "#fe8019"
+nuclear = "#d3869b"
+wind = "#83a598"
+solar = "#fabd2f"
+hydro = "#8ec07c"
+storage = "#b8bb26"
+imports = "#ebdbb2"
+other = "#665c54"
+
+[style]
+rounding = 2.0
+spacing = 6.0
+padding = 8.0
+stroke = 1.0
+shadow_offset = 0.0
+chamfer = 0.0
+
+[fonts]
+body = { family = "IBM Plex Sans", weight = 400, size = 14.0 }
+mono = { family = "JetBrains Mono", weight = 400, size = 13.0 }
+heading = { family = "IBM Plex Sans", weight = 600, size = 16.0 }
+label = { family = "IBM Plex Sans", weight = 600, size = 11.0 }
+readout = { family = "JetBrains Mono", weight = 500, size = 24.0 }

@@ -47,8 +47,7 @@ pub struct UiConfig {
     /// Switch between `light_theme` and `dark_theme` with the Windows setting
     /// (Settings > Personalization > Colors). Overrides `theme` when on.
     pub follow_system_theme: bool,
-    /// No built-in theme is light; the default is the gallery's Everforge Light
-    /// (see `mt_theme::GALLERY_URL`). A missing theme falls back to the default.
+    /// A missing theme falls back to the default.
     pub light_theme: String,
     pub dark_theme: String,
     /// Function keys that run commands, e.g. `F2 = "HOME"`, `F9 = "GP ALTE.ALTE"`.
@@ -89,7 +88,7 @@ impl Default for UiConfig {
                 .map(|s| (*s).to_owned())
                 .collect(),
             follow_system_theme: false,
-            light_theme: "everforge-light".into(),
+            light_theme: "default-light".into(),
             dark_theme: mt_theme::DEFAULT_THEME_ID.into(),
             hotkeys: default_hotkeys(),
             notify_alerts: true,
@@ -191,9 +190,9 @@ mod tests {
     #[test]
     fn partial_and_unknown_keys_are_fine() {
         let cfg: AppConfig =
-            toml::from_str("theme = 'amber-terminal'\nfuture_option = 3\n[ui]\nzoom = 1.25\n")
+            toml::from_str("theme = 'high-contrast'\nfuture_option = 3\n[ui]\nzoom = 1.25\n")
                 .unwrap();
-        assert_eq!(cfg.theme, "amber-terminal");
+        assert_eq!(cfg.theme, "high-contrast");
         assert_eq!(cfg.ui.zoom, 1.25);
         assert_eq!(cfg.ui.price_alert, UiConfig::default().price_alert);
         assert_eq!(cfg.endpoints, MisoEndpoints::default());
@@ -220,7 +219,7 @@ zoom = 1.0
         let dir = std::env::temp_dir().join(format!("mt-config-test-{}", std::process::id()));
         let path = dir.join("config.toml");
         let cfg = AppConfig {
-            theme: "amber-terminal".into(),
+            theme: "default-light".into(),
             ..Default::default()
         };
         cfg.save(&path).unwrap();

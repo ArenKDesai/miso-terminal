@@ -144,7 +144,12 @@ always the symbol fallback.
 
 Built-in themes are TOML files in `themes/`, compiled in with `include_str!`.
 More themes live in `themes/gallery/`: not compiled in, but validated by the
-tests and published on the docs site to download (`mt_theme::GALLERY_URL`).
+tests and published by the docs build, as files and as one index
+(`themes/index.json`, every file verbatim). THEME reads that index through the
+hub like any feed (`mt_ui::gallery::GalleryQuery`, refreshed every six hours)
+and installs a theme by writing its file into the themes folder
+(`mt_theme::gallery::install`, which refuses ids that are not plain file
+names); the app then reloads the registry at once rather than at the next poll.
 User themes are read from the themes folder and hot-reloaded by polling a
 cheap directory fingerprint every two seconds. A configured theme that is no
 longer installed falls back to the default with a notice pointing at the

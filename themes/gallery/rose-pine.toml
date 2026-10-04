@@ -1,0 +1,58 @@
+# Rosé Pine.
+# Palette: Rosé Pine palette, main variant (github.com/rose-pine/rose-pine-theme, MIT).
+# Which colour fills which slot is this repository's choice.
+
+[meta]
+id = "rose-pine"
+name = "Rosé Pine"
+dark = true
+description = "All natural pine, faux fur and a bit of soho vibes: muted violet night, rose and gold."
+author = "Rosé Pine"
+source = "Rosé Pine palette, main variant (github.com/rose-pine/rose-pine-theme, MIT)"
+
+[palette]
+background = "#191724"
+surface = "#1f1d2e"
+surface_alt = "#403d52"
+border = "#26233a"
+border_strong = "#6e6a86"
+text = "#e0def4"
+text_strong = "#e0def4"
+text_muted = "#908caa"
+accent = "#ebbcba"
+on_accent = "#191724"
+live = "#9ccfd8"
+positive = "#9ccfd8"
+negative = "#eb6f92"
+warning = "#f6c177"
+info = "#c4a7e7"
+
+[chart]
+series = ["#ebbcba", "#c4a7e7", "#9ccfd8", "#eb6f92", "#f6c177", "#31748f", "#e0def4", "#6e6a86"]
+grid = "#26233a"
+
+[fuel]
+coal = "#6e6a86"
+gas = "#ebbcba"
+nuclear = "#c4a7e7"
+wind = "#9ccfd8"
+solar = "#f6c177"
+hydro = "#31748f"
+storage = "#908caa"
+imports = "#e0def4"
+other = "#524f67"
+
+[style]
+rounding = 4.0
+spacing = 6.0
+padding = 8.0
+stroke = 1.0
+shadow_offset = 0.0
+chamfer = 0.0
+
+[fonts]
+body = { family = "IBM Plex Sans", weight = 400, size = 14.0 }
+mono = { family = "JetBrains Mono", weight = 400, size = 13.0 }
+heading = { family = "IBM Plex Sans", weight = 600, size = 16.0 }
+label = { family = "IBM Plex Sans", weight = 600, size = 11.0 }
+readout = { family = "JetBrains Mono", weight = 500, size = 24.0 }

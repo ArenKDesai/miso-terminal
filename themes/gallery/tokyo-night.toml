@@ -1,0 +1,58 @@
+# Tokyo Night.
+# Palette: Tokyo Night palette, Night style (github.com/enkia/tokyo-night-vscode-theme, MIT).
+# Which colour fills which slot is this repository's choice.
+
+[meta]
+id = "tokyo-night"
+name = "Tokyo Night"
+dark = true
+description = "Downtown Tokyo after dark: deep navy, neon blue and violet."
+author = "enkia"
+source = "Tokyo Night palette, Night style (github.com/enkia/tokyo-night-vscode-theme, MIT)"
+
+[palette]
+background = "#16161e"
+surface = "#1a1b26"
+surface_alt = "#283457"
+border = "#292e42"
+border_strong = "#737aa2"
+text = "#a9b1d6"
+text_strong = "#c0caf5"
+text_muted = "#9aa5ce"
+accent = "#7aa2f7"
+on_accent = "#16161e"
+live = "#73daca"
+positive = "#9ece6a"
+negative = "#f7768e"
+warning = "#e0af68"
+info = "#7dcfff"
+
+[chart]
+series = ["#7aa2f7", "#ff9e64", "#9ece6a", "#f7768e", "#bb9af7", "#e0af68", "#7dcfff", "#73daca"]
+grid = "#292e42"
+
+[fuel]
+coal = "#565f89"
+gas = "#ff9e64"
+nuclear = "#bb9af7"
+wind = "#7aa2f7"
+solar = "#e0af68"
+hydro = "#2ac3de"
+storage = "#73daca"
+imports = "#c0caf5"
+other = "#414868"
+
+[style]
+rounding = 4.0
+spacing = 6.0
+padding = 8.0
+stroke = 1.0
+shadow_offset = 0.0
+chamfer = 0.0
+
+[fonts]
+body = { family = "IBM Plex Sans", weight = 400, size = 14.0 }
+mono = { family = "JetBrains Mono", weight = 400, size = 13.0 }
+heading = { family = "IBM Plex Sans", weight = 600, size = 16.0 }
+label = { family = "IBM Plex Sans", weight = 600, size = 11.0 }
+readout = { family = "JetBrains Mono", weight = 500, size = 24.0 }

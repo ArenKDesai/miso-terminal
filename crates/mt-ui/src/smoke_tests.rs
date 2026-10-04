@@ -90,7 +90,7 @@ fn routes(registry: &Registry) -> Vec<Route> {
     out.push(Route::new("SPRD", ["MINN.HUB", "ILLINOIS.HUB"]));
     out.push(Route::new("SPRD", ["MINN.HUB", "ILLINOIS.HUB", "3"]));
     out.push(Route::new("WL", ["ALTE.ALTE"]));
-    out.push(Route::new("THEME", ["amber-terminal"]));
+    out.push(Route::new("THEME", ["default-light"]));
     out
 }
 
@@ -371,8 +371,30 @@ fn app_shell_runs_frames_and_executes_commands() {
     // WL absorbs `WL <node>` into the open watchlist (the default layout has one).
     app.apply_commands(&ctx, vec![AppCommand::Run("WL ALTE.ALTE".into())]);
     assert_eq!(app.workspace_mut().routes().len(), before + 1);
-    app.apply_commands(&ctx, vec![AppCommand::Run("THEME amber-terminal".into())]);
+    app.apply_commands(&ctx, vec![AppCommand::Run("THEME high-contrast".into())]);
     run(&mut app);
+    assert_eq!(app.active_theme_id(), "high-contrast");
+    // Install a gallery theme and switch to it; removing it goes back to the default.
+    let src = include_str!("../../../themes/gallery/tokyo-night.toml");
+    let theme = Box::new(mt_theme::GalleryTheme {
+        theme: mt_theme::Theme::from_toml(src).unwrap(),
+        source: src.into(),
+    });
+    let installed = app.paths.themes_dir.join("tokyo-night.toml");
+    app.apply_commands(
+        &ctx,
+        vec![AppCommand::InstallTheme {
+            theme,
+            activate: true,
+        }],
+    );
+    run(&mut app);
+    assert_eq!(app.active_theme_id(), "tokyo-night");
+    assert!(installed.exists());
+    app.apply_commands(&ctx, vec![AppCommand::UninstallTheme("tokyo-night".into())]);
+    run(&mut app);
+    assert_eq!(app.active_theme_id(), mt_theme::DEFAULT_THEME_ID);
+    assert!(!installed.exists());
     let open = app.workspace_mut().routes().len();
     app.apply_commands(
         &ctx,

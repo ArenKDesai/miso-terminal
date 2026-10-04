@@ -1,0 +1,58 @@
+# Catppuccin Mocha.
+# Palette: Catppuccin palette (github.com/catppuccin/catppuccin, MIT).
+# Which colour fills which slot is this repository's choice.
+
+[meta]
+id = "catppuccin-mocha"
+name = "Catppuccin Mocha"
+dark = true
+description = "Soothing pastels on deep indigo, with mauve for focus."
+author = "Catppuccin"
+source = "Catppuccin palette (github.com/catppuccin/catppuccin, MIT)"
+
+[palette]
+background = "#181825"
+surface = "#1e1e2e"
+surface_alt = "#313244"
+border = "#313244"
+border_strong = "#6c7086"
+text = "#cdd6f4"
+text_strong = "#f5e0dc"
+text_muted = "#a6adc8"
+accent = "#cba6f7"
+on_accent = "#11111b"
+live = "#94e2d5"
+positive = "#a6e3a1"
+negative = "#f38ba8"
+warning = "#f9e2af"
+info = "#89b4fa"
+
+[chart]
+series = ["#cba6f7", "#89b4fa", "#a6e3a1", "#fab387", "#f38ba8", "#f9e2af", "#94e2d5", "#f5c2e7"]
+grid = "#313244"
+
+[fuel]
+coal = "#7f849c"
+gas = "#fab387"
+nuclear = "#cba6f7"
+wind = "#89b4fa"
+solar = "#f9e2af"
+hydro = "#74c7ec"
+storage = "#94e2d5"
+imports = "#cdd6f4"
+other = "#585b70"
+
+[style]
+rounding = 4.0
+spacing = 6.0
+padding = 8.0
+stroke = 1.0
+shadow_offset = 0.0
+chamfer = 0.0
+
+[fonts]
+body = { family = "IBM Plex Sans", weight = 400, size = 14.0 }
+mono = { family = "JetBrains Mono", weight = 400, size = 13.0 }
+heading = { family = "IBM Plex Sans", weight = 600, size = 16.0 }
+label = { family = "IBM Plex Sans", weight = 600, size = 11.0 }
+readout = { family = "JetBrains Mono", weight = 500, size = 24.0 }

@@ -1,0 +1,58 @@
+# Monokai.
+# Palette: Monokai colour scheme by Wimer Hazenberg (monokai.nl).
+# Which colour fills which slot is this repository's choice.
+
+[meta]
+id = "monokai"
+name = "Monokai"
+dark = true
+description = "The classic: olive-black ground, electric green, cyan, orange and pink."
+author = "Wimer Hazenberg"
+source = "Monokai colour scheme by Wimer Hazenberg (monokai.nl)"
+
+[palette]
+background = "#1e1f1c"
+surface = "#272822"
+surface_alt = "#49483e"
+border = "#3e3d32"
+border_strong = "#75715e"
+text = "#f8f8f2"
+text_strong = "#ffffff"
+text_muted = "#a59f85"
+accent = "#a6e22e"
+on_accent = "#272822"
+live = "#66d9ef"
+positive = "#a6e22e"
+negative = "#f92672"
+warning = "#fd971f"
+info = "#ae81ff"
+
+[chart]
+series = ["#a6e22e", "#66d9ef", "#fd971f", "#f92672", "#ae81ff", "#e6db74", "#f8f8f2", "#75715e"]
+grid = "#3e3d32"
+
+[fuel]
+coal = "#75715e"
+gas = "#fd971f"
+nuclear = "#ae81ff"
+wind = "#66d9ef"
+solar = "#e6db74"
+hydro = "#78dce8"
+storage = "#a6e22e"
+imports = "#f8f8f2"
+other = "#5b5a4e"
+
+[style]
+rounding = 2.0
+spacing = 6.0
+padding = 8.0
+stroke = 1.0
+shadow_offset = 0.0
+chamfer = 0.0
+
+[fonts]
+body = { family = "IBM Plex Sans", weight = 400, size = 14.0 }
+mono = { family = "JetBrains Mono", weight = 400, size = 13.0 }
+heading = { family = "IBM Plex Sans", weight = 600, size = 16.0 }
+label = { family = "IBM Plex Sans", weight = 600, size = 11.0 }
+readout = { family = "JetBrains Mono", weight = 500, size = 24.0 }

@@ -5,6 +5,7 @@
 """Build the documentation site (GitHub Pages) from the repository's Markdown.
 
     uv run tools/build_docs.py site        # then open site/index.html
+    uv run tools/build_docs.py site --update-fixture   # after changing themes/gallery/
 
 The Markdown stays the single source: README.md (minus its TODO list, which
 becomes the roadmap page), docs/ARCHITECTURE.md, docs/EXTENDING.md and
@@ -17,6 +18,7 @@ point at GitHub. The page is styled with the Everforge palette and fonts.
 from __future__ import annotations
 
 import html
+import json
 import posixpath
 import re
 import shutil
@@ -38,6 +40,8 @@ REPO = "https://github.com/ArenKDesai/miso-terminal"
 BLOB = f"{REPO}/blob/main/"
 TREE = f"{REPO}/tree/main/"
 MARKER = ".build_docs"  # marks an output directory as ours to replace
+# The recorded gallery index for offline mode and the tests (keep in step with themes/gallery/).
+FIXTURE = ROOT / "fixtures/arenkdesai.github.io/miso-terminal/themes/index.json"
 
 
 @dataclass
@@ -240,8 +244,28 @@ def gallery_theme_files() -> list[Path]:
     return sorted((ROOT / "themes/gallery").glob("*.toml"))
 
 
+def gallery_index() -> str:
+    """The index the terminal's THEME gallery reads (mt_theme::gallery): every
+    gallery theme's file verbatim, so one request lists and installs them."""
+    themes = []
+    for f in gallery_theme_files():
+        src = f.read_text(encoding="utf-8")
+        meta = tomllib.loads(src)["meta"]
+        themes.append({
+            "id": meta["id"],
+            "name": meta["name"],
+            "dark": meta.get("dark", True),
+            "file": f"themes/{f.name}",
+            "preview": f"screenshots/themes/{meta['id']}.webp",
+            "toml": src,
+        })
+    return json.dumps({"version": 1, "themes": themes}, ensure_ascii=False, indent=1) + "\n"
+
+
 def main() -> None:
-    out = Path(sys.argv[1] if len(sys.argv) > 1 else "site").resolve()
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    update_fixture = "--update-fixture" in sys.argv[1:]
+    out = Path(args[0] if args else "site").resolve()
     readme, roadmap = split_readme((ROOT / "README.md").read_text(encoding="utf-8"))
     pages = [
         Page("index.html", "README.md", "Overview", readme),
@@ -287,6 +311,12 @@ def main() -> None:
         shutil.copy2(ROOT / a, out / "screenshots" / posixpath.basename(a))
     for f in gallery_theme_files():
         shutil.copy2(f, out / "themes" / f.name)
+    index = gallery_index()
+    (out / "themes/index.json").write_text(index, encoding="utf-8")
+    if update_fixture:
+        FIXTURE.parent.mkdir(parents=True, exist_ok=True)
+        FIXTURE.write_text(index, encoding="utf-8")
+        print(f"updated {FIXTURE.relative_to(ROOT)}")
     for f in (ROOT / "docs/screenshots/themes").glob("*.webp"):
         shutil.copy2(f, out / "screenshots/themes" / f.name)
     for f in (ROOT / "assets/fonts").glob("*-Variable.ttf"):

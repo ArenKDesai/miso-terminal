@@ -12,10 +12,12 @@
 //! [`Theme`] onto egui.
 
 mod color;
+pub mod gallery;
 mod model;
 mod registry;
 
 pub use color::{Color, contrast_ratio};
+pub use gallery::{Gallery, GalleryTheme};
 pub use model::*;
 pub use registry::{ThemeLoadError, ThemeRegistry, dir_fingerprint};
 
@@ -29,8 +31,8 @@ pub const GALLERY_URL: &str = "https://arenkdesai.github.io/miso-terminal/themes
 pub const BUILTIN_SOURCES: &[(&str, &str)] = &[
     ("default.toml", include_str!("../../../themes/default.toml")),
     (
-        "amber-terminal.toml",
-        include_str!("../../../themes/amber-terminal.toml"),
+        "default-light.toml",
+        include_str!("../../../themes/default-light.toml"),
     ),
     (
         "high-contrast.toml",

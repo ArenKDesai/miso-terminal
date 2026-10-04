@@ -16,6 +16,7 @@ pub mod context;
 pub mod fonts;
 pub mod function;
 pub mod functions;
+pub mod gallery;
 pub mod geo;
 pub mod notify;
 pub mod remote;

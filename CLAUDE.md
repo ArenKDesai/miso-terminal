@@ -80,7 +80,10 @@ with WM_CLOSE, which lets it save.
   section becomes the site's roadmap page.
 - Built-in themes are `themes/*.toml` (listed in `mt_theme::BUILTIN_SOURCES`);
   downloadable ones are `themes/gallery/*.toml` (named after their id, previewed
-  in `docs/screenshots/themes/<id>.webp`, published by the docs site).
+  in `docs/screenshots/themes/<id>.webp`, published by the docs site and
+  installable from THEME). After changing the gallery, run
+  `uv run tools/build_docs.py site --update-fixture` (a test checks the recorded
+  index matches).
   `themes/gallery/everforge-*.toml` are generated: change the Everforge tokens
   and re-sync.
 - Respect MISO's once-a-minute polling guidance. Real-time queries use
