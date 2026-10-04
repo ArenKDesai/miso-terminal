@@ -3,7 +3,8 @@
 A read-only, Bloomberg-style terminal for MISO market data. It is a Rust
 workspace with an egui UI, and Windows is the primary platform. Read
 `docs/ARCHITECTURE.md` before structural changes and `docs/EXTENDING.md` for
-recipes.
+recipes. `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
+data, trading and portfolio tracking (not built yet).
 
 ## Commands
 

@@ -197,6 +197,26 @@ and deployed by `docs.yml` on every push to main that touches them.
 Roughly in priority order within each area. The architecture docs explain where
 each piece plugs in.
 
+### Markets, news and trading (planned)
+The next major addition: news headlines, stock and options data, paper trading
+and portfolio tracking through Alpaca. See the
+[markets plan](docs/MARKETS-PLAN.md) for the design, decisions and sources.
+- [ ] **Phase 0, foundations:** authenticated requests, per-host request budgets
+      and WebSocket streams in `mt-data`; secrets in Windows Credential Manager;
+      instrument syntax (`XLU US`); New York exchange time; exact decimals for money.
+- [ ] **Phase 1, news:** FT, Bloomberg and Washington Post headlines (RSS) in
+      `TOP`, `NEWS` and `NI`, opening in your signed-in browser; headline alerts.
+- [ ] **Phase 2, market data:** Alpaca stocks and ETFs (free plan, IEX real-time):
+      `Q`, `GP` for tickers, `DES`, tickers in WL, a "Power & gas" list.
+- [ ] **Phase 3, account and portfolio:** `PORT`, `ACCT`, `PNL`, `ACT` on a paper
+      account, with a PAPER band in the status bar.
+- [ ] **Phase 4, paper trading:** confirm-only order tickets, the `ORD` blotter,
+      duplicate-proof order ids, guardrails, a kill switch and an audit log.
+- [ ] **Phase 5, options:** `OMON` chains and greeks; single-leg, then multi-leg,
+      paper trades.
+- [ ] **Phase 6, live trading:** off by default, behind a typed confirmation and
+      a security review, after paper trading has run cleanly.
+
 ### Data
 - [x] Yesterday's five-minute RT alongside today's in GP (MISO's `Previous` feed, on demand).
 - [x] Keep today's five-minute prices across restarts (sparklines in seconds instead

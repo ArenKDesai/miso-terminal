@@ -8,10 +8,10 @@
     uv run tools/build_docs.py site --update-fixture   # after changing themes/gallery/
 
 The Markdown stays the single source: README.md (minus its TODO list, which
-becomes the roadmap page), docs/ARCHITECTURE.md, docs/EXTENDING.md and
-themes/README.md, plus a card for every theme and the gallery's files to
-download. Links between them become links between pages; links to other files
-point at GitHub. The page is styled with the Everforge palette and fonts.
+becomes the roadmap page), docs/ARCHITECTURE.md, docs/EXTENDING.md,
+docs/MARKETS-PLAN.md and themes/README.md, plus a card for every theme and the
+gallery's files to download. Links between them become links between pages;
+links to other files point at GitHub. The page is styled with the Everforge palette and fonts.
 `.github/workflows/docs.yml` runs this and deploys the result.
 """
 
@@ -273,6 +273,7 @@ def main() -> None:
         Page("extending.html", "docs/EXTENDING.md", "Extending"),
         Page("themes.html", "themes/README.md", "Themes"),
         Page("roadmap.html", "README.md#todo", "Roadmap", roadmap),
+        Page("markets-plan.html", "docs/MARKETS-PLAN.md", "Markets plan"),
     ]
     md = renderer()
     for p in pages:
