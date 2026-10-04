@@ -30,6 +30,20 @@ public data (plus EIA gas prices and NWS forecasts) and never submits anything t
 
 ![MAP: real-time congestion across the footprint](docs/screenshots/map.png)
 
+## Principles
+
+MISO Terminal is a community project, and these hold for every change:
+
+- **Your data stays yours.** No telemetry, no accounts with us, nothing sent
+  anywhere but the sources you ask for. Keys and credentials live in Windows
+  Credential Manager, never in plain files or logs.
+- **Good citizens of the web.** Every source's robots.txt, terms of use and
+  rate limits are respected (MISO asks for at most one request a minute per
+  feed, and gets it). No scraping around paywalls or limits.
+- **Free and open, and kept that way.** Everything here is free, open source
+  and shareable. The AGPL-3.0 licence makes sure it stays so: anyone who
+  distributes or serves a modified version must share their source too.
+
 ## Install (Windows)
 
 Download `miso-terminal-<version>-windows-x64.zip` from the Releases page, unzip

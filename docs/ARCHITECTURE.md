@@ -5,6 +5,12 @@ datasets, new sources, new themes) without anyone having to rework what is
 already here. Every extension point below is an *addition*: a new file plus one
 line in a list.
 
+It is also a community project, and the [principles](../README.md#principles)
+are part of the design: user data stays private and secure (no telemetry,
+secrets in Windows Credential Manager), every source's robots.txt, terms and
+rate limits are respected, and everything stays free and open source under the
+AGPL-3.0.
+
 ## Layers
 
 ```
