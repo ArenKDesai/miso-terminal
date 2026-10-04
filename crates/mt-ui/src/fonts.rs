@@ -1,8 +1,9 @@
 //! Resolves a theme's font families to font data for egui.
 //!
-//! Lookup order: fonts bundled in the binary (the Everforge faces), then font
-//! files in the user fonts folder, then installed system fonts. The system scan
-//! is lazy, so themes that only use bundled fonts start instantly.
+//! Lookup order: fonts bundled in the binary (IBM Plex Sans, JetBrains Mono and
+//! Space Grotesk), then font files in the user fonts folder, then installed
+//! system fonts. The system scan is lazy, so themes that only use bundled fonts
+//! start instantly.
 
 use std::borrow::Cow;
 use std::path::PathBuf;
@@ -158,7 +159,7 @@ mod tests {
     fn bundled_fonts_resolve_without_touching_system_fonts() {
         let theme = mt_theme::builtin()
             .into_iter()
-            .find(|t| t.meta.id == "everforge-dark")
+            .find(|t| t.meta.id == "high-contrast")
             .unwrap();
         let mut lib = FontLibrary::new(None);
         let (defs, warnings) = lib.definitions(&theme.fonts);
@@ -167,10 +168,10 @@ mod tests {
             lib.system.is_none(),
             "bundled fonts must not trigger a system scan"
         );
-        assert!(defs.font_data.contains_key("IBM Plex Sans@400"));
-        assert!(defs.font_data.contains_key("Space Grotesk@600"));
+        assert!(defs.font_data.contains_key("IBM Plex Sans@500"));
+        assert!(defs.font_data.contains_key("Space Grotesk@700"));
         let prop = &defs.families[&FontFamily::Proportional];
-        assert_eq!(prop[0], "IBM Plex Sans@400");
+        assert_eq!(prop[0], "IBM Plex Sans@500");
         assert_eq!(
             prop[1], SYMBOLS_KEY,
             "symbol fallback comes right after the body face"

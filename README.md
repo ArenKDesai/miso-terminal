@@ -5,7 +5,7 @@ It covers prices, load, generation, interchange, constraints, the seams, gas and
 weather in one keyboard-driven, tiled workspace. It is read-only: it shows MISO's
 public data (plus EIA gas prices and NWS forecasts) and never submits anything to MISO.
 
-![MISO Terminal, Everforge Dark](docs/screenshots/home-everforge-dark.png)
+![MISO Terminal in its default theme](docs/screenshots/home-default.png)
 
 - **Command line first.** Type `LMP`, `GP MINN.HUB`, `MINN.HUB GP 14`, or just a
   node name, then press Enter. Completion covers every function and every pricing node.
@@ -15,8 +15,10 @@ public data (plus EIA gas prices and NWS forecasts) and never submits anything t
 - **Live.** Real-time feeds refresh once a minute (MISO's limit). Daily market
   reports are cached on disk, so history loads instantly the second time, and an
   optional local archive reaches back to 2023. Alerts arrive as Windows notifications.
-- **Themed.** Ships with **Everforge Dark** (the default), Everforge Light,
-  Amber Terminal and High Contrast. Drop a TOML file into the themes folder to add your own; it
+- **Themed.** Ships with **Default** (the trading-desk look: black, orange
+  labels, white figures), Amber Terminal and High Contrast. More themes, such as
+  Everforge Dark and Light, are in the [theme gallery](themes/README.md#gallery)
+  to download. Drop a TOML file into the themes folder to add your own; it
   hot-reloads while you edit it.
 - **Built for Windows.** A single `.exe` with a native window, Windows certificate
   store TLS (corporate proxies work), a per-user or portable data layout and an
@@ -138,15 +140,18 @@ positive, negative, chart series, fuel colours, fonts and spacing. Panels only
 use those slots, so any theme works with any panel. See [`themes/README.md`](themes/README.md)
 for the format.
 
-- **Built-in:** `everforge-dark` (default), `everforge-light`, `amber-terminal`, `high-contrast`.
+- **Built-in:** `default`, `amber-terminal`, `high-contrast`.
+- **Gallery:** more themes to download (Everforge Dark and Light so far), in
+  `themes/gallery/` and on the [docs site](themes/README.md#gallery). Drop the file
+  into the themes folder (`THEME` → *Open themes folder*).
 - **Yours:** run `THEME`, click *Copy to edit*, then edit the file in the themes
   folder. It reloads every time you save. A theme whose `id` matches a built-in
   replaces it. Validation flags unreadable contrast.
-- **Fonts:** the three Everforge typefaces (IBM Plex Sans, JetBrains Mono, Space
-  Grotesk; all SIL OFL) are bundled. Themes can name any installed font, or a
+- **Fonts:** IBM Plex Sans, JetBrains Mono and Space Grotesk (all SIL OFL) are
+  bundled, so the gallery themes work without installing anything. Themes can name any installed font, or a
   font file dropped into the fonts folder.
-- **Everforge stays in sync with its tokens.** The two Everforge themes are
-  generated from the Everforge design tokens:
+- **Everforge stays in sync with its tokens.** The two Everforge gallery themes
+  are generated from the Everforge design tokens:
   `cargo run -p mt-theme --example sync_everforge -- ..\everforge`
 
 ## Development
@@ -250,6 +255,10 @@ each piece plugs in.
 - [x] Everforge's chamfered corners (`cut-md`) on hero tiles (a theme `chamfer` value).
 - [ ] The chamfer on the active tab (needs custom tab painting in egui_dock).
 - [x] A high-contrast accessibility theme (`high-contrast`).
+- [x] A `default` theme in the Bloomberg Terminal's style; Everforge moves to a
+      downloadable theme gallery on the docs site (`themes/gallery/`).
+- [ ] Browse and install gallery themes from inside `THEME` (one click instead of
+      downloading a file), and a built-in light theme for *Follow Windows light/dark*.
 - [ ] Optionally make `miso-terminal` a target in Everforge's own `build.py`
       (per its port policy) instead of the sync example here.
 

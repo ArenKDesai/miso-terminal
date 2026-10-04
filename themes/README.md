@@ -1,12 +1,47 @@
-# Theme format
+# Themes
 
-A theme is one TOML file. Built-in themes live here and are compiled into the
-binary. User themes go in the themes folder (`THEME` → *Open themes folder*;
-on Windows `%APPDATA%\MISO Terminal\config\themes`) and reload as you save them.
-A user theme with the same `id` as a built-in replaces it.
+A theme is one TOML file of semantic colour, font and spacing slots, so any
+theme works with any panel. Three themes are built in; more are in the
+[gallery](#gallery) to download. Switch with `THEME`, or `THEME <id>`.
 
-The fastest start is `THEME` → *Copy “…” to edit*, which writes a complete copy
-of the current theme for you to change.
+## Built in
+
+`default` (the trading-desk look: black, orange labels, white figures, blue
+selection), `amber-terminal` (amber phosphor on black, monospace throughout) and
+`high-contrast` (white and gold on black, heavier and larger type, 2 px borders;
+every text pairing 7:1 or better). Their files are in `themes/` and are
+compiled into the binary.
+
+<!-- builtin-cards -->
+
+## Gallery
+
+Themes that do not ship with the terminal. To install one:
+
+1. Download its `.toml` file.
+2. In the terminal, run `THEME` and click *Open themes folder*
+   (on Windows `%APPDATA%\MISO Terminal\config\themes`).
+3. Drop the file there. It shows up in `THEME` straight away; click it to switch.
+
+<!-- gallery-cards -->
+
+The gallery's files live in [`themes/gallery/`](gallery/). To add a theme, put
+its file there, named after its `id` (`my-theme.toml`). A test checks that every
+gallery theme loads, passes the contrast checks and has an id of its own. Render
+a preview for this page with
+
+```powershell
+cargo run -p mt-ui --example render -- out.png --theme my-theme --theme-file themes\gallery\my-theme.toml
+```
+
+and save it, 960 × 576, as `docs/screenshots/themes/my-theme.webp`.
+
+## Theme format
+
+User themes go in the themes folder (`THEME` → *Open themes folder*) and reload
+as you save them. A user theme with the same `id` as a built-in replaces it. The
+fastest start is `THEME` → *Copy “…” to edit*, which writes a complete copy of
+the current theme for you to change.
 
 ```toml
 [meta]
@@ -17,29 +52,29 @@ description = "optional"
 author = "optional"
 
 [palette]                  # all required
-background    = "#16191a"  # app ground behind everything
-surface       = "#1e2223"  # panels, inputs, menus, tiles
-surface_alt   = "#283127"  # selected rows, active tabs, hover
-border        = "#343a3a"  # hairlines and dividers
-border_strong = "#7f8886"  # control borders, tick marks
-text          = "#d9d8d0"
-text_strong   = "#f2f1ea"  # headings, readouts
-text_muted    = "#9a9e9a"  # labels, units, secondary text
-accent        = "#a7c080"  # primary actions, focus, the brand colour
-on_accent     = "#16191a"  # text on an accent fill
-live          = "#6ef0b0"  # the live lamp, cursor, streaming values
-positive      = "#83c092"  # up ticks, OK
-negative      = "#e67e80"  # down ticks, errors, extreme prices
-warning       = "#dbbc7f"  # attention, alert-level prices, shadow prices
-info          = "#7fbbb3"  # links, negative prices
+background    = "#000000"  # app ground behind everything
+surface       = "#0a0a0a"  # panels, inputs, menus, tiles
+surface_alt   = "#102a54"  # selected rows, active tabs, hover
+border        = "#2a2a2a"  # hairlines and dividers
+border_strong = "#707070"  # control borders, tick marks
+text          = "#e6e6e6"
+text_strong   = "#ffffff"  # headings, readouts
+text_muted    = "#fb8b1e"  # labels, units, secondary text
+accent        = "#fb8b1e"  # primary actions, focus, the brand colour
+on_accent     = "#000000"  # text on an accent fill
+live          = "#00e0ff"  # the live lamp, cursor, streaming values
+positive      = "#4af6c3"  # up ticks, OK
+negative      = "#ff433d"  # down ticks, errors, extreme prices
+warning       = "#ffd400"  # attention, alert-level prices, shadow prices
+info          = "#5b9dff"  # links, negative prices
 
 [chart]
-series = ["#a7c080", "#dbbc7f", "#7fbbb3"]   # used in order; at least one
-grid = "#343a3a"                              # optional, defaults to border
+series = ["#fb8b1e", "#5b9dff", "#4af6c3"]   # used in order; at least one
+grid = "#262626"                              # optional, defaults to border
 
 [fuel]                     # optional; keys are mt_core::FUEL_KEYS
-coal = "#7f8886"           # coal gas nuclear wind solar hydro storage imports other
-gas = "#a7c080"
+coal = "#8c8c8c"           # coal gas nuclear wind solar hydro storage imports other
+gas = "#fb8b1e"
 
 [style]                    # optional; these are the defaults
 rounding = 2.0             # corner radius, px
@@ -62,24 +97,22 @@ bundled (IBM Plex Sans, JetBrains Mono, Space Grotesk; variable, so any weight
 from 100 to 900 works), then files in the fonts folder, then installed system
 fonts.
 
-To switch with Windows' light/dark setting, turn on *Follow Windows light/dark*
-in `THEME` and pick one theme for each mode (or set `follow_system_theme`,
-`light_theme` and `dark_theme` under `[ui]` in `config.toml`). Picking a theme by
-hand turns following off again.
-
 The `THEME` function shows contrast problems for the active theme. Errors mean
 text that is hard to read (body text under 4.5:1). Warnings are worth a look.
 
-## Built-ins
+## Light and dark
 
-| id | Notes |
-|---|---|
-| `everforge-dark` | Default. **Generated** from the Everforge design tokens; do not edit by hand. |
-| `everforge-light` | **Generated**, as above. |
-| `amber-terminal` | Hand-written amber-on-black look, monospace throughout. |
-| `high-contrast` | White and gold on black, heavier and larger type, 2 px borders; every text pairing 7:1 or better. |
+To switch with Windows' light/dark setting, turn on *Follow Windows light/dark*
+in `THEME` and pick one theme for each mode (or set `follow_system_theme`,
+`light_theme` and `dark_theme` under `[ui]` in `config.toml`). Picking a theme by
+hand turns following off again. No built-in theme is light: install Everforge
+Light (or another light theme) from the gallery first.
 
-Regenerate the Everforge pair after a token change:
+## Everforge
+
+The gallery's Everforge Dark and Everforge Light are **generated** from the
+Everforge design tokens; do not edit them by hand. Regenerate them after a token
+change:
 
 ```powershell
 cargo run -p mt-theme --example sync_everforge -- ..\everforge

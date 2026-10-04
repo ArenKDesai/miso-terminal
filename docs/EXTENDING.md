@@ -109,13 +109,19 @@ lives in the disk cache under `local://` keys, read and written with
 
 ## Add or change a theme
 
+- **New gallery theme** (downloadable, not compiled in): add
+  `themes/gallery/<id>.toml` and a 960 × 576 preview at
+  `docs/screenshots/themes/<id>.webp` (render it with `--theme-file`; see
+  `themes/README.md`). The tests validate contrast and round-trip it, and the
+  docs site lists it with a download button.
 - **New built-in:** add `themes/<id>.toml` (see `themes/README.md`) and list it
-  in `mt_theme::BUILTIN_SOURCES`. The tests validate contrast and round-trip it.
+  in `mt_theme::BUILTIN_SOURCES`. The tests validate contrast and round-trip it,
+  and the visual regression test adds its layout (accept the new snapshot).
 - **Everforge changed upstream:** run Everforge's `build.py`, then
   `cargo run -p mt-theme --example sync_everforge -- ..\everforge`.
 - **New semantic slot:** add it to `Palette` (or a `#[serde(default)]` field so
   existing user themes keep loading), map it in `mt-ui/src/skin.rs`, and set it
-  in every built-in and in `sync_everforge`.
+  in every built-in, every gallery theme and in `sync_everforge`.
 
 ## Upgrade egui
 

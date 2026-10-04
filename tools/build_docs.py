@@ -8,8 +8,9 @@
 
 The Markdown stays the single source: README.md (minus its TODO list, which
 becomes the roadmap page), docs/ARCHITECTURE.md, docs/EXTENDING.md and
-themes/README.md. Links between them become links between pages; links to other
-files point at GitHub. The page is styled with the Everforge palette and fonts.
+themes/README.md, plus a card for every theme and the gallery's files to
+download. Links between them become links between pages; links to other files
+point at GitHub. The page is styled with the Everforge palette and fonts.
 `.github/workflows/docs.yml` runs this and deploys the result.
 """
 
@@ -20,6 +21,7 @@ import posixpath
 import re
 import shutil
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -35,6 +37,7 @@ ROOT = Path(__file__).resolve().parent.parent
 REPO = "https://github.com/ArenKDesai/miso-terminal"
 BLOB = f"{REPO}/blob/main/"
 TREE = f"{REPO}/tree/main/"
+MARKER = ".build_docs"  # marks an output directory as ours to replace
 
 
 @dataclass
@@ -190,6 +193,53 @@ def layout(page: Page, pages: list[Page]) -> str:
 """
 
 
+def theme_cards(files: list[Path], downloadable: bool) -> str:
+    """A card per theme file: preview, name, description, palette and download."""
+    cards = []
+    for f in files:
+        t = tomllib.loads(f.read_text(encoding="utf-8"))
+        meta, pal = t["meta"], t["palette"]
+        tid = meta["id"]
+        img = ""
+        if (ROOT / f"docs/screenshots/themes/{tid}.webp").exists():
+            img = (
+                f'<img src="screenshots/themes/{tid}.webp" alt="MISO Terminal in {html.escape(meta["name"])}" '
+                f'width="960" height="576" loading="lazy">'
+            )
+        else:
+            print(f"warning: no preview for {tid} (docs/screenshots/themes/{tid}.webp)")
+        slots = ["background", "surface", "surface_alt", "text", "text_muted", "accent",
+                 "positive", "negative", "warning", "info"]
+        colors = [(k, pal[k]) for k in slots] + [(f"series {i}", c) for i, c in enumerate(t["chart"]["series"])]
+        swatches = "".join(
+            f'<span style="background:{html.escape(c)}" title="{k} {html.escape(c)}"></span>' for k, c in colors
+        )
+        action = (
+            f'<a class="download" href="themes/{tid}.toml" download>Download {tid}.toml</a>'
+            if downloadable
+            else '<span class="badge">Built in</span>'
+        )
+        cards.append(f"""<article class="theme-card" id="theme-{tid}">
+{img}
+<div class="theme-body">
+<p class="theme-name">{html.escape(meta["name"])} <code>{tid}</code></p>
+<p class="theme-desc">{html.escape(meta.get("description", ""))}</p>
+<div class="swatches">{swatches}</div>
+{action}
+</div>
+</article>""")
+    return '<div class="theme-grid">\n' + "\n".join(cards) + "\n</div>"
+
+
+def builtin_theme_files() -> list[Path]:
+    # The default first, then by name.
+    return sorted((ROOT / "themes").glob("*.toml"), key=lambda f: (f.stem != "default", f.stem))
+
+
+def gallery_theme_files() -> list[Path]:
+    return sorted((ROOT / "themes/gallery").glob("*.toml"))
+
+
 def main() -> None:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "site").resolve()
     readme, roadmap = split_readme((ROOT / "README.md").read_text(encoding="utf-8"))
@@ -213,23 +263,37 @@ def main() -> None:
     assets: set[str] = set()
     for p in pages:
         rewrite_links(p, by_slug, by_anchor, assets)
+    themes_page = by_slug["themes.html"]
+    for marker, cards in [
+        ("<!-- builtin-cards -->", theme_cards(builtin_theme_files(), downloadable=False)),
+        ("<!-- gallery-cards -->", theme_cards(gallery_theme_files(), downloadable=True)),
+    ]:
+        assert marker in themes_page.html, f"themes/README.md lost its {marker} marker"
+        themes_page.html = themes_page.html.replace(marker, cards)
 
     if out.exists():
-        earlier_build = (out / "index.html").exists() and (out / "style.css").exists()
-        if any(out.iterdir()) and not earlier_build or (out / ".git").exists():
+        # Only ever replace an empty directory or an earlier (even half-finished) build.
+        if any(out.iterdir()) and not (out / MARKER).exists():
             sys.exit(f"refusing to replace {out}: not empty and not an earlier build of this site")
         shutil.rmtree(out)
     (out / "screenshots").mkdir(parents=True)
+    (out / MARKER).write_text("Built by tools/build_docs.py; replaced on every build.\n", encoding="utf-8")
     (out / "fonts").mkdir()
+    (out / "themes").mkdir()
+    (out / "screenshots/themes").mkdir()
     for p in pages:
         (out / p.slug).write_text(layout(p, pages), encoding="utf-8")
     for a in sorted(assets):
         shutil.copy2(ROOT / a, out / "screenshots" / posixpath.basename(a))
+    for f in gallery_theme_files():
+        shutil.copy2(f, out / "themes" / f.name)
+    for f in (ROOT / "docs/screenshots/themes").glob("*.webp"):
+        shutil.copy2(f, out / "screenshots/themes" / f.name)
     for f in (ROOT / "assets/fonts").glob("*-Variable.ttf"):
         shutil.copy2(f, out / "fonts" / f.name)
     shutil.copy2(ROOT / "assets/icon/miso-terminal.png", out / "icon.png")
     shutil.copy2(Path(__file__).with_name("docs_style.css"), out / "style.css")
-    print(f"{len(pages)} pages, {len(assets)} screenshots -> {out}")
+    print(f"{len(pages)} pages, {len(assets)} screenshots, {len(gallery_theme_files())} gallery themes -> {out}")
 
 
 if __name__ == "__main__":

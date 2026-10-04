@@ -8,7 +8,7 @@ on:
     paths:
       - README.md
       - docs/**
-      - themes/README.md
+      - themes/**
       - tools/build_docs.py
       - tools/docs_style.css
       - assets/fonts/**
@@ -18,7 +18,7 @@ on:
     paths:
       - README.md
       - docs/**
-      - themes/README.md
+      - themes/**
       - tools/build_docs.py
       - tools/docs_style.css
   workflow_dispatch:

@@ -160,3 +160,21 @@ footer {
   padding: 1.5rem max(16px, calc((100vw - 1240px) / 2)) 2.5rem;
 }
 footer p { margin: 0; max-width: 54rem; }
+
+/* Theme cards (themes page) */
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); gap: 1.25rem; margin: 1.5rem 0; }
+.theme-card { background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; scroll-margin-top: 4.5rem; }
+.doc .theme-card img { margin: 0; border: 0; border-bottom: 1px solid var(--border); width: 100%; }
+.theme-body { padding: .9rem 1rem 1rem; display: flex; flex-direction: column; gap: .55rem; flex: 1; }
+.theme-body p { margin: 0; }
+.theme-name { font: 600 1.05rem var(--head); color: var(--text-strong); }
+.theme-name code { font-size: .72rem; margin-left: .35rem; vertical-align: middle; }
+.theme-desc { color: var(--muted); font-size: .9rem; flex: 1; }
+.swatches { display: flex; height: 1rem; border: 1px solid var(--border); }
+.swatches span { flex: 1; }
+.badge, .download {
+  align-self: flex-start; font: 600 .75rem var(--head); letter-spacing: .06em; text-transform: uppercase;
+  padding: .45rem .8rem; border: 1px solid var(--border-strong); color: var(--muted); text-decoration: none;
+}
+.download { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.download:hover { background: var(--live); border-color: var(--live); color: var(--bg); }

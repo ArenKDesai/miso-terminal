@@ -143,8 +143,12 @@ the user fonts folder, then system fonts (scanned lazily). JetBrains Mono is
 always the symbol fallback.
 
 Built-in themes are TOML files in `themes/`, compiled in with `include_str!`.
+More themes live in `themes/gallery/`: not compiled in, but validated by the
+tests and published on the docs site to download (`mt_theme::GALLERY_URL`).
 User themes are read from the themes folder and hot-reloaded by polling a
-cheap directory fingerprint every two seconds.
+cheap directory fingerprint every two seconds. A configured theme that is no
+longer installed falls back to the default with a notice pointing at the
+gallery.
 
 ## Time
 

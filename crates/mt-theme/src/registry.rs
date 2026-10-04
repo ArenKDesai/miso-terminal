@@ -136,13 +136,13 @@ mod tests {
             .into_iter()
             .find(|t| t.meta.id == DEFAULT_THEME_ID)
             .unwrap();
-        custom.meta.name = "My Everforge".into();
+        custom.meta.name = "My Default".into();
         std::fs::write(dir.join("mine.toml"), custom.to_toml().unwrap()).unwrap();
         std::fs::write(dir.join("broken.toml"), "[meta]\nid = 'x'").unwrap();
         std::fs::write(dir.join("notes.txt"), "ignored").unwrap();
 
         let reg = ThemeRegistry::load(Some(&dir));
-        assert_eq!(reg.resolve(DEFAULT_THEME_ID).meta.name, "My Everforge");
+        assert_eq!(reg.resolve(DEFAULT_THEME_ID).meta.name, "My Default");
         assert_eq!(
             reg.themes().len(),
             builtin().len(),

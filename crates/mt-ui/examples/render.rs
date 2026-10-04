@@ -9,6 +9,8 @@
 //!   --run CMD        run a command first (repeatable)
 //!   --zoom           zoom the focused panel (as Ctrl+M does)
 //!   --theme ID       theme id, e.g. amber-terminal
+//!   --theme-file F   install a theme file first (repeatable), e.g.
+//!                    themes/gallery/everforge-light.toml with --theme everforge-light
 //!   --size WxH       window size in points (default 1600x960)
 //!   --scale F        pixels per point (default 1)
 //!   --fixtures DIR   recorded responses to replay (default: the repo's)
@@ -32,12 +34,14 @@ fn main() -> Result<()> {
     let (mut size, mut scale, mut fixtures, mut at) =
         ((1600.0, 960.0), 1.0, scene::fixtures_dir(), None::<String>);
     let mut cache: Option<PathBuf> = None;
+    let mut theme_files: Vec<PathBuf> = Vec::new();
     while let Some(a) = it.next() {
         let mut value = || it.next().with_context(|| format!("{a} needs a value"));
         match a.as_str() {
             "--run" => run.push(value()?),
             "--zoom" => zoom = true,
             "--theme" => theme = Some(value()?),
+            "--theme-file" => theme_files.push(value()?.into()),
             "--size" => {
                 let v = value()?;
                 let (w, h) = v.split_once('x').context("--size is WxH")?;
@@ -53,7 +57,7 @@ fn main() -> Result<()> {
     }
     if out.as_os_str().is_empty() {
         bail!(
-            "usage: render OUT.png [--run CMD]... [--zoom] [--theme ID] [--size WxH] [--at TIME]"
+            "usage: render OUT.png [--run CMD]... [--zoom] [--theme ID] [--theme-file F]... [--size WxH] [--at TIME]"
         );
     }
 
@@ -82,6 +86,7 @@ fn main() -> Result<()> {
             run: &run,
             zoom,
             theme: theme.as_deref(),
+            theme_files: &theme_files,
             size,
             pixels_per_point: scale,
         },

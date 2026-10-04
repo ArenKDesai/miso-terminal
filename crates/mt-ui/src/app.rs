@@ -219,9 +219,12 @@ impl TerminalApp {
         let wanted = self.wanted_theme(ctx);
         let theme = self.themes.resolve(&wanted).clone();
         if !theme.meta.id.eq_ignore_ascii_case(&wanted) {
+            // Most likely a theme that used to be built in (the Everforge pair).
             self.notices.push(format!(
-                "Theme {wanted:?} not found; using {}.",
-                theme.meta.id
+                "Theme {wanted:?} is not installed; using {}. Download more themes from {} \
+                 and put them in the themes folder (THEME).",
+                theme.meta.name,
+                mt_theme::GALLERY_URL
             ));
         }
         self.skin = Skin::new(theme);

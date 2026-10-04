@@ -22,7 +22,7 @@ pub struct Theme {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Meta {
-    /// Stable identifier used in config files and the THEME command, e.g. `everforge-dark`.
+    /// Stable identifier used in config files and the THEME command, e.g. `default`.
     pub id: String,
     /// Display name.
     pub name: String,

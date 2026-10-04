@@ -78,7 +78,11 @@ with WM_CLOSE, which lets it save.
 - The docs site is generated from the Markdown (`tools/build_docs.py`, styles in
   `tools/docs_style.css`): edit the Markdown, never the HTML. README's `## TODO`
   section becomes the site's roadmap page.
-- `themes/everforge-*.toml` are generated: change the Everforge tokens and re-sync.
+- Built-in themes are `themes/*.toml` (listed in `mt_theme::BUILTIN_SOURCES`);
+  downloadable ones are `themes/gallery/*.toml` (named after their id, previewed
+  in `docs/screenshots/themes/<id>.webp`, published by the docs site).
+  `themes/gallery/everforge-*.toml` are generated: change the Everforge tokens
+  and re-sync.
 - Respect MISO's once-a-minute polling guidance. Real-time queries use
   `REALTIME_REFRESH`, and `FetchCtx` enforces a polite interval.
 - The rolling five-minute feed can take most of a minute to download late in

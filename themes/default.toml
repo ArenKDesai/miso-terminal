@@ -1,0 +1,56 @@
+# Default: the trading-desk look of the Bloomberg Terminal. Black ground, orange
+# labels and accents, white figures, blue selection, green and red for up and
+# down; dense, square and flat. Hand-written.
+
+[meta]
+id = "default"
+name = "Default"
+dark = true
+description = "Black, orange labels, white figures and blue selection: the classic trading-desk terminal."
+
+[palette]
+background = "#000000"
+surface = "#0a0a0a"
+surface_alt = "#102a54"
+border = "#2a2a2a"
+border_strong = "#707070"
+text = "#e6e6e6"
+text_strong = "#ffffff"
+text_muted = "#fb8b1e"
+accent = "#fb8b1e"
+on_accent = "#000000"
+live = "#00e0ff"
+positive = "#4af6c3"
+negative = "#ff433d"
+warning = "#ffd400"
+info = "#5b9dff"
+
+[chart]
+series = ["#fb8b1e", "#5b9dff", "#4af6c3", "#ff433d", "#ffd400", "#c58cff", "#e6e6e6", "#8c8c8c"]
+grid = "#262626"
+
+[fuel]
+coal = "#8c8c8c"
+gas = "#fb8b1e"
+nuclear = "#c58cff"
+wind = "#5b9dff"
+solar = "#ffd400"
+hydro = "#00b8d9"
+storage = "#4af6c3"
+imports = "#e6e6e6"
+other = "#6e6e6e"
+
+[style]
+rounding = 0.0
+spacing = 4.0
+padding = 6.0
+stroke = 1.0
+shadow_offset = 0.0
+chamfer = 0.0
+
+[fonts]
+body = { family = "IBM Plex Sans", weight = 400, size = 13.5 }
+mono = { family = "JetBrains Mono", weight = 400, size = 13.0 }
+heading = { family = "IBM Plex Sans", weight = 600, size = 15.0 }
+label = { family = "IBM Plex Sans", weight = 600, size = 11.0 }
+readout = { family = "JetBrains Mono", weight = 500, size = 24.0 }

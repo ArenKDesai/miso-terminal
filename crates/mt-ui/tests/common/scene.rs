@@ -19,6 +19,8 @@ pub struct Scene<'a> {
     /// Zoom the focused panel (as Ctrl+M does).
     pub zoom: bool,
     pub theme: Option<&'a str>,
+    /// Theme files to install in the user themes folder first (e.g. a gallery theme).
+    pub theme_files: &'a [PathBuf],
     /// Window size in points.
     pub size: (f32, f32),
     pub pixels_per_point: f32,
@@ -30,6 +32,7 @@ impl Default for Scene<'_> {
             run: &[],
             zoom: false,
             theme: None,
+            theme_files: &[],
             size: (1600.0, 960.0),
             pixels_per_point: 1.0,
         }
@@ -97,11 +100,18 @@ pub fn render(hub: &DataHub, scene: &Scene<'_>) -> Result<image::RgbaImage, Stri
     if let Some(theme) = scene.theme {
         config.theme = theme.to_owned();
     }
+    let paths = AppPaths::under(&home);
+    for file in scene.theme_files {
+        let name = file.file_name().ok_or("theme file has no name")?;
+        std::fs::create_dir_all(&paths.themes_dir)
+            .and_then(|()| std::fs::copy(file, paths.themes_dir.join(name)))
+            .map_err(|e| format!("{}: {e}", file.display()))?;
+    }
     let deps = Deps {
         hub: hub.clone(),
         config,
         config_error: None,
-        paths: AppPaths::under(&home),
+        paths,
         reset_layout: true,
         startup_commands: scene.run.iter().map(|s| (*s).to_owned()).collect(),
         remote: None,

@@ -109,21 +109,30 @@ impl Panel for ThemePanel {
             widgets::section(ui, skin, "Follow Windows light/dark");
             follow_system(ui, cx);
 
-            widgets::section(ui, skin, "Make your own");
+            widgets::section(ui, skin, "More themes");
             ui.label(
-                "Themes are TOML files. Drop one in the folder below; it is picked up while the app runs. \
-                 A file with an existing id replaces that theme.",
+                "More themes, such as Everforge Dark and Everforge Light, are in the theme gallery. \
+                 Download a theme's .toml file and drop it in the themes folder: it shows up here \
+                 while the app runs.",
             );
-            ui.label(RichText::new(cx.paths.themes_dir.display().to_string()).monospace());
             ui.horizontal(|ui| {
+                ui.hyperlink_to("Open the theme gallery", mt_theme::GALLERY_URL);
+                ui.add_space(8.0);
                 if ui.button("Open themes folder").clicked() {
                     let _ = std::fs::create_dir_all(&cx.paths.themes_dir);
                     cx.send(AppCommand::RevealPath(cx.paths.themes_dir.clone()));
                 }
-                if ui.button(format!("Copy “{}” to edit", skin.theme.meta.name)).clicked() {
-                    self.message = Some(copy_theme(&skin.theme, &cx.paths.themes_dir));
-                }
             });
+
+            widgets::section(ui, skin, "Make your own");
+            ui.label(
+                "Themes are TOML files in the folder below. A file with an existing id replaces \
+                 that theme. Start from a copy of the current one:",
+            );
+            ui.label(RichText::new(cx.paths.themes_dir.display().to_string()).monospace());
+            if ui.button(format!("Copy “{}” to edit", skin.theme.meta.name)).clicked() {
+                self.message = Some(copy_theme(&skin.theme, &cx.paths.themes_dir));
+            }
         });
     }
 }
@@ -222,6 +231,15 @@ fn follow_system(ui: &mut Ui, cx: &mut PanelCx<'_>) {
             ui.add_space(12.0);
         }
     });
+    if !cx.themes.themes().iter().any(|t| !t.meta.dark) {
+        ui.label(
+            RichText::new(
+                "No light theme is installed. Get one (Everforge Light) from the theme gallery below.",
+            )
+            .small()
+            .color(skin.warning),
+        );
+    }
     let os = match ui.ctx().system_theme() {
         Some(egui::Theme::Dark) => "Windows is in dark mode right now.",
         Some(egui::Theme::Light) => "Windows is in light mode right now.",

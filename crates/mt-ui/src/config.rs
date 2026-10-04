@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
-    /// Theme id, e.g. `everforge-dark`. See the THEME function.
+    /// Theme id, e.g. `default`. See the THEME function.
     pub theme: String,
     pub ui: UiConfig,
     pub data: DataConfig,
@@ -47,6 +47,8 @@ pub struct UiConfig {
     /// Switch between `light_theme` and `dark_theme` with the Windows setting
     /// (Settings > Personalization > Colors). Overrides `theme` when on.
     pub follow_system_theme: bool,
+    /// No built-in theme is light; the default is the gallery's Everforge Light
+    /// (see `mt_theme::GALLERY_URL`). A missing theme falls back to the default.
     pub light_theme: String,
     pub dark_theme: String,
     /// Function keys that run commands, e.g. `F2 = "HOME"`, `F9 = "GP ALTE.ALTE"`.
@@ -218,7 +220,7 @@ zoom = 1.0
         let dir = std::env::temp_dir().join(format!("mt-config-test-{}", std::process::id()));
         let path = dir.join("config.toml");
         let cfg = AppConfig {
-            theme: "everforge-light".into(),
+            theme: "amber-terminal".into(),
             ..Default::default()
         };
         cfg.save(&path).unwrap();

@@ -90,7 +90,7 @@ fn routes(registry: &Registry) -> Vec<Route> {
     out.push(Route::new("SPRD", ["MINN.HUB", "ILLINOIS.HUB"]));
     out.push(Route::new("SPRD", ["MINN.HUB", "ILLINOIS.HUB", "3"]));
     out.push(Route::new("WL", ["ALTE.ALTE"]));
-    out.push(Route::new("THEME", ["everforge-light"]));
+    out.push(Route::new("THEME", ["amber-terminal"]));
     out
 }
 
@@ -202,7 +202,13 @@ fn load_everything(h: &Harness, skin: &Skin, panels: &mut [Box<dyn Panel>]) {
 fn every_function_renders_in_every_theme_with_and_without_data() {
     let rt = runtime();
     let registry = Registry::builtin();
-    let themes = mt_theme::builtin();
+    // The built-ins plus the downloadable gallery, as if installed: a gallery
+    // theme must not break a panel either (and Everforge Light is the only light one).
+    let gallery = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../themes/gallery");
+    let installed = ThemeRegistry::load(Some(&gallery));
+    assert!(installed.errors().is_empty(), "{:?}", installed.errors());
+    let themes = installed.themes().to_vec();
+    assert!(themes.len() > mt_theme::builtin().len());
 
     // No data: a paused hub never fetches, so panels must render placeholders.
     let empty = Harness::new(hub(&rt));
