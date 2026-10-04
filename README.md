@@ -182,6 +182,10 @@ function, a dataset, a non-MISO source, or a theme. CI runs on Windows (fmt,
 clippy, tests, release build). A weekly job re-records MISO's feeds and runs the
 parsers against them. Pushing a `v*` tag builds a Windows zip release.
 
+The documentation site, <https://arenkdesai.github.io/miso-terminal/>, is built
+from this README, `docs/` and `themes/README.md` (`uv run tools/build_docs.py site`)
+and deployed by `docs.yml` on every push to main that touches them.
+
 ## TODO
 
 Roughly in priority order within each area. The architecture docs explain where
@@ -267,8 +271,8 @@ each piece plugs in.
       parser against them, to catch MISO format changes early.
 - [x] A rolling-feed benchmark (`cargo run --release -p mt-miso --example bench_rolling`): a full
       day (29 MB, 530k rows) parses in ~0.4 s and builds in ~50 ms; the download dominates.
-- [x] GitHub repository (private) with CI on every push.
-- [ ] Make the repository public (the owner's call).
+- [x] Public GitHub repository with CI on every push.
+- [x] A documentation site (GitHub Pages) generated from this README and `docs/`.
 - [x] Licence: AGPL-3.0-or-later (see [Licence](#licence)).
 
 ## Licence

@@ -22,6 +22,7 @@ uv run tools/screenshot.py out.png --run "GP MINN.HUB"   # PrintWindow capture o
 uv run tools/screenshot.py out.png --home some\dir --offline   # with a prepared config, no network
 uv run tools/build_map_asset.py        # rebuild assets/map/miso_map.json from ../3D-MISO-Map
 uv run tools/export_history.py         # long history from the EPJ DuckDB into the app's cache
+uv run tools/build_docs.py site        # the GitHub Pages docs site, from README.md, docs/ and themes/README.md
 ```
 
 `tests/snapshots.rs` compares renders with `crates/mt-ui/tests/snapshots/*.png`.
@@ -74,6 +75,9 @@ with WM_CLOSE, which lets it save.
   covers ~445 commercial nodes, so never filter on that column.
 - Never put NaN into egui shapes or plot points (the tessellator panics in
   debug). Split lines at gaps instead (see `widgets::chart::step_runs`).
+- The docs site is generated from the Markdown (`tools/build_docs.py`, styles in
+  `tools/docs_style.css`): edit the Markdown, never the HTML. README's `## TODO`
+  section becomes the site's roadmap page.
 - `themes/everforge-*.toml` are generated: change the Everforge tokens and re-sync.
 - Respect MISO's once-a-minute polling guidance. Real-time queries use
   `REALTIME_REFRESH`, and `FetchCtx` enforces a polite interval.
