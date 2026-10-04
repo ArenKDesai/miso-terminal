@@ -16,6 +16,8 @@ progress against the phases below.
 | Data plan | Alpaca's free plan, with the feed (`iex`/`sip`) a setting | IEX real-time, consolidated SIP 15 minutes delayed, 200 requests a minute, 30 streamed symbols |
 | Assets | US stocks and ETFs, then options | Options are their own phase so they cannot delay stocks |
 | Live orders | Every order confirmed, with notional caps and a kill switch | Paper uses the same confirm flow, so habits carry over |
+| Instrument syntax | Ticker plus market code, Bloomberg-style: `XLU US` | Never confused with a MISO node such as `AECI` or `TVA` |
+| CI checks | A dedicated throwaway paper account, its keys in the repository secrets `ALPACA_PAPER_KEY_ID` and `ALPACA_PAPER_SECRET_KEY` | Alpaca needs keys even for market data; the account holds only paper money and is nobody's real account |
 
 Why our own Alpaca client:
 
@@ -39,9 +41,10 @@ Why our own Alpaca client:
   one per endpoint and shared by all panels, with reconnect and resubscribe.
 - **Secrets** live in Windows Credential Manager (the `keyring` crate), with
   separate paper and live entries. Never in `config.toml`, saved state or logs.
-- **Instruments.** MISO nodes and securities need distinct names. Proposed
-  syntax, Bloomberg-style: `XLU US`, `XLU US GP 30`, and OCC symbols for
-  options. Completion draws on Alpaca's asset list, cached daily.
+- **Instruments.** MISO nodes and securities need distinct names, because
+  some node names (`AECI`, `TVA`, `SOCO`) look like tickers. Securities are a
+  ticker plus `US`, Bloomberg-style: `XLU US`, `XLU US GP 30`; options use OCC
+  symbols. Completion draws on Alpaca's asset list, cached daily.
 - **Exchange time.** Market time is fixed EST for MISO, but US exchanges observe
   daylight saving. Equities use America/New_York (`chrono-tz`), kept apart
   from `mt_core::time`.
@@ -163,7 +166,12 @@ Only after paper trading has run cleanly for a few weeks.
   sessions, so offline mode and the tests replay them.
 - A fake broker in the tests: duplicate prevention, reconnect reconciliation,
   partial fills and rejections, every guardrail.
-- A manually run CI job against a dedicated paper account; never live.
+- The weekly drift job records live Alpaca responses with the CI paper
+  account's keys (repository secrets `ALPACA_PAPER_KEY_ID`,
+  `ALPACA_PAPER_SECRET_KEY`) and runs the parsers on them, as it does for
+  MISO. A manually run job places and cancels paper orders on that account;
+  never live. Installed copies of the terminal never see these keys: each user
+  adds their own.
 - Visual snapshots for each new panel.
 
 ## Risks
@@ -176,12 +184,6 @@ Only after paper trading has run cleanly for a few weeks.
 - **Compliance:** anyone working in energy or financial markets should check
   their employer's personal-trading policy before trading live; some require
   pre-clearance or forbid certain names. The restricted list is there for that.
-
-## Open questions
-
-1. Should a dedicated paper account's keys go into the repository's CI secrets
-   for the weekly checks? Alpaca's market data needs keys too.
-2. Is `XLU US` the instrument syntax, or something shorter?
 
 ## Sources
 
