@@ -301,21 +301,21 @@ def main() -> None:
             sys.exit(f"refusing to replace {out}: not empty and not an earlier build of this site")
         shutil.rmtree(out)
     (out / "screenshots").mkdir(parents=True)
-    (out / MARKER).write_text("Built by tools/build_docs.py; replaced on every build.\n", encoding="utf-8")
+    (out / MARKER).write_text("Built by tools/build_docs.py; replaced on every build.\n", encoding="utf-8", newline="\n")
     (out / "fonts").mkdir()
     (out / "themes").mkdir()
     (out / "screenshots/themes").mkdir()
     for p in pages:
-        (out / p.slug).write_text(layout(p, pages), encoding="utf-8")
+        (out / p.slug).write_text(layout(p, pages), encoding="utf-8", newline="\n")
     for a in sorted(assets):
         shutil.copy2(ROOT / a, out / "screenshots" / posixpath.basename(a))
     for f in gallery_theme_files():
         shutil.copy2(f, out / "themes" / f.name)
     index = gallery_index()
-    (out / "themes/index.json").write_text(index, encoding="utf-8")
+    (out / "themes/index.json").write_text(index, encoding="utf-8", newline="\n")
     if update_fixture:
         FIXTURE.parent.mkdir(parents=True, exist_ok=True)
-        FIXTURE.write_text(index, encoding="utf-8")
+        FIXTURE.write_text(index, encoding="utf-8", newline="\n")
         print(f"updated {FIXTURE.relative_to(ROOT)}")
     for f in (ROOT / "docs/screenshots/themes").glob("*.webp"):
         shutil.copy2(f, out / "screenshots/themes" / f.name)
