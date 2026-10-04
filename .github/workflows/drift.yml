@@ -12,7 +12,7 @@ jobs:
   drift:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Record live responses
@@ -23,3 +23,11 @@ jobs:
         run: cargo run -p mt-eia --example capture_gas -- "$RUNNER_TEMP/live"
       - name: Parse them
         run: MT_FIXTURES="$RUNNER_TEMP/live" cargo test -p mt-miso -p mt-nws -p mt-eia --test parsers
+      # Keep the recording when something fails, to tell a real format change
+      # from a transient (an odd response, a report not published yet).
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: live-recording
+          path: ${{ runner.temp }}/live
+          retention-days: 14

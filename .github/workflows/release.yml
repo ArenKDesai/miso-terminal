@@ -12,7 +12,7 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
@@ -29,7 +29,7 @@ jobs:
           New-Item -ItemType Directory $dir/licenses | Out-Null
           Copy-Item assets/fonts/*-OFL.txt $dir/licenses
           Compress-Archive $dir "$dir.zip"
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: miso-terminal-*-windows-x64.zip
           generate_release_notes: true

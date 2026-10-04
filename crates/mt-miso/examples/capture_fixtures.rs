@@ -73,25 +73,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Daily reports: DA for yesterday, today and (after ~1:30 pm EST) tomorrow;
-    // RT prelim for yesterday; the most recent RT final.
+    // the most recent RT prelim (yesterday's is not out until morning) and RT final.
     let today = market_today();
     let mut wanted = vec![
         (reports::DA_EXPOST, today - Duration::days(1)),
         (reports::DA_EXPOST, today),
         (reports::DA_EXPOST, today + Duration::days(1)),
-        (reports::RT_PRELIM, today - Duration::days(1)),
     ];
+    wanted.extend((1..4).map(|back| (reports::RT_PRELIM, today - Duration::days(back))));
     wanted.extend((2..15).map(|back| (reports::RT_FINAL, today - Duration::days(back))));
-    let mut have_final = false;
+    let newest_only = [reports::RT_PRELIM, reports::RT_FINAL];
+    let mut have = HashSet::new();
     for (suffix, day) in wanted {
-        if suffix == reports::RT_FINAL && have_final {
+        if have.contains(suffix) {
             continue;
         }
         let url = endpoints.report(day, suffix);
         match ctx.get_text(&url).await {
             Ok(body) => {
                 write(&fixtures.path_for(&url), &trim_csv(&body, &keep))?;
-                have_final |= suffix == reports::RT_FINAL;
+                if newest_only.contains(&suffix) {
+                    have.insert(suffix);
+                }
             }
             Err(FetchError::NotFound(_)) => println!("not published: {url}"),
             Err(e) => return Err(e.into()),
