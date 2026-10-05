@@ -2,8 +2,10 @@
 //! broker says about it ([`Order`], [`OrderStatus`]). The checks a ticket
 //! passes before its Confirm is enabled are in [`crate::guard`].
 //!
-//! Quantities and prices are exact ([`Decimal`]). Stocks and ETFs only:
-//! options tickets come with the options phase.
+//! Quantities and prices are exact ([`Decimal`]). An order is for a stock or
+//! ETF (`symbol` a ticker, quantities in shares) or for an option contract
+//! (`symbol` an OCC symbol, quantities in contracts of 100 shares, premiums
+//! per share).
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -11,7 +13,9 @@ use std::fmt;
 use chrono::{DateTime, NaiveDate, Utc};
 
 use crate::account::{AssetClass, OrderSide};
+use crate::instrument::OptionContract;
 use crate::money::Decimal;
+use crate::options::{MULTIPLIER, PositionIntent, contract_words};
 
 /// Prices at or above a dollar trade in cents; below, in hundredths of a cent.
 pub const PENNY: Decimal = Decimal::from_parts(1, 0, 0, false, 2);
@@ -264,17 +268,17 @@ impl OrderStatus {
     }
 }
 
-/// What a ticket sends: one stock or ETF order.
+/// What a ticket sends: one stock, ETF or option order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OrderRequest {
     /// The terminal's own id for the order, made before it is sent: if the
     /// answer is lost, the order is looked up by it before anything is
     /// resent, and the broker refuses a second order with the same id.
     pub client_order_id: String,
-    /// The ticker: `XLU`.
+    /// The ticker (`XLU`), or an option's OCC symbol.
     pub symbol: String,
     pub side: OrderSide,
-    /// Shares; fractions only for day orders.
+    /// Shares (fractions only for day orders), or whole contracts.
     pub qty: Decimal,
     pub order_type: OrderType,
     pub limit_price: Option<Decimal>,
@@ -282,9 +286,40 @@ pub struct OrderRequest {
     pub tif: TimeInForce,
     /// Allow it to fill before the open and after the close (day limit orders only).
     pub extended_hours: bool,
+    /// For an option: whether it opens or closes a position. Sent when set,
+    /// so the broker need not work it out.
+    pub position_intent: Option<PositionIntent>,
 }
 
 impl OrderRequest {
+    /// The option contract, when the order is for one.
+    pub fn contract(&self) -> Option<OptionContract> {
+        OptionContract::parse_occ(&self.symbol)
+    }
+
+    pub fn is_option(&self) -> bool {
+        self.contract().is_some()
+    }
+
+    /// What a unit's price is multiplied by: 100 for an option contract.
+    pub fn multiplier(&self) -> Decimal {
+        if self.is_option() {
+            MULTIPLIER
+        } else {
+            Decimal::ONE
+        }
+    }
+
+    /// `share`, `shares`, `contract` or `contracts`, for `n` of them.
+    pub fn unit(&self, n: Decimal) -> &'static str {
+        match (self.is_option(), n == Decimal::ONE) {
+            (true, true) => "contract",
+            (true, false) => "contracts",
+            (false, true) => "share",
+            (false, false) => "shares",
+        }
+    }
+
     /// What the broker would refuse: a missing or unneeded price, prices off
     /// the tick, a fractional order that is not a day order, extended hours
     /// on anything but a day limit order.
@@ -292,6 +327,18 @@ impl OrderRequest {
         let mut out = Vec::new();
         if self.symbol.trim().is_empty() {
             out.push("No security.".to_owned());
+        }
+        let option = self.is_option();
+        if let Some(intent) = self.position_intent {
+            if !option {
+                out.push("Only option orders open or close a position by name.".to_owned());
+            } else if intent.side() != self.side {
+                out.push(format!(
+                    "{} does not match a {} order.",
+                    intent.label(),
+                    self.side.label().to_ascii_lowercase()
+                ));
+            }
         }
         if self.qty <= Decimal::ZERO {
             out.push("The quantity must be more than zero.".to_owned());
@@ -311,12 +358,27 @@ impl OrderRequest {
                 (true, Some(p)) if p <= Decimal::ZERO => {
                     out.push(format!("The {name} price must be more than zero."));
                 }
+                (true, Some(p)) if option && !(p % PENNY).is_zero() => {
+                    out.push(format!("The {name} price {p} is finer than a cent."));
+                }
                 (true, Some(p)) if !(p % tick_for(p)).is_zero() => out.push(format!(
                     "The {name} price {p} is finer than the tick ({}).",
                     tick_for(p).normalize()
                 )),
                 _ => {}
             }
+        }
+        if option {
+            if self.qty.fract() != Decimal::ZERO {
+                out.push("Options trade in whole contracts.".to_owned());
+            }
+            if !matches!(self.tif, TimeInForce::Day | TimeInForce::Gtc) {
+                out.push("Option orders are DAY or GTC.".to_owned());
+            }
+            if self.extended_hours {
+                out.push("Options trade in the regular session only.".to_owned());
+            }
+            return out;
         }
         if self.qty.fract() != Decimal::ZERO && self.tif != TimeInForce::Day {
             out.push("Fractional shares trade as day orders only.".to_owned());
@@ -346,13 +408,16 @@ impl OrderRequest {
         }
     }
 
-    /// `Buy 10 XLU · limit 82.50 · DAY`.
+    /// `Buy 10 XLU · limit 82.50 · DAY`, or for an option
+    /// `Sell 1 XLU Dec 18 '26 45 call · limit 1.60 · DAY · to close`.
     pub fn describe(&self) -> String {
+        let what = self
+            .contract()
+            .map_or_else(|| self.symbol.clone(), |c| contract_words(&c));
         let mut s = format!(
-            "{} {} {}",
+            "{} {} {what}",
             self.side.label(),
-            crate::money::fmt_qty(self.qty),
-            self.symbol
+            crate::money::fmt_qty(self.qty)
         );
         match self.order_type {
             OrderType::Market => s.push_str(" · market"),
@@ -373,6 +438,11 @@ impl OrderRequest {
         s.push_str(&format!(" · {}", self.tif.code()));
         if self.extended_hours {
             s.push_str(" · extended hours");
+        }
+        match self.position_intent {
+            Some(i) if i.opens() => s.push_str(" · to open"),
+            Some(_) => s.push_str(" · to close"),
+            None => {}
         }
         s
     }
@@ -418,9 +488,20 @@ pub struct Order {
     /// The order that replaced this one, and the one this replaced.
     pub replaced_by: Option<String>,
     pub replaces: Option<String>,
+    /// For an option order: whether it opens or closes a position.
+    pub position_intent: Option<PositionIntent>,
 }
 
 impl Order {
+    /// What a unit's price is multiplied by: 100 for an option contract.
+    pub fn multiplier(&self) -> Decimal {
+        if self.is_option() {
+            MULTIPLIER
+        } else {
+            Decimal::ONE
+        }
+    }
+
     /// Shares still to fill (zero once the order is finished).
     pub fn remaining(&self) -> Decimal {
         if self.status.is_final() {
@@ -451,21 +532,19 @@ impl Order {
     }
 
     /// What it is worth: what filled, at its fill price, plus what is still
-    /// open, at its limit or stop (or `market` for a market order).
+    /// open, at its limit or stop (or `market` for a market order), times
+    /// the multiplier for an option.
     pub fn value(&self, market: Option<Decimal>) -> Decimal {
         let filled = self
             .filled_avg_price
             .map_or(Decimal::ZERO, |p| p * self.filled_qty);
         let open = self.remaining();
-        if open.is_zero() {
-            return filled;
-        }
         let price = self.price().or(market).unwrap_or(Decimal::ZERO);
-        filled + open * price
+        (filled + open * price) * self.multiplier()
     }
 
     pub fn is_option(&self) -> bool {
-        self.class == AssetClass::Option
+        self.class == AssetClass::Option || OptionContract::parse_occ(&self.symbol).is_some()
     }
 }
 
@@ -557,6 +636,7 @@ pub(crate) mod tests {
             stop_price: None,
             tif: TimeInForce::Day,
             extended_hours: false,
+            position_intent: None,
         }
     }
 
@@ -586,6 +666,7 @@ pub(crate) mod tests {
             expired_at: None,
             replaced_by: None,
             replaces: None,
+            position_intent: None,
         }
     }
 
@@ -647,6 +728,42 @@ pub(crate) mod tests {
         );
         assert_eq!(stop.describe(), "Buy 10 XLU · stop 80.50 limit 80.00 · DAY");
         assert_eq!(tick_for(d("0.99")), d("0.0001"));
+    }
+
+    #[test]
+    fn option_requests_follow_the_option_rules() {
+        let mut o = request("2", OrderType::Limit, Some("1.60"));
+        o.symbol = "XLU261218C00045000".into();
+        o.position_intent = Some(PositionIntent::BuyToOpen);
+        assert!(o.problems().is_empty(), "{:?}", o.problems());
+        assert_eq!(o.multiplier(), d("100"));
+        assert_eq!(
+            o.describe(),
+            "Buy 2 XLU Dec 18 '26 45 call · limit 1.60 · DAY · to open"
+        );
+        let bad = |f: &dyn Fn(&mut OrderRequest)| {
+            let mut x = o.clone();
+            f(&mut x);
+            x.problems()
+        };
+        assert!(bad(&|x| x.qty = d("1.5"))[0].contains("whole contracts"));
+        assert!(bad(&|x| x.tif = TimeInForce::Ioc)[0].contains("DAY or GTC"));
+        assert!(bad(&|x| x.tif = TimeInForce::Gtc).is_empty());
+        assert!(bad(&|x| x.extended_hours = true)[0].contains("regular session"));
+        assert!(bad(&|x| x.limit_price = Some(d("0.505")))[0].contains("finer than a cent"));
+        assert!(
+            bad(&|x| x.position_intent = Some(PositionIntent::SellToClose))[0]
+                .contains("does not match")
+        );
+        let mut stock = request("10", OrderType::Limit, Some("82.50"));
+        stock.position_intent = Some(PositionIntent::BuyToOpen);
+        assert!(stock.problems()[0].contains("Only option orders"));
+        // An option order's value is per contract of 100 shares.
+        let mut filled = order("o", OrderSide::Buy, "2", "2", "filled");
+        filled.symbol = "XLU261218C00045000".into();
+        filled.class = AssetClass::Option;
+        filled.filled_avg_price = Some(d("1.55"));
+        assert_eq!(filled.value(None), d("310.00"));
     }
 
     #[test]

@@ -189,6 +189,43 @@ fn trade_menu(ui: &mut Ui, security: &str, held: Decimal) -> Option<Route> {
     out
 }
 
+/// An option position's right-click menu: tickets to buy or sell the
+/// contract, or to close the position.
+fn option_menu(ui: &mut Ui, symbol: &str, held: Decimal) -> Option<Route> {
+    let mut out = None;
+    if ui.button("Buy…").clicked() {
+        out = Some(Route::new("BUY", [symbol]));
+    }
+    if ui.button("Sell…").clicked() {
+        out = Some(Route::new("SELL", [symbol]));
+    }
+    let code = if held.is_sign_negative() {
+        "BUY"
+    } else {
+        "SELL"
+    };
+    let qty = portfolio::qty(held.abs());
+    if ui
+        .button(format!("Close the position ({qty} contracts)…"))
+        .on_hover_text(
+            "Opens a ticket for the whole position, at the mid; nothing is sent until you confirm it",
+        )
+        .clicked()
+    {
+        out = Some(Route::new(
+            code,
+            [symbol.to_owned(), qty.replace(',', "")],
+        ));
+    }
+    if ui.button("Show in OMON").clicked() {
+        out = Some(Route::new("OMON", [symbol]));
+    }
+    if out.is_some() {
+        ui.close();
+    }
+    out
+}
+
 fn tiles(ui: &mut Ui, cx: &mut PanelCx<'_>, a: &mt_core::account::Account, t: &Totals) {
     let skin = cx.skin;
     ui.horizontal_wrapped(|ui| {
@@ -434,7 +471,13 @@ fn options(ui: &mut Ui, cx: &mut PanelCx<'_>, lines: &[Line]) {
         ui.horizontal_wrapped(|ui| {
             let name = format!("{underlying} US");
             if widgets::link(ui, skin, &name).clicked() {
-                open = Some(Route::new("GP", [name]));
+                open = Some(Route::new("GP", [name.clone()]));
+            }
+            if widgets::link(ui, skin, "OMON")
+                .on_hover_text(format!("The option chain for {name}"))
+                .clicked()
+            {
+                open = Some(Route::new("OMON", [name]));
             }
             ui.label(
                 RichText::new(format!(
@@ -494,20 +537,29 @@ fn options(ui: &mut Ui, cx: &mut PanelCx<'_>, lines: &[Line]) {
                     };
                     let m = &l.mark;
                     let snap = snaps.data().and_then(|s| s.get(&p.symbol));
-                    ui.label(
-                        RichText::new(format!(
-                            "{} {} {}",
-                            c.underlying,
-                            portfolio::strike(c.strike),
-                            if c.right == mt_core::instrument::OptionRight::Call {
-                                "call"
-                            } else {
-                                "put"
-                            }
-                        ))
-                        .color(skin.text_strong),
-                    )
-                    .on_hover_text(&p.symbol);
+                    let resp = ui
+                        .add(
+                            egui::Label::new(
+                                RichText::new(format!(
+                                    "{} {} {}",
+                                    c.underlying,
+                                    portfolio::strike(c.strike),
+                                    if c.right == mt_core::instrument::OptionRight::Call {
+                                        "call"
+                                    } else {
+                                        "put"
+                                    }
+                                ))
+                                .color(skin.text_strong),
+                            )
+                            .sense(egui::Sense::click()),
+                        )
+                        .on_hover_text(format!("{}: right-click to trade it", p.symbol));
+                    resp.context_menu(|ui| {
+                        if let Some(r) = option_menu(ui, &p.symbol, p.qty) {
+                            open = Some(r);
+                        }
+                    });
                     let days = (c.expiry - today).num_days();
                     let (when, color) = match days {
                         ..=-1 => ("expired".to_owned(), skin.warning),
@@ -561,6 +613,25 @@ fn options(ui: &mut Ui, cx: &mut PanelCx<'_>, lines: &[Line]) {
                     ui.end_row();
                 }
             });
+        let expiring: Vec<String> = contracts
+            .iter()
+            .filter_map(|p| p.contract())
+            .filter(|c| c.expiry == today)
+            .map(|c| mt_core::options::contract_name(&c))
+            .collect();
+        if !expiring.is_empty() {
+            ui.label(
+                RichText::new(format!(
+                    "⚠ {} {} today. Alpaca takes orders for {underlying}'s expiring contracts until {} \
+                     New York time, exercises those in the money by a cent or more at the close, and \
+                     may sell a position the account cannot afford to exercise in the last hour.",
+                    expiring.join(", "),
+                    if expiring.len() == 1 { "expires" } else { "expire" },
+                    mt_core::options::expiry_cutoff(underlying).format("%H:%M")
+                ))
+                .color(skin.warning),
+            );
+        }
         ui.add_space(6.0);
     }
     if let Some(r) = open {

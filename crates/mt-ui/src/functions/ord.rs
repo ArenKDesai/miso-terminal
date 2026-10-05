@@ -9,7 +9,8 @@ use egui_extras::{Column, TableBuilder};
 use mt_alpaca::desk::KILL as KILL_KEY;
 use mt_alpaca::{ActionState, OrderDesk, Outcome, Replacement};
 use mt_core::account::OrderSide;
-use mt_core::guard::{self, Level};
+use mt_core::guard::{self, Level, Review};
+use mt_core::instrument::OptionContract;
 use mt_core::money::{Decimal, parse_decimal};
 use mt_core::order::{Order, OrderRequest, OrderType, day_value, price_text};
 
@@ -151,7 +152,11 @@ impl ReplaceEdit {
             .ok_or_else(|| format!("{} orders cannot be replaced here.", o.type_name))?;
         let qty = parse_decimal(&self.qty)
             .filter(|q| *q > Decimal::ZERO)
-            .ok_or("Type the number of shares.")?;
+            .ok_or(if o.is_option() {
+                "Type the number of contracts."
+            } else {
+                "Type the number of shares."
+            })?;
         let price = |text: &str, need: bool, what: &str| -> Result<Option<Decimal>, String> {
             if !need {
                 return Ok(None);
@@ -173,6 +178,7 @@ impl ReplaceEdit {
             stop_price: stop,
             tif: o.tif.unwrap_or_default(),
             extended_hours: o.extended_hours,
+            position_intent: o.position_intent,
         };
         let changed = |new: Option<Decimal>, old: Option<Decimal>| new.filter(|n| Some(*n) != old);
         let rep = Replacement {
@@ -453,10 +459,14 @@ impl Blotter {
                                 }
                             });
                             row.col(|ui| {
-                                ui.label(RichText::new(o.side.label()).color(match o.side {
-                                    OrderSide::Buy => skin.positive,
-                                    OrderSide::Sell => skin.negative,
-                                }));
+                                let side =
+                                    ui.label(RichText::new(o.side.label()).color(match o.side {
+                                        OrderSide::Buy => skin.positive,
+                                        OrderSide::Sell => skin.negative,
+                                    }));
+                                if let Some(i) = o.position_intent {
+                                    side.on_hover_text(i.label());
+                                }
                             });
                             row.col(|ui| {
                                 crate::widgets::table::num_cell(
@@ -583,6 +593,9 @@ impl Blotter {
                 });
                 let parsed = edit.request();
                 let review = parsed.as_ref().ok().map(|(req, _)| {
+                    if let Some(c) = req.contract() {
+                        return option_replace_review(cx, book, &edit.order, req, &c);
+                    }
                     let account = cx.hub.watch(&cx.alpaca.account());
                     let positions = cx.hub.watch(&cx.alpaca.positions());
                     let board = market::board(cx, std::slice::from_ref(&req.symbol));
@@ -684,6 +697,62 @@ impl Blotter {
     }
 }
 
+/// The option guardrails for a replacement, from the position as it was
+/// before any of the order filled (and with nothing held back by it).
+fn option_replace_review(
+    cx: &PanelCx<'_>,
+    book: &trading::OrderBook,
+    order: &Order,
+    req: &OrderRequest,
+    contract: &OptionContract,
+) -> Review {
+    let m = trading::watch_option(cx, std::slice::from_ref(contract));
+    let Some(m) = m else {
+        return guard::review_option(
+            req,
+            &guard::OptionContext {
+                account: None,
+                positions: &[],
+                info: None,
+                bid: None,
+                ask: None,
+                last: None,
+                session: market::status(cx.hub, cx.alpaca).session,
+                now: mt_core::time::now_utc(),
+                today_value: Decimal::ZERO,
+                day_trade: false,
+            },
+            &cx.config.trading,
+        );
+    };
+    let mark = m.mark(&req.symbol);
+    let today = trading::today();
+    let mut today_value = day_value(&book.orders, today, |s| {
+        (s == req.symbol).then_some(mark).flatten()
+    });
+    if order
+        .created_at
+        .is_some_and(|t| mt_core::exchange::to_exchange(t).date_naive() == today)
+    {
+        today_value -= order.value(mark).abs();
+    }
+    let before = m.held(&req.symbol) - order.side.sign() * order.filled_qty;
+    let mut positions = m.positions().to_vec();
+    if let Some(p) = positions.iter_mut().find(|p| p.symbol == req.symbol) {
+        p.qty = before;
+        p.qty_available = None;
+    }
+    positions.retain(|p| !p.qty.is_zero());
+    let mut context = m.context(
+        &req.symbol,
+        market::status(cx.hub, cx.alpaca).session,
+        today_value.max(Decimal::ZERO),
+        false,
+    );
+    context.positions = &positions;
+    guard::review_option(req, &context, &cx.config.trading)
+}
+
 /// `Limit 82.50`, `Stop 80.00 / 79.50`, `Market`.
 fn type_text(o: &Order) -> String {
     let name = o
@@ -756,6 +825,7 @@ fn to_csv(rows: &[&Order]) -> String {
             "status",
             "filled_avg_price",
             "filled_utc",
+            "position_intent",
         ],
         rows.iter().map(|o| {
             vec![
@@ -773,6 +843,7 @@ fn to_csv(rows: &[&Order]) -> String {
                 o.status.label(),
                 n(o.filled_avg_price),
                 t(o.filled_at),
+                o.position_intent.map_or("", |i| i.as_str()).to_owned(),
             ]
         }),
     )

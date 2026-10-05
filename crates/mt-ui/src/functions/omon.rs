@@ -3,7 +3,9 @@
 //! last and its change, volume, open interest, implied volatility and delta
 //! (gamma, theta and vega on request). In-the-money contracts are shaded and
 //! a line marks where the stock trades. Expiries are tabs; the strikes shown
-//! are those nearest the money.
+//! are those nearest the money. Clicking a bid opens a ticket to sell one
+//! contract there, clicking an ask one to buy, and right-clicking a contract
+//! offers both; nothing is sent until the ticket is confirmed.
 //!
 //! Prices come from Alpaca's indicative feed on the free plan and are re-read
 //! every minute; the contract list (expiries, open interest) every hour.
@@ -425,6 +427,7 @@ impl Omon {
         });
         let focus = self.focus.clone();
         let mut scroll = std::mem::take(&mut self.scroll_to_focus);
+        let mut open: Option<Route> = None;
         ui.horizontal(|ui| {
             let side_w: f32 = cols.iter().map(|c| c.width() + 6.0).sum();
             ui.add_sized(
@@ -521,7 +524,18 @@ impl Omon {
                                                     itm_fill,
                                                 );
                                             }
-                                            cell(ui, skin, *c, snap, info);
+                                            let resp = cell(ui, skin, *c, snap, info);
+                                            let Some(sym) = symbol else { return };
+                                            if resp.clicked()
+                                                && let Some(r) = ticket_at(*c, sym, snap)
+                                            {
+                                                open = Some(r);
+                                            }
+                                            resp.context_menu(|ui| {
+                                                if let Some(r) = trade_menu(ui, sym) {
+                                                    open = Some(r);
+                                                }
+                                            });
                                         });
                                     }
                                 }
@@ -546,14 +560,54 @@ impl Omon {
         if let Some(s) = spot {
             ui.label(
                 RichText::new(format!(
-                    "The line marks the stock at {}; shaded contracts are in the money.",
+                    "The line marks the stock at {}; shaded contracts are in the money. Click a bid \
+                     to sell at it or an ask to buy at it, or right-click a contract: a ticket opens, \
+                     and nothing is sent until you confirm it.",
                     fmt::price(s)
                 ))
                 .small()
                 .color(skin.text_muted),
             );
         }
+        if let Some(r) = open {
+            cx.open(r);
+        }
     }
+}
+
+/// A ticket for one contract at the clicked bid (to sell) or ask (to buy).
+fn ticket_at(col: Col, symbol: &str, snap: Option<&OptionSnapshot>) -> Option<Route> {
+    let (code, price) = match col {
+        Col::Bid => ("SELL", snap.and_then(OptionSnapshot::bid)),
+        Col::Ask => ("BUY", snap.and_then(OptionSnapshot::ask)),
+        _ => return None,
+    };
+    let mut args = vec![symbol.to_owned(), "1".to_owned()];
+    if let Some(p) = price {
+        args.extend(["LMT".to_owned(), opt::premium(p)]);
+    }
+    Some(Route::new(code, args))
+}
+
+/// A contract's right-click menu: tickets to buy or sell it, its symbol.
+fn trade_menu(ui: &mut Ui, symbol: &str) -> Option<Route> {
+    let name = OptionContract::parse_occ(symbol)
+        .map_or_else(|| symbol.to_owned(), |c| options::contract_words(&c));
+    let mut out = None;
+    if ui.button(format!("Buy {name}…")).clicked() {
+        out = Some(Route::new("BUY", [symbol]));
+    }
+    if ui.button(format!("Sell {name}…")).clicked() {
+        out = Some(Route::new("SELL", [symbol]));
+    }
+    if ui.button("Copy the option symbol").clicked() {
+        ui.ctx().copy_text(symbol.to_owned());
+        ui.close();
+    }
+    if out.is_some() {
+        ui.close();
+    }
+    out
 }
 
 /// One contract's figure for a column.
@@ -563,7 +617,7 @@ fn cell(
     col: Col,
     snap: Option<&OptionSnapshot>,
     info: Option<&options::ContractInfo>,
-) {
+) -> egui::Response {
     let g = snap.map(|s| s.greeks).unwrap_or_default();
     let (text, color) = match col {
         Col::Bid => (
@@ -596,7 +650,18 @@ fn cell(
         Col::Theta => (opt::greek(g.theta, 3), skin.text_muted),
         Col::Vega => (opt::greek(g.vega, 3), skin.text_muted),
     };
-    ui.label(RichText::new(text).monospace().color(color));
+    let text = RichText::new(text).monospace().color(color);
+    match col {
+        Col::Bid | Col::Ask => ui
+            .add(egui::Label::new(text).sense(egui::Sense::click()))
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .on_hover_text(if col == Col::Bid {
+                "Sell one contract at the bid: opens a ticket"
+            } else {
+                "Buy one contract at the ask: opens a ticket"
+            }),
+        _ => ui.add(egui::Label::new(text).sense(egui::Sense::click())),
+    }
 }
 
 fn to_csv(

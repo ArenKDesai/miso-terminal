@@ -178,8 +178,9 @@ asked to see.
   *Confirm*, ORD's *Cancel*/*Confirm replace* or the kill switch is clicked.
   Commands (typed, `--run`, forwarded, hotkeys) open tickets and never send;
   nothing trades automatically (`commands_from_outside_the_window_only_open_tickets`
-  checks it). Every ticket runs `mt_core::guard::review` first; a new rule goes
-  there with a test. A ticket keeps one `client_order_id` until its order is
+  checks it). Every ticket runs `mt_core::guard::review` (options:
+  `review_option`, in `guard/options.rs`) first; a new rule goes there with a
+  test. A ticket keeps one `client_order_id` until its order is
   placed, so a resend after a lost answer cannot duplicate it. Tickets are not
   restored after a restart. Order amounts are `Decimal`. The audit log never
   holds keys (they are headers) and its path (which names the Windows user)

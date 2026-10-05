@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use mt_core::account::{AssetClass, OrderSide};
+use mt_core::options::PositionIntent;
 use mt_core::order::{Order, OrderRequest, OrderStatus, OrderType, TimeInForce};
 use mt_data::{FetchCtx, FetchError, Freshness, Query};
 use serde_json::{Map, Value, json};
@@ -64,6 +65,7 @@ pub fn parse_order(v: &Value) -> Option<Order> {
         expired_at: time(v, "expired_at"),
         replaced_by: text(v, "replaced_by"),
         replaces: text(v, "replaces"),
+        position_intent: text(v, "position_intent").and_then(|i| PositionIntent::parse(&i)),
     })
 }
 
@@ -126,6 +128,9 @@ pub fn order_body(req: &OrderRequest) -> Value {
     }
     if req.extended_hours {
         m.insert("extended_hours".into(), json!(true));
+    }
+    if let Some(i) = req.position_intent {
+        m.insert("position_intent".into(), json!(i.as_str()));
     }
     m.insert("client_order_id".into(), json!(req.client_order_id));
     Value::Object(m)
@@ -258,6 +263,7 @@ mod tests {
             stop_price: Some(d("80")),
             tif: TimeInForce::Day,
             extended_hours: true,
+            position_intent: None,
         };
         let b = order_body(&req);
         assert_eq!(b["symbol"], "XLU");
@@ -269,9 +275,26 @@ mod tests {
         let market = order_body(&OrderRequest {
             order_type: OrderType::Market,
             extended_hours: false,
-            ..req
+            ..req.clone()
         });
         assert!(market.get("limit_price").is_none() && market.get("extended_hours").is_none());
+        assert!(market.get("position_intent").is_none());
+        // An option order names its contract and what it does to the position.
+        let option = order_body(&OrderRequest {
+            symbol: "XLU261218C00045000".into(),
+            qty: d("2"),
+            extended_hours: false,
+            position_intent: Some(PositionIntent::SellToClose),
+            ..req
+        });
+        assert_eq!(option["symbol"], "XLU261218C00045000");
+        assert_eq!(option["qty"], "2");
+        assert_eq!(option["position_intent"], "sell_to_close");
+        let parsed = parse_order(&json!({"id": "o", "symbol": "XLU261218C00045000", "side": "sell",
+            "asset_class": "us_option", "qty": "2", "position_intent": "sell_to_close", "status": "new"}))
+        .unwrap();
+        assert!(parsed.is_option());
+        assert_eq!(parsed.position_intent, Some(PositionIntent::SellToClose));
         let r = replace_body(&Replacement {
             client_order_id: "mt-r".into(),
             limit_price: Some(d("82.55")),

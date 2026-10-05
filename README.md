@@ -129,8 +129,8 @@ and themes.
 | `ACCT` | Account | The paper account's status and any restrictions, balances, buying power, margin (initial, maintenance, excess equity), the pattern-day-trader flag with day trades used, and the options level. The account number is masked |
 | `PNL` | Profit and loss | The paper account's equity curve: today at five minutes, a week hourly, or one, three or twelve months daily, with the change, high, low and deepest drawdown (`PNL 1M`) |
 | `ACT` | Account activity | Fills, dividends, fees, transfers and option exercises, assignments and expiries, newest first, by kind or symbol (`ACT FILLS`, `ACT DIV`), with order events as they stream |
-| `BUY` | Buy ticket | An order ticket for the paper account, filled in from the command (`BUY XLU US 10 LMT 44.50 DAY`; also `MKT`, `STP 80`, `STPLMT 80 79.50`, `GTC`, `IOC`, `FOK`, `OPG`, `CLS`, `EXT` for extended hours): the latest prices, the cost, buying power and position afterwards, and every guardrail's verdict. Warnings must be ticked off; only its **Confirm** button sends the order |
-| `SELL` | Sell ticket | The same ticket to sell, or sell short (`SELL XLU US 200`). PORT's right-click menu opens one to close a position |
+| `BUY` | Buy ticket | An order ticket for the paper account, filled in from the command (`BUY XLU US 10 LMT 44.50 DAY`; also `MKT`, `STP 80`, `STPLMT 80 79.50`, `GTC`, `IOC`, `FOK`, `OPG`, `CLS`, `EXT` for extended hours): the latest prices, the cost, buying power and position afterwards, and every guardrail's verdict. Warnings must be ticked off; only its **Confirm** button sends the order. For an option contract, by its OCC symbol (`BUY XLU261218C00046000 2 LMT 1.16`): whole contracts, `DAY` or `GTC`, the quote and greeks, the premium and options buying power, whether it opens or closes a position, and what it pays at expiry |
+| `SELL` | Sell ticket | The same ticket to sell, or sell short (`SELL XLU US 200`); for options, to close a position, or to write a covered call or a cash-secured put (Alpaca allows no uncovered options). PORT's right-click menu opens one to close a position, and OMON opens one at a bid or ask you click |
 | `ORD` | Orders | The paper account's orders, kept current by the order stream: open, filled, cancelled (`ORD ALL`); cancel or replace open ones; the **kill switch** (cancel every open order, optionally close every position, and turn trading off until you turn it back on); where the order audit log is |
 | `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast, ACE and headlines (`MISO, PJM, power prices`): add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, live streams and request budgets (when a source uses them), fetch activity, cache and file locations |
@@ -166,7 +166,12 @@ on the ticket's **Confirm** sends an order. Before that, the ticket checks the
 order against Alpaca's rules and your limits under `[trading]` in config.toml (or
 SET): per-order, daily and per-position caps in dollars, a collar keeping limit
 and stop prices near the last trade, a fat-finger check, a restricted list, no
-market orders outside the regular session, buying power and day trades. The kill
+market orders outside the regular session, buying power and day trades. Option
+orders also check the account's options level, that a sold call is covered by
+shares and a sold put by buying power, the contract's expiry (Alpaca takes no
+orders for contracts expiring that day after 15:15 New York time), a limit
+against the bid or ask, the exchanges' price steps and the contracts per order;
+a restricted stock's options are restricted too. The kill
 switch in `ORD` cancels everything and turns trading off. Every order request and
 answer is appended to `orders-YYYY-MM.jsonl` in `%LOCALAPPDATA%\MISO Terminal\audit`.
 

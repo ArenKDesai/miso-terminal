@@ -264,7 +264,10 @@ through the same path. Every request body and answer is appended to
 `orders-YYYY-MM.jsonl` (`AuditLog`); keys travel only in headers, which are
 never written.
 
-Before the desk is asked, a ticket runs `mt_core::guard::review`: pure rules
+Before the desk is asked, a ticket runs `mt_core::guard::review` (for an
+option contract `review_option`, against an `OptionContext` that
+`mt_ui::trading::OptionMarket` builds from the account, positions, contract
+list and chain): pure rules
 over the request, the account, the position, the latest prices, the exchange
 session, today's order value (`order::day_value`) and whether it would be a
 day trade (`order::is_day_trade`), each a pass, a warning the user must
@@ -387,7 +390,7 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 
 | Layer | Tests |
 |---|---|
-| `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces; New York time across clock changes, and sessions; security and OCC parsing; option contract lists, chains by strike, the money's window, price steps and expiry cutoffs; exact decimals from broker JSON; marking positions (shorts, options, opened today), net delta, account figures, drawdowns, activity categories and merging; order requests the broker would refuse, order values, merging and day trades; every guardrail (switch, restricted list, sessions, the three caps, the collar, size, shorts, buying power, day trades) |
+| `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces; New York time across clock changes, and sessions; security and OCC parsing; option contract lists, chains by strike, the money's window, price steps and expiry cutoffs; exact decimals from broker JSON; marking positions (shorts, options, opened today), net delta, account figures, drawdowns, activity categories and merging; order requests the broker would refuse, order values, merging and day trades; every guardrail (switch, restricted list, sessions, the three caps, the collar, size, shorts, buying power, day trades); every option guardrail (levels, covered calls, cash-secured puts, flips and closes, expiry cutoffs, the quote collar, price steps, contracts per order) |
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; streams against a scripted server (shared connections, subscription unions, reconnect and resubscribe, refused logins, lingering topics, pause); a real WebSocket round trip on localhost; conditional GETs, status mapping, budgets and `429`s; secrets kept out of the log; the Windows Credential Manager round trip; transports; disk cache |
 | `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
