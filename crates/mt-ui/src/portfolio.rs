@@ -157,17 +157,24 @@ pub fn resync(hub: &DataHub, alpaca: &Alpaca, seen: &mut Option<(u64, u64)>) {
         Some(s) if s == token => {}
         Some(_) => {
             // Only what something has asked for (refresh_key skips the rest).
-            for key in [
-                mt_data::Query::key(&alpaca.account()),
-                mt_data::Query::key(&alpaca.positions()),
-                mt_data::Query::key(&alpaca.activities()),
-                mt_data::Query::key(&alpaca.portfolio_history(HistoryPeriod::Day)),
-            ] {
-                hub.refresh_key(&key);
-            }
+            refresh_account(hub, alpaca);
             *seen = Some(token);
         }
         None => *seen = Some(token),
+    }
+}
+
+/// Re-read the account, positions, orders, activities and today's curve
+/// now (only those something has asked for; `refresh_key` skips the rest).
+pub fn refresh_account(hub: &DataHub, alpaca: &Alpaca) {
+    for key in [
+        mt_data::Query::key(&alpaca.account()),
+        mt_data::Query::key(&alpaca.positions()),
+        mt_data::Query::key(&alpaca.orders()),
+        mt_data::Query::key(&alpaca.activities()),
+        mt_data::Query::key(&alpaca.portfolio_history(HistoryPeriod::Day)),
+    ] {
+        hub.refresh_key(&key);
     }
 }
 
@@ -280,9 +287,16 @@ pub fn band_fill(skin: &Skin, mode: AccountMode) -> Color32 {
 
 /// The strip across the bottom of the window whenever an Alpaca account is
 /// connected (draw it in a frame filled with [`band_fill`]): which kind it
-/// is, and whether it answers. Never a balance, so a screenshot of the
-/// terminal never shows what an account holds. Returns whether it was clicked.
-pub fn band(ui: &mut Ui, skin: &Skin, mode: AccountMode, account: &Snapshot<Account>) -> bool {
+/// is, whether it answers, and whether trading is off. Never a balance, so a
+/// screenshot of the terminal never shows what an account holds. Returns
+/// whether it was clicked.
+pub fn band(
+    ui: &mut Ui,
+    skin: &Skin,
+    mode: AccountMode,
+    account: &Snapshot<Account>,
+    trading_on: bool,
+) -> bool {
     let ink = on(band_fill(skin, mode), skin.background, skin.text_strong);
     let mut clicked = false;
     ui.horizontal(|ui| {
@@ -307,6 +321,11 @@ pub fn band(ui: &mut Ui, skin: &Skin, mode: AccountMode, account: &Snapshot<Acco
                 }
                 (None, Some(_)) => "connected".to_owned(),
                 (None, None) => "connecting…".to_owned(),
+            };
+            let state = if trading_on {
+                state
+            } else {
+                format!("trading off (ORD to turn it on) · {state}")
             };
             ui.label(RichText::new(state).small().color(ink));
         });

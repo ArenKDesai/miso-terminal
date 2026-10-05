@@ -17,8 +17,9 @@ positions' day P&L, and the equity curve ends at the account's equity. Run it
 again after re-recording the Alpaca fixtures.
 
 Writes, under paper-api.alpaca.markets/: v2/account.json, v2/positions.json,
-v2/account/activities.json, v2/account/portfolio/history@{1D,1W,1M,3M,1A}.json
-and stream.jsonl (a login and the day's order events); and
+v2/orders.json, v2/account/activities.json,
+v2/account/portfolio/history@{1D,1W,1M,3M,1A}.json and stream.jsonl (a login
+and the day's order events); and
 data.alpaca.markets/v1beta1/options/snapshots.json (greeks for the options).
 """
 
@@ -76,6 +77,10 @@ DIVIDENDS = [
 ]
 #: Today's order: bought at 14:31 New York time, in two fills.
 TODAY_ORDER = ("CEG", 60, [20, 40], time(14, 31))
+#: Still open: a GTC sell above the market, holding 100 of the 200 XLU shares.
+OPEN_SELL = ("XLU", 100, Decimal("47.00"), date(2026, 9, 29), time(10, 15))
+#: Cancelled before it filled: (symbol, qty, limit, day, placed, cancelled).
+CANCELLED = ("VST", 100, Decimal("34.00"), date(2026, 10, 1), time(10, 2), time(11, 20))
 EXCHANGES = {"XLU": "ARCA", "XEL": "NASDAQ", "VST": "NYSE", "CEG": "NASDAQ", "AEE": "NYSE", "UNG": "ARCA"}
 
 
@@ -297,7 +302,8 @@ def main() -> None:
                 current_price=s(cur),
                 lastday_price=s(prev),
                 change_today=s(money(cur / prev - 1, "0.000001")),
-                qty_available=s(qty),
+                # Shares held by open sell orders are not available.
+                qty_available=s(qty - (OPEN_SELL[1] if symbol == OPEN_SELL[0] else 0)),
             )
         )
     positions.sort(key=lambda p: abs(Decimal(p["market_value"])), reverse=True)
@@ -521,14 +527,96 @@ def main() -> None:
                 ),
             )
         )
+    # ------------------------------------------------------------ the orders
+    # What ORD lists: every fill above as its order (stock trades at the
+    # market, options at a limit), today's order, a cancelled one and the
+    # open GTC sell.
+    def order_json(oid, symbol, side, qty, otype, tif, status, created, *, filled=0, avg=None,
+                   limit=None, filled_at=None, canceled_at=None, client=None):
+        option = mult(symbol) == 100
+        changed = filled_at or canceled_at or created
+        return dict(
+            id=oid,
+            client_order_id=client or uid("client", oid),
+            created_at=z(created),
+            updated_at=z(changed),
+            submitted_at=z(created),
+            filled_at=z(filled_at) if filled_at else None,
+            expired_at=None,
+            canceled_at=z(canceled_at) if canceled_at else None,
+            failed_at=None,
+            replaced_at=None,
+            replaced_by=None,
+            replaces=None,
+            asset_id=uid("asset", symbol),
+            symbol=symbol,
+            asset_class="us_option" if option else "us_equity",
+            notional=None,
+            qty=str(qty),
+            filled_qty=str(filled),
+            filled_avg_price=s(avg) if avg is not None else None,
+            order_class="",
+            order_type=otype,
+            type=otype,
+            side="sell" if side == "sell_short" else side,
+            time_in_force=tif,
+            limit_price=s(limit) if limit is not None else None,
+            stop_price=None,
+            status=status,
+            extended_hours=False,
+            legs=None,
+            trail_percent=None,
+            trail_price=None,
+            hwm=None,
+            subtag=None,
+            source=None,
+            expires_at=None,
+        )
+
+    order_list = []
+    for when, kind, e in events:
+        if kind != "fill" or "part" in e:
+            continue
+        symbol, option = e["symbol"], mult(e["symbol"]) == 100
+        order_list.append(
+            order_json(
+                uid("order", symbol, when.date()), symbol, e["side"], e["qty"],
+                "limit" if option else "market", "day", "filled", when - timedelta(seconds=2),
+                filled=e["qty"], avg=e["price"], limit=e["price"] if option else None, filled_at=when,
+            )
+        )
+    order_list.append(
+        order_json(
+            oid, sym, "buy", total, "limit", "day", "filled", order_at - timedelta(seconds=2),
+            filled=total, avg=fill_price, limit=fill_price + Decimal("0.05"),
+            filled_at=order_at + timedelta(seconds=2 * (len(parts) - 1)),
+            client=uid("client", sym, "today"),
+        )
+    )
+    o_sym, o_qty, o_limit, o_day, o_at = OPEN_SELL
+    order_list.append(
+        order_json(uid("order", o_sym, "open"), o_sym, "sell", o_qty, "limit", "gtc", "new",
+                   ny(o_day, o_at), limit=o_limit)
+    )
+    c_sym, c_qty, c_limit, c_day, c_at, c_end = CANCELLED
+    order_list.append(
+        order_json(uid("order", c_sym, "cancelled"), c_sym, "buy", c_qty, "limit", "day", "canceled",
+                   ny(c_day, c_at), limit=c_limit, canceled_at=ny(c_day, c_end))
+    )
+    order_list.sort(key=lambda o: o["created_at"], reverse=True)
+
     stream = root / "paper-api.alpaca.markets/stream.jsonl"
     stream.write_text("\n".join(json.dumps(f, separators=(",", ":")) for f in frames) + "\n", encoding="utf-8", newline="\n")
     print(f"{stream}")
 
     write(root / "paper-api.alpaca.markets/v2/account.json", account)
     write(root / "paper-api.alpaca.markets/v2/positions.json", positions)
+    write(root / "paper-api.alpaca.markets/v2/orders.json", order_list)
     write(root / "paper-api.alpaca.markets/v2/account/activities.json", activities)
-    print(f"equity {money(equity)}  cash {money(cash)}  day P&L {day_pl}  positions {len(positions)}  activities {len(activities)}")
+    print(
+        f"equity {money(equity)}  cash {money(cash)}  day P&L {day_pl}  positions {len(positions)}  "
+        f"activities {len(activities)}  orders {len(order_list)}"
+    )
 
 
 def write(path: Path, value) -> None:

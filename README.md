@@ -5,8 +5,9 @@ It covers prices, load, generation, interchange, constraints, the seams, gas,
 weather, the news and the energy stocks beside them in one keyboard-driven, tiled
 workspace. It is read-only for MISO: it shows MISO's public data (plus EIA gas
 prices, NWS forecasts, publishers' headline feeds and Alpaca's stock and ETF
-prices) and never submits anything to MISO. Trading, when it comes, goes only
-through Alpaca, and paper by default (see the [markets plan](docs/MARKETS-PLAN.md)).
+prices) and never submits anything to MISO. Trading goes only through Alpaca, on
+a paper account for now, and every order is checked against your limits and
+confirmed on a ticket (see the [markets plan](docs/MARKETS-PLAN.md)).
 
 ![MISO Terminal in its default theme](docs/screenshots/home-default.png)
 
@@ -83,13 +84,14 @@ Useful flags:
 | `--new-instance` | Open a second window anyway. Normally there is one live window per home, so MISO is polled once. |
 
 Files live in `%APPDATA%\MISO Terminal\config` (config, themes, fonts: these roam)
-and `%LOCALAPPDATA%\MISO Terminal` (report cache, logs, window and layout state).
+and `%LOCALAPPDATA%\MISO Terminal` (report cache, logs, the order audit log, window and layout state).
 The `LOG` function shows the exact paths and has buttons to open them.
 
 ## Functions
 
 New to the terminal? The [tutorials](docs/TUTORIALS.md) walk through the command
-line, the workspace, prices and spreads, alerts, the news, stocks and themes.
+line, the workspace, prices and spreads, alerts, the news, stocks, paper trading
+and themes.
 
 | Code | Name | What it shows |
 |---|---|---|
@@ -126,9 +128,12 @@ line, the workspace, prices and spreads, alerts, the news, stocks and themes.
 | `ACCT` | Account | The paper account's status and any restrictions, balances, buying power, margin (initial, maintenance, excess equity), the pattern-day-trader flag with day trades used, and the options level. The account number is masked |
 | `PNL` | Profit and loss | The paper account's equity curve: today at five minutes, a week hourly, or one, three or twelve months daily, with the change, high, low and deepest drawdown (`PNL 1M`) |
 | `ACT` | Account activity | Fills, dividends, fees, transfers and option exercises, assignments and expiries, newest first, by kind or symbol (`ACT FILLS`, `ACT DIV`), with order events as they stream |
+| `BUY` | Buy ticket | An order ticket for the paper account, filled in from the command (`BUY XLU US 10 LMT 44.50 DAY`; also `MKT`, `STP 80`, `STPLMT 80 79.50`, `GTC`, `IOC`, `FOK`, `OPG`, `CLS`, `EXT` for extended hours): the latest prices, the cost, buying power and position afterwards, and every guardrail's verdict. Warnings must be ticked off; only its **Confirm** button sends the order |
+| `SELL` | Sell ticket | The same ticket to sell, or sell short (`SELL XLU US 200`). PORT's right-click menu opens one to close a position |
+| `ORD` | Orders | The paper account's orders, kept current by the order stream: open, filled, cancelled (`ORD ALL`); cancel or replace open ones; the **kill switch** (cancel every open order, optionally close every position, and turn trading off until you turn it back on); where the order audit log is |
 | `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast, ACE and headlines (`MISO, PJM, power prices`): add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, live streams and request budgets (when a source uses them), fetch activity, cache and file locations |
-| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits, news feeds, the stock price feed and MISO endpoints, saved to config.toml; API keys, kept in Windows Credential Manager, with a check that Alpaca accepts them. *Reset to defaults…* starts over, keeping the old file as config.toml.bak |
+| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits, news feeds, the stock price feed, trading limits (caps, price collar, fat-finger check, restricted list) and MISO endpoints, saved to config.toml; API keys, kept in Windows Credential Manager, with a check that Alpaca accepts them. *Reset to defaults…* starts over, keeping the old file as config.toml.bak |
 | `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
 | `HELP` | Help | Functions, keyboard shortcuts, data notes |
 
@@ -153,6 +158,16 @@ by OCC symbol, `XLU261218C00082500`), so they never clash with node names like
 `GP XLU US 30`), or type it alone to chart it. Completion offers tickers and
 company names from Alpaca's asset list, and after a security, the functions that
 take one (`XLU US D…` → `DES`). Options arrive with `OMON`.
+
+Orders: `BUY` and `SELL` open a ticket and nothing else, whoever asks (the
+command line, `--run`, a hotkey or another launch of the terminal): only a click
+on the ticket's **Confirm** sends an order. Before that, the ticket checks the
+order against Alpaca's rules and your limits under `[trading]` in config.toml (or
+SET): per-order, daily and per-position caps in dollars, a collar keeping limit
+and stop prices near the last trade, a fat-finger check, a restricted list, no
+market orders outside the regular session, buying power and day trades. The kill
+switch in `ORD` cancels everything and turns trading off. Every order request and
+answer is appended to `orders-YYYY-MM.jsonl` in `%LOCALAPPDATA%\MISO Terminal\audit`.
 
 ## Data
 
@@ -183,12 +198,13 @@ room remains: the free plan allows 30 trade and quote subscriptions in all) and
 minute bars for the rest, within Alpaca's 200 requests a minute. Company news is Benzinga's, through Alpaca: headlines and
 summaries only, linked to the article.
 
-The **paper account** behind the same keys is read, never traded, until order tickets
-arrive: balances, positions, the equity curve and activities are re-read every minute and
+The **paper account** behind the same keys is traded only through confirmed tickets:
+balances, positions, orders, the equity curve and activities are re-read every minute and
 at once after each order event (Alpaca's account stream), and stock positions move with
-the quote stream in between. A band across the bottom of the window says PAPER whenever
-an account is connected; it never shows a balance, and ACCT masks the account number, so
-screenshots carry neither.
+the quote stream in between. An order that gets no answer is looked up by its own id
+before anything is sent again, so it can never go in twice. A band across the bottom of
+the window says PAPER whenever an account is connected (and when trading is off); it
+never shows a balance, and ACCT masks the account number, so screenshots carry neither.
 
 All MISO times are **market time, EST all year** (UTC-5, no daylight saving);
 securities are shown in **New York time** (EDT in summer), as their exchanges keep it.
@@ -291,8 +307,10 @@ through Alpaca. See the
       trades, options level), `PNL` (the equity curve) and `ACT` (fills, dividends,
       fees, option events) on the paper account, re-read every minute and after each
       order event; an equity tile on HOME and a PAPER band above the status bar.
-- [ ] **Phase 4, paper trading:** confirm-only order tickets, the `ORD` blotter,
-      duplicate-proof order ids, guardrails, a kill switch and an audit log.
+- [x] **Phase 4, paper trading:** `BUY` and `SELL` tickets that only a click on
+      Confirm can send, the `ORD` blotter (cancel, replace), order ids that cannot
+      go in twice, guardrails (caps, collar, fat-finger check, restricted list,
+      sessions, buying power, day trades), a kill switch and an order audit log.
 - [ ] **Phase 5, options:** `OMON` chains and greeks; single-leg, then multi-leg,
       paper trades.
 - [ ] **Phase 6, live trading:** off by default, behind a typed confirmation and

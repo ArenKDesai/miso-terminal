@@ -23,6 +23,10 @@ pub struct AppConfig {
     /// Stocks and ETFs from Alpaca (Q, GP, DES, CN): the price feed, the
     /// stream's subscription limit and lists for Q (`[[markets.lists]]`).
     pub markets: mt_alpaca::MarketsConfig,
+    /// Paper trading's guardrails (BUY, SELL, ORD): whether tickets may send
+    /// orders, per-order, daily and per-position caps in dollars, the price
+    /// collar, the fat-finger check and the restricted list.
+    pub trading: mt_core::guard::Limits,
     /// Alert rules (see the ALRT function), as `[[alerts]]` tables. Left out
     /// of the file when empty, so a hand-written `[[alerts]]` never clashes
     /// with an `alerts = []` the terminal wrote.
@@ -39,6 +43,7 @@ impl Default for AppConfig {
             endpoints: MisoEndpoints::default(),
             news: mt_news::NewsConfig::default(),
             markets: mt_alpaca::MarketsConfig::default(),
+            trading: mt_core::guard::Limits::default(),
             alerts: Vec::new(),
         }
     }
@@ -207,6 +212,8 @@ pub struct AppPaths {
     pub state_file: PathBuf,
     /// Where "Save panel as PNG" writes.
     pub exports_dir: PathBuf,
+    /// The order audit log (`orders-YYYY-MM.jsonl`): local, never roaming.
+    pub audit_dir: PathBuf,
 }
 
 impl AppPaths {
@@ -220,6 +227,7 @@ impl AppPaths {
             log_dir: root.join("logs"),
             state_file: root.join("state.ron"),
             exports_dir: root.join("exports"),
+            audit_dir: root.join("audit"),
         }
     }
 }
@@ -239,6 +247,13 @@ mod tests {
         assert_eq!(cfg.endpoints, MisoEndpoints::default());
         assert_eq!(cfg.news, mt_news::NewsConfig::default());
         assert_eq!(cfg.markets, mt_alpaca::MarketsConfig::default());
+        assert_eq!(cfg.trading, mt_core::guard::Limits::default());
+        assert!(cfg.trading.enabled, "trading is on until the kill switch");
+        let traded: AppConfig =
+            toml::from_str("[trading]\nmax_order_value = 2500\nrestricted = ['MGEE US']\n")
+                .unwrap();
+        assert_eq!(traded.trading.max_order_value, 2500);
+        assert!(traded.trading.is_restricted("MGEE") && traded.trading.enabled);
     }
 
     #[test]

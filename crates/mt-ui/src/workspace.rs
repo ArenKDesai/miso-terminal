@@ -327,6 +327,17 @@ impl Workspace {
             .collect()
     }
 
+    /// Close every tab of these functions, docked or popped out (order
+    /// tickets are never restored after a restart).
+    pub fn close_codes(&mut self, codes: &[&str]) {
+        let keep = |r: &Route| !codes.iter().any(|c| r.code.eq_ignore_ascii_case(c));
+        self.dock.retain_tabs(|t| keep(&t.route));
+        self.popped.retain(|p| keep(&p.tab.route));
+        if self.dock.iter_all_tabs().next().is_none() && self.popped.is_empty() {
+            *self = Self::default_layout();
+        }
+    }
+
     /// Restore a persisted workspace, discarding incompatible versions.
     pub fn restore(saved: Option<Self>) -> Self {
         match saved {

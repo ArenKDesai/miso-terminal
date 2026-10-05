@@ -377,8 +377,8 @@ symbols = ["XEL", "WEC", "AEE", "MGEE"]
 ![PORT: the sample paper account's positions](screenshots/tutorials/port.webp)
 
 The Alpaca keys from the last tutorial also open your **paper account**: Alpaca's
-practice account, with simulated money. For now the terminal only reads it; order
-tickets come later. Whenever an account is connected, a **PAPER** band runs across
+practice account, with simulated money. This tutorial reads it; the next one
+trades in it. Whenever an account is connected, a **PAPER** band runs across
 the window above the status bar, saying whether the account answers. Click *PAPER*
 to open `ACCT`.
 
@@ -407,6 +407,86 @@ to open `ACCT`.
 **Mind what you share.** The band never shows a balance and `ACCT` masks the
 account number, so a screenshot of the terminal carries neither. `PORT`, `PNL`
 and the HOME tile do show amounts.
+
+## Trade on paper
+
+![BUY: a ticket for ten XLU at a limit](screenshots/tutorials/ticket.webp)
+
+Orders go to the same paper account, and only through a **ticket** that you
+confirm. Type the order as a command and the ticket opens filled in; nothing is
+sent until you click its *Confirm* button. A command from anywhere else (a
+desktop shortcut's `--run`, a second launch, a function key) can open a ticket
+too, but never send it. With `--offline` the tickets work and say why nothing
+is sent.
+
+**Try these:**
+
+- `BUY XLU US 10 LMT 44.50 DAY`: a ticket to buy ten shares of XLU at $44.50 or
+  less, good for the day. After the security the pieces come in any order: the
+  number of shares; the type (`MKT`, `LMT 44.50`, `STP 42`, `STPLMT 42 41.80`, or
+  `@44.50` for a limit); the time in force (`DAY`, `GTC`, `IOC`, `FOK`, `OPG` for
+  the opening auction, `CLS` for the closing one); and `EXT` to allow extended
+  hours. Leave the price out and the limit starts at the last trade.
+- `SELL XLU US 200`, or right-click a position in `PORT` and choose *Close the
+  position*: a ticket to sell. Selling what you do not hold opens a short, which
+  the ticket points out.
+- On the ticket, switch *Buy* and *Sell*, or change the *Shares*, *Type*, prices
+  and *Time in force*. Under *Estimate* are the cost (or proceeds), buying power
+  before and after, the position afterwards and your day trades. Under *Checks*
+  is every guardrail: ✓ when it passes, ⚠ when it wants a second look, × when it
+  stops the order.
+- When there are warnings, tick *I have read the warnings and want to send this
+  order*. Then *Confirm* sends it, and the ticket follows it: *Placed*, then its
+  fills as they happen. *Cancel order* cancels it; *New order* starts another from
+  the same fields.
+- `ORD`: every order, kept current by Alpaca's order stream, open ones first
+  (*Open*, *Filled*, *Cancelled, expired, rejected*, *All*; `ORD ALL`). *Cancel*
+  and *Replace…* work on open orders; a replace changes the quantity or a price
+  and goes through the same checks.
+
+![ORD: the sample account's orders](screenshots/tutorials/ord.webp)
+
+**The guardrails** live under `[trading]` in config.toml, and in SET under
+*Trading (paper)*:
+
+```toml
+[trading]
+enabled = true              # the kill switch turns this off
+max_order_value = 10000     # dollars per order
+max_daily_value = 50000     # today's orders: what filled plus what is still open
+max_position_value = 25000  # in one security, long or short
+collar_pct = 5.0            # limit and stop prices within 5% of the last trade
+fat_finger_pct = 10.0       # orders over 10% of equity need the tick box
+max_shares = 5000           # shares in one order
+restricted = ["MGEE"]       # never trade these
+```
+
+A cap of 0 turns it off. Some rules always hold: market orders only in the
+regular session (09:30 to 16:00 New York time; use a limit order, with *Extended
+hours* to trade before or after), enough buying power for what the order opens,
+no order that turns a long position short (or a short one long) in one go, no
+selling shares that open orders already hold, and Alpaca's limit of three day
+trades in five business days below $25,000 of equity.
+
+**The kill switch.** *Kill switch…* at the top right of `ORD` cancels every open
+order and, if you tick the box, closes every position at the market. It also
+turns trading off: tickets cannot send anything until you click *Turn trading
+on* in `ORD` (or tick it in SET), and the band at the bottom says so. `ORD KILL`
+opens it straight away.
+
+**If an answer gets lost.** Each ticket gives its order an id before sending it.
+If Alpaca does not answer (a dropped connection, a timeout), the ticket asks
+Alpaca for that id before anything else: found, it shows the order; not found,
+*Send again* sends it under the same id, which Alpaca will not accept twice. So
+an order can never go in twice.
+
+**The audit log.** Every order request and Alpaca's answer is written, a line
+each, to `orders-YYYY-MM.jsonl` in `%LOCALAPPDATA%\MISO Terminal\audit` (*Open
+audit folder* in `ORD`). Your keys are never written there.
+
+If you work in energy or financial markets, check your employer's
+personal-trading policy before you ever trade live; some require pre-clearance
+or forbid certain names. Put those names on the restricted list.
 
 ## Make it yours
 

@@ -17,7 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Settings",
     category: Category::System,
     usage: "SET",
-    description: "Display, price highlighting, data, news feed, market data and endpoint settings (saved to config.toml, or reset to the defaults), and API keys (kept in Windows Credential Manager).",
+    description: "Display, price highlighting, data, news feed, market data, trading limit and endpoint settings (saved to config.toml, or reset to the defaults), and API keys (kept in Windows Credential Manager).",
     takes_node: false,
     takes_security: false,
     open,
@@ -28,6 +28,7 @@ fn open(_: &[String]) -> Result<Box<dyn Panel>, String> {
         draft: None,
         keys: Keys::default(),
         confirm_reset: false,
+        restricted: String::new(),
     }))
 }
 
@@ -37,6 +38,9 @@ struct Settings {
     keys: Keys,
     /// *Reset to defaults…* was pressed and awaits confirmation.
     confirm_reset: bool,
+    /// The restricted list as typed (`XEL, MGEE`), so a half-typed list keeps
+    /// its commas.
+    restricted: String,
 }
 
 /// An API key the terminal can use, by its name in the credential store.
@@ -201,6 +205,8 @@ impl Panel for Settings {
 
             markets(ui, cx, &mut draft);
 
+            trading(ui, cx, &mut draft, &mut self.restricted);
+
             credentials(ui, cx, &mut self.keys);
 
             widgets::section(ui, skin, "MISO endpoints");
@@ -267,7 +273,10 @@ impl Panel for Settings {
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new(
-                        "Reset every setting to its default? This also clears your watchlist,                          alerts, function keys, theme choice, and your own news feeds, topics                          and Q lists. API keys and the layout are kept. The current file is                          saved as config.toml.bak first.",
+                        "Reset every setting to its default? This also clears your watchlist, \
+                         alerts, function keys, theme choice, trading limits, and your own news \
+                         feeds, topics and Q lists. API keys and the layout are kept. The current \
+                         file is saved as config.toml.bak first.",
                     )
                     .color(skin.warning),
                 );
@@ -347,6 +356,124 @@ fn news(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig) {
         RichText::new(
             "Add RSS or Atom feeds under [[news.feeds]] (id, source, section, url, top) \
              and topics for NI under [[news.topics]] (name, keywords) in config.toml.",
+        )
+        .small()
+        .color(skin.text_muted),
+    );
+}
+
+/// Paper trading's limits: the switch, the caps, the collar, the size checks
+/// and the restricted list.
+fn trading(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig, restricted: &mut String) {
+    let skin = cx.skin;
+    let t = &mut draft.trading;
+    widgets::section(ui, skin, "Trading (paper)");
+    Grid::new("set-trading")
+        .num_columns(3)
+        .spacing([16.0, 6.0])
+        .show(ui, |ui| {
+            ui.label("Tickets may send orders");
+            ui.checkbox(&mut t.enabled, "");
+            ui.label(
+                RichText::new("the kill switch in ORD turns this off")
+                    .small()
+                    .color(skin.text_muted),
+            );
+            ui.end_row();
+            for (label, value, note) in [
+                ("Largest order", &mut t.max_order_value, "per order"),
+                (
+                    "Orders in a day",
+                    &mut t.max_daily_value,
+                    "what filled plus what is open, from today's orders",
+                ),
+                (
+                    "Largest position",
+                    &mut t.max_position_value,
+                    "in one security, long or short; reducing a position always passes",
+                ),
+            ] {
+                ui.label(label);
+                ui.add(
+                    egui::DragValue::new(value)
+                        .speed(100.0)
+                        .prefix("$")
+                        .range(0..=100_000_000),
+                );
+                ui.label(
+                    RichText::new(format!("{note}; 0 turns it off"))
+                        .small()
+                        .color(skin.text_muted),
+                );
+                ui.end_row();
+            }
+            ui.label("Price collar");
+            ui.add(
+                egui::DragValue::new(&mut t.collar_pct)
+                    .speed(0.1)
+                    .suffix("%")
+                    .range(0.0..=100.0),
+            );
+            ui.label(
+                RichText::new(
+                    "limit and stop prices within this of the last trade; 0 turns it off",
+                )
+                .small()
+                .color(skin.text_muted),
+            );
+            ui.end_row();
+            ui.label("Second look above");
+            ui.add(
+                egui::DragValue::new(&mut t.fat_finger_pct)
+                    .speed(0.5)
+                    .suffix("% of equity")
+                    .range(0.0..=1000.0),
+            );
+            ui.label(
+                RichText::new("bigger orders must be ticked off on the ticket; 0 turns it off")
+                    .small()
+                    .color(skin.text_muted),
+            );
+            ui.end_row();
+            ui.label("Most shares in one order");
+            ui.add(
+                egui::DragValue::new(&mut t.max_shares)
+                    .speed(10.0)
+                    .range(0..=10_000_000),
+            );
+            ui.label(
+                RichText::new("0 turns it off")
+                    .small()
+                    .color(skin.text_muted),
+            );
+            ui.end_row();
+            ui.label("Restricted list");
+            // Keep the typed text while it still says the same thing.
+            if crate::trading::parse_tickers(restricted) != t.restricted {
+                *restricted = t.restricted.join(", ");
+            }
+            if ui
+                .add(
+                    egui::TextEdit::singleline(restricted)
+                        .hint_text("XEL, MGEE")
+                        .desired_width(260.0),
+                )
+                .changed()
+            {
+                t.restricted = crate::trading::parse_tickers(restricted);
+            }
+            ui.label(
+                RichText::new("tickers no ticket may trade")
+                    .small()
+                    .color(skin.text_muted),
+            );
+            ui.end_row();
+        });
+    ui.label(
+        RichText::new(
+            "If you work in energy or financial markets, check your employer's personal-trading \
+             policy before trading live; some require pre-clearance or forbid certain names. The \
+             restricted list is there for that.",
         )
         .small()
         .color(skin.text_muted),

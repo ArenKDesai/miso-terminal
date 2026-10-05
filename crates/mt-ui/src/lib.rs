@@ -9,6 +9,7 @@
 //! - [`news`]: combined headlines and the headline browser (TOP, NEWS, NI, CN).
 //! - [`market`]: shared pieces for securities (market status, live rows, formats).
 //! - [`portfolio`]: shared pieces for the account (live marks, re-sync, the band).
+//! - [`trading`]: shared pieces for order tickets and the blotter (orders, checks, outcomes).
 
 pub mod alerts;
 pub mod app;
@@ -28,6 +29,7 @@ pub mod portfolio;
 pub mod remote;
 pub mod series;
 pub mod skin;
+pub mod trading;
 pub mod widgets;
 pub mod workspace;
 

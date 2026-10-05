@@ -110,6 +110,7 @@ fn resolve_paths(home: Option<PathBuf>) -> Result<AppPaths> {
         exports_dir: directories::UserDirs::new()
             .and_then(|u| u.picture_dir().map(|p| p.join(APP_NAME)))
             .unwrap_or_else(|| local.join("exports")),
+        audit_dir: local.join("audit"),
     })
 }
 
