@@ -44,6 +44,21 @@ The screenshot tool runs the app in portable mode under a throwaway home (or
 `--home`), so your real config and layout are untouched. It closes the app
 with WM_CLOSE, which lets it save.
 
+## How changes land
+
+Never push to `main`. Every change goes through a pull request
+(`docs/RELEASES.md`, "How changes land"): a branch from the latest `main`,
+a pull request whose title and description become the squash commit (prose,
+ending with the `Co-Authored-By:` line), and a `CHANGELOG.md` line under
+*Unreleased* for a user-visible change once that file exists. Aren has given
+standing permission to merge routine pull requests: open them with auto-merge
+(`gh pr merge --auto --squash`) and report the result. Until auto-merge and
+the `main` ruleset are on, wait for CI (`gh pr checks --watch`), then
+`gh pr merge --squash`. Ask first, and leave the pull request open, for
+releases and tags (never push a tag), changes to workflows, rulesets or
+repository settings, anything touching secrets or keys, and anything Aren has
+asked to see.
+
 ## Where things live
 
 - `crates/mt-ui/src/functions/`: one file per function (panel). `functions/mod.rs` lists them.
