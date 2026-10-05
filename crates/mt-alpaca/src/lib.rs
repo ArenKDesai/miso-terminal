@@ -1,8 +1,11 @@
-//! Alpaca as a data source: US stock and ETF prices (snapshots, bars, live
-//! trades and quotes), the asset list behind ticker completion, the market
-//! clock and calendar, company news (Benzinga's, through Alpaca), and the
-//! paper account, read-only: balances, positions, the equity curve,
-//! activities and order events ([`account`], [`TradeStream`]).
+//! Alpaca as a data source and a broker: US stock and ETF prices
+//! (snapshots, bars, live trades and quotes), the asset list behind ticker
+//! completion, the market clock and calendar, company news (Benzinga's,
+//! through Alpaca), and the paper account: balances, positions, the equity
+//! curve, activities, orders and order events ([`account`], [`orders`],
+//! [`TradeStream`]). Orders are placed, replaced and cancelled only by the
+//! [`OrderDesk`], never by a query, and every request it sends is written to
+//! the [`AuditLog`].
 //!
 //! Built for Alpaca's free plan: real-time prices from IEX alone, or every
 //! exchange fifteen minutes late ([`Feed`]); 200 requests a minute per key,
@@ -16,8 +19,11 @@
 //! `mt-data`.
 
 pub mod account;
+mod audit;
 pub mod board;
 pub mod config;
+pub mod desk;
+pub mod orders;
 pub mod parse;
 mod queries;
 mod stream;
@@ -35,7 +41,10 @@ pub use account::{
     AccountQuery, Activities, ActivitiesQuery, HistoryPeriod, OPTION_FEED_LABEL, OptionSnapshots,
     OptionSnapshotsQuery, PortfolioHistoryQuery, PositionsQuery,
 };
+pub use audit::AuditLog;
 pub use config::{MarketsConfig, SecurityList, builtin_lists, normalize_symbol};
+pub use desk::{ActionState, OrderDesk, Outcome, new_client_order_id};
+pub use orders::{OrdersQuery, Replacement};
 pub use queries::{
     ASSETS_KEY, AssetsQuery, BarSet, BarSource, BarsQuery, CalendarQuery, ClockQuery, NewsList,
     NewsQuery, Snapshots, SnapshotsQuery, Timeframe, assets_from_bytes, assets_to_bytes,
@@ -87,8 +96,8 @@ impl AccountMode {
 pub struct Endpoints {
     /// Market data: bars, snapshots, news.
     pub data: String,
-    /// The paper trading API: the account, positions, activities, and the
-    /// assets, clock and calendar.
+    /// The paper trading API: the account, positions, activities, orders,
+    /// and the assets, clock and calendar.
     pub trading: String,
     /// Market data streams.
     pub stream: String,
@@ -134,7 +143,11 @@ pub fn has_keys(store: &dyn SecretStore) -> bool {
 /// A GET with the account's keys as headers (`***` in the log). A replay
 /// needs none, so recordings never meet a key.
 pub(crate) fn request(ctx: &FetchCtx, url: String) -> Result<Request, FetchError> {
-    let req = Request::get(url);
+    authed(ctx, Request::get(url))
+}
+
+/// Any request with the account's keys as headers (none for a replay).
+pub(crate) fn authed(ctx: &FetchCtx, req: Request) -> Result<Request, FetchError> {
     if !ctx.is_live() {
         return Ok(req);
     }
@@ -281,6 +294,11 @@ impl Alpaca {
         symbols: impl IntoIterator<Item = S>,
     ) -> OptionSnapshotsQuery {
         OptionSnapshotsQuery::new(self.clone(), symbols)
+    }
+
+    /// The account's orders, open and recent, newest first.
+    pub fn orders(&self) -> OrdersQuery {
+        OrdersQuery::new(self.clone())
     }
 
     /// The account's order events. The topic is [`TRADE_UPDATES`].

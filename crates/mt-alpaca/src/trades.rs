@@ -3,11 +3,16 @@
 //! Unlike the market-data streams, this one sends single JSON objects tagged
 //! by `stream`, in binary frames. After the login (`authorization`), a
 //! `listen` message chooses the streams; `trade_updates` then carries every
-//! order's progress (`new`, `partial_fill`, `fill`, `canceled`…). Nothing here
-//! places orders: Phase 3 only reads, and uses the events to re-sync the
-//! account, positions and activities at once instead of at the next minute.
+//! order's progress (`new`, `partial_fill`, `fill`, `canceled`…), with the
+//! whole order as it stands after the event. Nothing here places orders (the
+//! [`crate::OrderDesk`] does): the events keep the blotter's orders current
+//! between re-reads of the order list, and make the app re-read the account,
+//! positions, orders and activities at once instead of at the next minute.
+
+use std::collections::BTreeMap;
 
 use mt_core::account::OrderEvent;
+use mt_core::order::Order;
 use mt_data::{Applied, FetchCtx, FetchError, Frame, Request, Stream};
 use serde_json::Value;
 
@@ -17,6 +22,8 @@ use crate::{AccountMode, KEY_ID, SECRET_KEY, account};
 pub const TRADE_UPDATES: &str = "trade_updates";
 /// Order events a stream keeps.
 const EVENTS_KEEP: usize = 200;
+/// Orders a stream keeps (the newest by last change).
+const ORDERS_KEEP: usize = 500;
 
 /// Order events since the stream first connected, newest first.
 #[derive(Clone, Debug, Default)]
@@ -29,6 +36,8 @@ pub struct LiveTrades {
     /// Whether the server confirmed it is sending order events.
     pub listening: bool,
     pub notice: Option<String>,
+    /// Each order as its latest event left it, by order id.
+    pub orders: BTreeMap<String, Order>,
 }
 
 impl LiveTrades {
@@ -147,6 +156,9 @@ impl Stream for TradeStream {
                 state.received += 1;
                 state.events.insert(0, event);
                 state.events.truncate(EVENTS_KEEP);
+                if let Some(order) = data.get("order").and_then(crate::orders::parse_order) {
+                    keep_newer(&mut state.orders, order);
+                }
                 Ok(Applied::Changed)
             }
             _ => {
@@ -166,6 +178,26 @@ impl Stream for TradeStream {
 
     fn on_connect(&self, state: &mut LiveTrades) {
         state.listening = false;
+    }
+}
+
+/// Keep `order` unless a copy changed later is already there; drop the
+/// oldest beyond [`ORDERS_KEEP`].
+fn keep_newer(orders: &mut BTreeMap<String, Order>, order: Order) {
+    match orders.get(&order.id) {
+        Some(old) if old.last_change() > order.last_change() => return,
+        _ => {}
+    }
+    orders.insert(order.id.clone(), order);
+    while orders.len() > ORDERS_KEEP {
+        let Some(oldest) = orders
+            .values()
+            .min_by_key(|o| o.last_change())
+            .map(|o| o.id.clone())
+        else {
+            break;
+        };
+        orders.remove(&oldest);
     }
 }
 
@@ -207,6 +239,11 @@ mod tests {
         assert_eq!(s.apply(&mut st, &fill), Ok(Applied::Changed));
         assert_eq!(st.sync_token(), (1, 1));
         assert!(st.events[0].is_fill());
+        assert_eq!(
+            st.orders["o1"].status,
+            mt_core::order::OrderStatus::Filled,
+            "the order as the event left it"
+        );
         s.on_connect(&mut st);
         assert!(!st.listening);
         assert_eq!(st.events.len(), 1, "events survive a reconnect");

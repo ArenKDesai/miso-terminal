@@ -1,6 +1,6 @@
 [package]
 name = "mt-alpaca"
-description = "Alpaca as a data source: US stock and ETF snapshots, bars and live trades and quotes, the asset list, the market clock and calendar, and company news."
+description = "Alpaca as a data source and broker: US stock and ETF snapshots, bars and live trades and quotes, the asset list, the market clock and calendar, company news, the paper account, and the order desk."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,8 +14,7 @@ chrono.workspace = true
 parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-
-[dev-dependencies]
+# The order desk's timeouts and lookups run on the hub's runtime.
 tokio.workspace = true
 
 [lints]

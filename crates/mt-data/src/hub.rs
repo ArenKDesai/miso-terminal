@@ -236,7 +236,9 @@ impl DataHub {
         &self.inner.streams
     }
 
-    pub(crate) fn runtime(&self) -> &tokio::runtime::Handle {
+    /// The background runtime, for work that is not a query or a stream
+    /// (the order desk's requests).
+    pub fn runtime(&self) -> &tokio::runtime::Handle {
         &self.inner.runtime
     }
 

@@ -199,7 +199,7 @@ impl OptionSnapshot {
 }
 
 /// A security that can be looked up (and, with an account, traded).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Asset {
     /// As the exchange lists it: `XLU`, `BRK.B`.
     pub symbol: String,
