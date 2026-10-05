@@ -357,14 +357,23 @@ through Alpaca. See the
 
 ### Releases
 Nothing has been released yet. The [release plan](docs/RELEASES.md) sets out
-versioning, the changelog, the checklist, verification and signing.
+how changes land, versioning, the changelog, the checklist, verification and
+signing, and [the road to v0.2.0](docs/RELEASES.md#the-road-to-v020) orders the steps.
 - [x] A release workflow: a `v*` tag builds the Windows zip and attaches it to a
       GitHub release (never run so far).
+- [ ] **Pull requests for every change:** `CONTRIBUTING.md`, a pull request
+      template, `CHANGELOG.md` kept under *Unreleased* by each pull request,
+      squash merges, rulesets protecting `main` and `v*` tags, immutable releases.
+- [ ] CI to match: a required *Docs* check, `--locked` builds, Dependabot, and
+      drift failures opening issues.
 - [ ] The release process: one workspace version shown in `--version`, HELP and
-      LOG; a `CHANGELOG.md`; release candidates as pre-releases; the checklist.
+      LOG (with the commit outside releases); release candidates as pre-releases;
+      a compatibility test against each release's `config.toml`; the checklist.
 - [ ] Release workflow hardening: tag must match the version, `--locked` builds,
       `SHA256SUMS.txt`, a build provenance attestation, third-party licence
-      notices (`cargo-about`), notes from the changelog with a link to the source.
+      notices (`cargo-about`), notes from the changelog with a link to the source,
+      draft-then-publish for immutable releases.
+- [ ] The docs site deploys from published releases, not from `main`.
 - [ ] **The first release, v0.2.0** (MISO functions, themes, news, Alpaca
       market data), then a minor release closing each markets phase.
 - [ ] **Code signing** (SignPath Foundation, free for open source, applied for
