@@ -8,8 +8,11 @@
 //! MISO data runs on fixed EST ([`time`]); securities run on New York time
 //! ([`exchange`]), are named `XLU US` ([`instrument`]), are quoted as trades,
 //! quotes and bars ([`equity`]) and are priced in exact decimals ([`money`])
-//! wherever an order is involved. News headlines and keyword topics are in [`news`].
+//! wherever an order is involved. A brokerage account's balances, positions,
+//! equity curve and activities are in [`account`]. News headlines and keyword
+//! topics are in [`news`].
 
+pub mod account;
 pub mod archive;
 pub mod constraints;
 pub mod equity;

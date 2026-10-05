@@ -6,8 +6,9 @@ Rust workspace with an egui UI, and Windows is the primary platform. Read
 `docs/ARCHITECTURE.md` before structural changes and `docs/EXTENDING.md` for
 recipes. `docs/RELEASES.md` is the plan for releases (none made yet; ask before
 tagging, since a `v*` tag publishes one). `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
-data, trading and portfolio tracking: Phase 0 (foundations), Phase 1 (news)
-and Phase 2 (market data) are built, the README's roadmap tracks the rest.
+data, trading and portfolio tracking: Phase 0 (foundations), Phase 1 (news),
+Phase 2 (market data) and Phase 3 (the paper account, read-only) are built,
+the README's roadmap tracks the rest.
 
 ## Commands
 
@@ -21,6 +22,7 @@ cargo run -p mt-nws --example capture_weather        # re-record weather fixture
 cargo run -p mt-eia --example capture_gas            # re-record the Henry Hub gas workbook
 cargo run -p mt-news --example capture_news          # re-record the news feeds (story text replaced by samples)
 cargo run -p mt-alpaca --example capture_alpaca      # re-record Alpaca (needs keys; prices made synthetic, stories sampled)
+uv run tools/sample_account.py         # rewrite the sample paper account (after re-recording Alpaca)
 cargo run -p mt-theme --example sync_everforge -- ..\everforge
 cargo run -p mt-ui --example render -- out.png --run "MAP MCC" --zoom   # offscreen PNG, fixtures, no window
 $env:UPDATE_SNAPSHOTS=force; cargo test -p mt-ui --test snapshots           # accept intended visual changes
@@ -84,6 +86,11 @@ asked to see.
   holds what the securities panels share (status, board, formats, picker);
   `functions/security_chart.rs` is GP for a security, `functions/cross_chart.rs`
   is CMP with securities (stocks above node prices, daily correlations).
+- The paper account: `mt-core/src/account.rs` (types, marking, net delta),
+  `mt-alpaca/src/account.rs` (account, positions, history, activities, option
+  greeks), `mt-alpaca/src/trades.rs` (order events, binary frames),
+  `mt-ui/src/portfolio.rs` (live marks, re-sync, the PAPER band) and the
+  functions `port.rs`, `acct.rs`, `pnl.rs`, `act.rs`.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.
@@ -150,6 +157,11 @@ asked to see.
   `--verbatim`); never commit a verbatim Alpaca recording. No keys exist on the
   main dev machine: the drift workflow (run by hand with `alpaca_fixtures`)
   records fresh fixtures with the CI paper account and uploads them as an artifact.
+  The account's fixtures are a made-up portfolio from `tools/sample_account.py`
+  (never an account's own); rerun it after new Alpaca fixtures land.
+- The account is read-only until order tickets exist (Phase 4). The PAPER band
+  never shows a balance and ACCT masks the account number: keep account
+  figures out of anything that is always on screen.
 - The rolling five-minute feed can take most of a minute to download late in
   the day; today's store is saved to the disk cache and restored at launch.
 - News: headlines and summaries only, attributed and linked; never fetch or

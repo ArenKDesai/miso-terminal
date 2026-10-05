@@ -29,7 +29,8 @@ pub fn needs_keys(ui: &mut Ui, cx: &mut PanelCx<'_>) -> bool {
     ui.add_space(10.0);
     ui.label(
         RichText::new(
-            "Stock and ETF prices come from Alpaca, which needs a free account's API keys.",
+            "Stock and ETF prices and the paper account come from Alpaca, which needs a free \
+             account's API keys.",
         )
         .color(skin.text_strong),
     );

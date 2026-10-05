@@ -93,7 +93,7 @@ line, the workspace, prices and spreads, alerts, the news, stocks and themes.
 
 | Code | Name | What it shows |
 |---|---|---|
-| `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices (RT, next-interval ex-ante, DA) with 5-min sparklines, fuel mix, top constraints, weather and the top stories |
+| `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices (RT, next-interval ex-ante, DA) with 5-min sparklines, fuel mix, top constraints, weather and the top stories; with Alpaca keys, the paper account's equity and today's P&L |
 | `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable, and filterable by name, region and node type (hub, load zone, interface, generator). `LMP ALL` lists all ~2,600 CP nodes with this hour's DA and RT − DA |
 | `HUBS` | Hub statistics | All eight trading hubs over N days: DA, RT and DART averages, on-peak and off-peak blocks, RT volatility, extremes and how often RT beat DA |
 | `DAM` | Day-ahead strip | Hourly DA prices at the eight hubs for one day (tomorrow once posted, else today), with on-peak, off-peak and all-hours averages, by component, or as the change from the day before (`DAM TOMORROW`) |
@@ -122,6 +122,10 @@ line, the workspace, prices and spreads, alerts, the news, stocks and themes.
 | `NEWS` | News search | Every headline from every feed, kept for three weeks so search reaches back across restarts: by publisher (`NEWS FT`, `NEWS BBG`, `NEWS WP`), by words (`NEWS natural gas`), unread only, and mark read |
 | `NI` | News by topic | Headlines on a topic from keyword rules: `NI ENERGY`, `POWER`, `GRID`, `GAS`, `OIL`, `UTILITIES`, `POLICY`, `CLIMATE`, `MACRO`. `NI` alone lists the topics with today's counts. Change them or add your own in config |
 | `CN` | Company news | Stories about a stock or ETF (Benzinga's, through Alpaca), new ones as they are published, in the same browser as TOP and NEWS (`CN XLU US`; `CN` alone covers your watchlist's securities) |
+| `PORT` | Portfolio | The Alpaca paper account's positions: quantity, average cost, last price, market value, weight, and the day's and unrealized P&L, moving with the quote stream between Alpaca's minute re-reads; equity, cash and buying power; options grouped by underlying with each group's net delta in shares |
+| `ACCT` | Account | The paper account's status and any restrictions, balances, buying power, margin (initial, maintenance, excess equity), the pattern-day-trader flag with day trades used, and the options level. The account number is masked |
+| `PNL` | Profit and loss | The paper account's equity curve: today at five minutes, a week hourly, or one, three or twelve months daily, with the change, high, low and deepest drawdown (`PNL 1M`) |
+| `ACT` | Account activity | Fills, dividends, fees, transfers and option exercises, assignments and expiries, newest first, by kind or symbol (`ACT FILLS`, `ACT DIV`), with order events as they stream |
 | `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast, ACE and headlines (`MISO, PJM, power prices`): add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, live streams and request budgets (when a source uses them), fetch activity, cache and file locations |
 | `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits, news feeds, the stock price feed and MISO endpoints, saved to config.toml; API keys, kept in Windows Credential Manager, with a check that Alpaca accepts them. *Reset to defaults…* starts over, keeping the old file as config.toml.bak |
@@ -178,6 +182,13 @@ says which. Snapshots refresh each minute and a stream adds every trade (and quo
 room remains: the free plan allows 30 trade and quote subscriptions in all) and
 minute bars for the rest, within Alpaca's 200 requests a minute. Company news is Benzinga's, through Alpaca: headlines and
 summaries only, linked to the article.
+
+The **paper account** behind the same keys is read, never traded, until order tickets
+arrive: balances, positions, the equity curve and activities are re-read every minute and
+at once after each order event (Alpaca's account stream), and stock positions move with
+the quote stream in between. A band across the bottom of the window says PAPER whenever
+an account is connected; it never shows a balance, and ACCT masks the account number, so
+screenshots carry neither.
 
 All MISO times are **market time, EST all year** (UTC-5, no daylight saving);
 securities are shown in **New York time** (EDT in summer), as their exchanges keep it.
@@ -275,8 +286,11 @@ through Alpaca. See the
       market's session in the status bar, a "Power & gas" list, ticker completion
       from Alpaca's asset list, and company news (`CN XLU US`), with live trades,
       quotes and news over Alpaca's streams.
-- [ ] **Phase 3, account and portfolio:** `PORT`, `ACCT`, `PNL`, `ACT` on a paper
-      account, with a PAPER band in the status bar.
+- [x] **Phase 3, account and portfolio:** `PORT` (positions kept live by the quote
+      stream, options by underlying with net delta), `ACCT` (balances, margin, day
+      trades, options level), `PNL` (the equity curve) and `ACT` (fills, dividends,
+      fees, option events) on the paper account, re-read every minute and after each
+      order event; an equity tile on HOME and a PAPER band above the status bar.
 - [ ] **Phase 4, paper trading:** confirm-only order tickets, the `ORD` blotter,
       duplicate-proof order ids, guardrails, a kill switch and an audit log.
 - [ ] **Phase 5, options:** `OMON` chains and greeks; single-leg, then multi-leg,

@@ -92,6 +92,8 @@ pub struct TerminalApp {
     pub(crate) news_read: mt_news::ReadMarks,
     /// Every feed's headlines, for headline alerts.
     alert_news: crate::news::Combined,
+    /// The order-event stream's last token, for the early account re-sync.
+    trade_sync: Option<(u64, u64)>,
 }
 
 impl TerminalApp {
@@ -150,6 +152,7 @@ impl TerminalApp {
             notifier: deps.notifier,
             news_read: mt_news::ReadMarks::default(),
             alert_news: crate::news::Combined::default(),
+            trade_sync: None,
             config: deps.config,
             paths: deps.paths,
         };
@@ -700,6 +703,8 @@ impl TerminalApp {
         // The asset list behind ticker completion (fetched daily, kept on disk).
         if self.alpaca.is_ready() {
             self.hub.watch(&self.alpaca.assets());
+            // After an order event or a reconnect, the account at once.
+            crate::portfolio::resync(&self.hub, &self.alpaca, &mut self.trade_sync);
         }
         if self.last_intraday_save.elapsed() >= INTRADAY_SAVE_EVERY {
             self.last_intraday_save = Instant::now();
@@ -1153,6 +1158,22 @@ impl eframe::App for TerminalApp {
                     .inner_margin(Margin::symmetric(10, 3)),
             )
             .show(ui, |ui| self.status_bar(ui, &mut commands));
+        if self.alpaca.is_ready() {
+            // Which account the keys open, across the window, above the status bar.
+            let mode = self.alpaca.mode();
+            let account = self.hub.watch(&self.alpaca.account());
+            egui::Panel::bottom("mt-account-band")
+                .frame(
+                    Frame::new()
+                        .fill(crate::portfolio::band_fill(&self.skin, mode))
+                        .inner_margin(Margin::symmetric(10, 1)),
+                )
+                .show(ui, |ui| {
+                    if crate::portfolio::band(ui, &self.skin, mode, &account) {
+                        commands.push(AppCommand::Open(Route::code("ACCT")));
+                    }
+                });
+        }
 
         let dock_style = self.dock_style(ui);
         let mut cx = PanelCx {

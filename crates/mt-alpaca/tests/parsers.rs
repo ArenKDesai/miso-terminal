@@ -5,10 +5,15 @@
 use std::path::{Path, PathBuf};
 
 use chrono::{Timelike, Utc};
+use mt_alpaca::account::{
+    parse_account, parse_activities, parse_option_snapshots, parse_portfolio_history,
+    parse_positions,
+};
 use mt_alpaca::parse::{
     parse_assets, parse_bars, parse_calendar, parse_clock, parse_news, parse_snapshots,
 };
-use mt_alpaca::{LiveMarket, LiveNews, MarketStream, NewsStream};
+use mt_alpaca::{LiveMarket, LiveNews, LiveTrades, MarketStream, NewsStream};
+use mt_core::account::{ActivityCategory, to_f64};
 use mt_core::exchange;
 use mt_data::{Applied, Frame, Stream};
 
@@ -202,4 +207,170 @@ fn streams() {
     let news: NewsStream = alpaca.news_stream();
     let (_, ready): (LiveNews, bool) = replay(&news, &dir.join("v1beta1/news.jsonl"));
     assert!(ready);
+}
+
+/// Whether these are the repository's own fixtures (the sample account),
+/// not a live recording.
+fn sample() -> bool {
+    std::env::var_os("MT_FIXTURES").is_none()
+}
+
+/// The account is only in live recordings made with `--verbatim` (and in
+/// the repository's sample): skip it in a sample-copy recording.
+fn has_account() -> bool {
+    let there = root()
+        .join("paper-api.alpaca.markets/v2/account.json")
+        .exists();
+    if !there {
+        assert!(!sample(), "the repository's sample account is missing");
+        eprintln!("no paper account in this recording; skipped");
+    }
+    there
+}
+
+#[test]
+fn paper_account() {
+    if !has_account() {
+        return;
+    }
+    let a = parse_account(&read("paper-api.alpaca.markets/v2/account.json")).unwrap();
+    assert!(!a.status.is_empty() && !a.number.is_empty(), "{a:?}");
+    assert!(a.equity >= mt_core::money::Decimal::ZERO);
+    // Equity is cash plus what the positions are worth.
+    let sum = a.cash + a.long_market_value + a.short_market_value;
+    assert!(
+        (to_f64(a.equity) - to_f64(sum)).abs() < 1.0,
+        "equity {} against cash and positions {sum}",
+        a.equity
+    );
+    let positions = parse_positions(&read("paper-api.alpaca.markets/v2/positions.json")).unwrap();
+    for p in &positions {
+        assert!(!p.qty.is_zero(), "{p:?}");
+        let (Some(mv), Some(price)) = (p.market_value, p.current_price) else {
+            continue;
+        };
+        let expect = to_f64(p.qty * price * p.multiplier());
+        assert!(
+            (to_f64(mv) - expect).abs() <= expect.abs() * 0.005 + 0.05,
+            "{}: market value {mv} against {expect}",
+            p.symbol
+        );
+    }
+    if sample() {
+        // The sample reconciles exactly: the day's P&L is the positions'.
+        let day: mt_core::money::Decimal = positions
+            .iter()
+            .filter_map(|p| p.unrealized_intraday_pl)
+            .sum();
+        assert_eq!(day, a.day_pl());
+        assert!(positions.iter().any(|p| p.is_short()));
+        assert!(positions.iter().any(|p| p.is_option()));
+        assert!(
+            a.number.contains("SAMPLE"),
+            "never a real account number in the repository"
+        );
+    }
+}
+
+#[test]
+fn equity_history() {
+    if !has_account() {
+        return;
+    }
+    for period in ["1D", "1W", "1M", "3M", "1A"] {
+        let rel = format!("paper-api.alpaca.markets/v2/account/portfolio/history@{period}.json");
+        let path = root().join(&rel);
+        if !path.exists() && !sample() {
+            continue;
+        }
+        let h = parse_portfolio_history(&read(&rel)).unwrap();
+        assert!(!h.points.is_empty() || !sample(), "{period}: no points");
+        assert!(
+            h.points.windows(2).all(|w| w[0].time < w[1].time),
+            "{period}: out of order"
+        );
+        for p in &h.points {
+            assert!(p.equity.is_finite() && p.equity >= 0.0, "{period}: {p:?}");
+        }
+        assert!(!h.timeframe.is_empty(), "{period}: no timeframe");
+        if sample() {
+            let a = parse_account(&read("paper-api.alpaca.markets/v2/account.json")).unwrap();
+            let last = h.last().unwrap().equity;
+            assert!(
+                (last - to_f64(a.equity)).abs() < 0.01,
+                "{period}: ends at {last}, the account's equity is {}",
+                a.equity
+            );
+        }
+    }
+}
+
+#[test]
+fn activities() {
+    if !has_account() {
+        return;
+    }
+    let list =
+        parse_activities(&read("paper-api.alpaca.markets/v2/account/activities.json")).unwrap();
+    assert!(
+        list.windows(2).all(|w| w[0].when() >= w[1].when()),
+        "newest first"
+    );
+    let mut ids: Vec<&str> = list.iter().map(|a| a.id.as_str()).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(ids.len(), list.len(), "ids are unique");
+    for a in &list {
+        assert!(a.when().is_some(), "{a:?} has no time or date");
+        if a.category() == ActivityCategory::Fill {
+            assert!(
+                a.symbol.is_some() && a.side.is_some() && a.qty.is_some() && a.price.is_some(),
+                "{a:?}"
+            );
+        }
+    }
+    if sample() {
+        for cat in [
+            ActivityCategory::Fill,
+            ActivityCategory::Dividend,
+            ActivityCategory::Option,
+        ] {
+            assert!(
+                list.iter().any(|a| a.category() == cat),
+                "no {}",
+                cat.label()
+            );
+        }
+    }
+    let options = root().join("data.alpaca.markets/v1beta1/options/snapshots.json");
+    if options.exists() {
+        let (snaps, _) = parse_option_snapshots(&std::fs::read(&options).unwrap()).unwrap();
+        for (sym, s) in &snaps {
+            assert!(
+                mt_core::instrument::OptionContract::parse_occ(sym).is_some(),
+                "{sym} is not an OCC symbol"
+            );
+            if let Some(d) = s.greeks.delta {
+                assert!((-1.0..=1.0).contains(&d), "{sym}: delta {d}");
+            }
+        }
+    }
+}
+
+#[test]
+fn order_events() {
+    if !has_account() {
+        return;
+    }
+    let s = mt_alpaca::Alpaca::default().trade_stream();
+    let (state, ready): (LiveTrades, bool) =
+        replay(&s, &root().join("paper-api.alpaca.markets/stream.jsonl"));
+    assert!(ready, "never logged in");
+    assert!(state.listening, "not listening for order events");
+    for e in &state.events {
+        assert!(!e.event.is_empty() && !e.order_id.is_empty(), "{e:?}");
+    }
+    if sample() {
+        assert!(state.events.iter().any(|e| e.is_fill()));
+    }
 }
