@@ -3,7 +3,8 @@
 //! same `client_order_id` (what the desk's duplicate protection rests on),
 //! finds it by that id, replaces it, cancels it, and checks the audit log
 //! holds no keys. Run by hand in the drift workflow (`paper_orders`) with the
-//! CI account's keys; it refuses anything but the paper endpoint.
+//! CI account's keys, or by hand with the paper keys stored in SET; it refuses
+//! anything but the paper endpoint.
 //!
 //! ```powershell
 //! $env:APCA_API_KEY_ID = "PK…"; $env:APCA_API_SECRET_KEY = "…"
@@ -42,7 +43,21 @@ fn keys() -> Result<(String, String), Error> {
         (Ok(id), Ok(secret)) if !id.trim().is_empty() && !secret.trim().is_empty() => {
             Ok((id.trim().to_owned(), secret.trim().to_owned()))
         }
-        _ => Err("set APCA_API_KEY_ID and APCA_API_SECRET_KEY to a paper account's keys".into()),
+        // Else the paper keys stored in SET (Windows Credential Manager).
+        _ => {
+            let store = mt_data::os_store("miso-terminal");
+            match (store.get(KEY_ID)?, store.get(SECRET_KEY)?) {
+                (Some(id), Some(secret)) if !id.is_empty() && !secret.is_empty() => {
+                    println!("using the paper keys stored in SET");
+                    Ok((id.expose().to_owned(), secret.expose().to_owned()))
+                }
+                _ => Err(
+                    "no paper keys: set APCA_API_KEY_ID and APCA_API_SECRET_KEY, \
+                          or store them in SET"
+                        .into(),
+                ),
+            }
+        }
     }
 }
 
@@ -231,6 +246,8 @@ fn run(
     desk.replace(&order.id, rep.clone())?;
     match settle(desk, &rep.client_order_id) {
         Outcome::Accepted(new) => {
+            // The original is finished ("replaced"); only the new one is open.
+            placed.retain(|id| *id != order.id);
             placed.push(new.id.clone());
             if new.replaces.as_deref() != Some(order.id.as_str()) {
                 return Err(format!("the replacement does not name {}: {new:?}", order.id).into());
@@ -251,8 +268,6 @@ fn run(
         desk.cancel(id);
         match settle_action(desk, &OrderDesk::cancel_key(id)) {
             ActionState::Done(_) => open.push(id.clone()),
-            // A replaced order is no longer cancellable.
-            ActionState::Failed(m) if m.contains("not cancelable") => {}
             ActionState::Failed(m) => return Err(format!("cancelling {id}: {m}").into()),
             ActionState::Working => unreachable!("settled"),
         }
@@ -277,6 +292,8 @@ fn run(
             std::thread::sleep(Duration::from_secs(1));
         }
     }
+    // Nothing left for the cleanup to cancel.
+    placed.clear();
     println!("ok: placed once, duplicate refused, found, replaced, cancelled");
     Ok(())
 }
