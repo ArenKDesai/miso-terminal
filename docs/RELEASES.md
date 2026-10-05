@@ -7,13 +7,14 @@ and the README's roadmap tracks them.
 
 ## Where things stand
 
-- Every change so far was pushed straight to `main`. CI runs after the push,
-  so a broken build is found only once it is already on `main`, and the docs
-  site deploys whatever `main` holds.
-- CI (`ci.yml`) already runs on pull requests too: fmt, clippy, tests and a
-  release build on Windows, and the non-UI crates on Linux. The repository has
-  no rules protecting `main` or tags, allows every merge method, and keeps
-  merged branches.
+- Until 2026-10-05 every change was pushed straight to `main`. Since then
+  changes land through pull requests ([#1](https://github.com/ArenKDesai/miso-terminal/pull/1)
+  was the first), and GitHub enforces it: the `main` and release-tag rulesets,
+  squash merges only, auto-merge, branches deleted on merge and immutable
+  releases are on, and the `v0.2.0` milestone exists. The docs site still
+  deploys whatever `main` holds.
+- CI (`ci.yml`) runs on pull requests and on `main`: fmt, clippy, tests and a
+  release build on Windows, and the non-UI crates on Linux.
 - `.github/workflows/release.yml` already exists: pushing a `v*` tag runs the
   tests, builds the release exe and attaches a zip to a GitHub release (the exe,
   `fixtures/` for `--offline`, README, LICENSE, `install.ps1` and the font
@@ -77,10 +78,13 @@ request into `main`:
 **Rules on GitHub.** Two rulesets, with no one allowed to bypass them (an
 urgent fix still goes through a pull request; it takes as long as CI):
 
-- *`main`* (and later `release/*`): changes only through pull requests
+- *`main`* and `release/*`: changes only through pull requests
   (no review required while there is one maintainer, since GitHub does not let
   an author approve their own), the required checks below must pass on the
-  latest commit, history stays linear, no force pushes, no deletion.
+  pull request's latest commit, history stays linear, no force pushes, no
+  deletion. A branch need not be up to date with `main` to merge, so
+  auto-merge never stalls behind another merge; CI runs again on `main` after
+  each merge and catches the rare clash between two changes.
 - *Tags `v*`*: no updates or deletions, so a published version always points
   at the same commit. Together with GitHub's *immutable releases* setting, a
   release's tag and files cannot change after publication.
@@ -280,22 +284,23 @@ published tag is never moved or reused: the fix is always a new version.
 In order. Each stage is one or more pull requests (the first ones under the
 new rules), tracked as issues in the `v0.2.0` milestone.
 
-1. **Working agreement.** This plan, merged as the first pull request.
+1. **Working agreement.** Done: this plan, merged as the first pull request,
+   `CLAUDE.md` updated to match, and the repository's settings (squash merges
+   only, the default squash message from the pull request, branches deleted on
+   merge, auto-merge allowed, immutable releases on, the `main` and tag
+   rulesets with no bypass, and the `v0.2.0` milestone). Still to do:
    `CONTRIBUTING.md` (the branch, pull request and checklist rules above, short
-   enough to read), the pull request template, `CHANGELOG.md` with an
-   *Unreleased* section that starts from what is on `main` today, and
-   `CLAUDE.md` updated to match. Then, in the repository's settings: squash
-   merges only, the default squash message from the pull request, branches
-   deleted on merge, auto-merge allowed, immutable releases on, the `main` and tag rulesets, and
-   the `v0.2.0` milestone.
+   enough to read), the pull request template, and `CHANGELOG.md` with an
+   *Unreleased* section that starts from what is on `main` today.
 2. **CI to match.** The *Docs* job in `ci.yml` (then made a required check),
    `--locked` builds, Dependabot's configuration, and the drift job opening
    issues when it fails.
 3. **The version, visible.** One workspace version in `--version`, HELP, LOG
    and the zip's name, with the commit added outside releases; the
    compatibility fixture and its test.
-4. **The release workflow.** The nine changes above, tried on a fork or with
-   a throwaway `v0.0.0-test.1` pre-release that is deleted afterwards.
+4. **The release workflow.** The nine changes above, tried on a fork with
+   the same settings. Not with a test tag here: the tag rules and immutable
+   releases mean a test release could never be deleted.
 5. **Release notes material.** The README's install section and the
    tutorials checked against the release zip; the notes' text on SmartScreen,
    checksums and attestations.
