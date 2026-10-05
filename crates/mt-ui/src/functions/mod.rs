@@ -10,6 +10,7 @@ mod capacity;
 mod cn;
 mod compare;
 mod cons;
+mod cross_chart;
 mod dam;
 mod des;
 mod fuel;

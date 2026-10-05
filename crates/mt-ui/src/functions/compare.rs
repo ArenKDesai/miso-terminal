@@ -1,11 +1,16 @@
 //! CMP: several nodes on one chart. Today at five minutes, or hourly RT or DA
-//! over N days, with a summary row per node.
+//! over N days, with a summary row per node. With securities among the
+//! arguments (`CMP XEL US MINN.HUB 30`) it opens `cross_chart` instead.
 
 use egui::{RichText, Ui};
 
+use mt_core::instrument::Security;
+
+use super::cross_chart;
 use super::gp::parse_days;
 use crate::context::PanelCx;
 use crate::function::{Category, FunctionSpec, Panel, Route};
+use crate::market::{self, SecurityPicker};
 use crate::series::{self, Component, Points};
 use crate::widgets::node_picker::NodePicker;
 use crate::widgets::{self, chart, csv, fmt};
@@ -13,19 +18,25 @@ use crate::widgets::{self, chart, csv, fmt};
 pub const SPEC: FunctionSpec = FunctionSpec {
     code: "CMP",
     aliases: &["COMPARE", "OVERLAY"],
-    name: "Compare nodes",
+    name: "Compare",
     category: Category::Prices,
-    usage: "CMP <node> <node> … [days]",
-    description: "Up to eight nodes on one chart: today's five-minute RT, or hourly RT or DA over N days, by component.",
+    usage: "CMP <node|security> … [days]",
+    description: "Up to eight nodes on one chart: today's five-minute RT, or hourly RT or DA over N days, by component. With securities (CMP XEL US MINN.HUB 30), their prices above the nodes' on one time axis, and how they moved together day by day.",
     takes_node: true,
-    takes_security: false,
+    takes_security: true,
     open,
 };
 
 const MAX_NODES: usize = 8;
 
 fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
-    // Numbers are the day count; everything else is a node.
+    // Numbers are the day count; securities go above; everything else is a node.
+    let securities: Vec<Security> = args.iter().filter_map(|a| market::security_of(a)).collect();
+    let args: Vec<String> = args
+        .iter()
+        .filter(|a| market::security_of(a).is_none())
+        .cloned()
+        .collect();
     let (days, nodes): (Vec<&String>, Vec<&String>) =
         args.iter().partition(|a| a.parse::<u32>().is_ok());
     let mut list: Vec<String> = Vec::new();
@@ -36,6 +47,16 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
         }
     }
     let days = parse_days(days.first().copied())?;
+    if !securities.is_empty() {
+        let mut unique: Vec<Security> = Vec::new();
+        for s in securities {
+            if !unique.contains(&s) && unique.len() < cross_chart::MAX_SECURITIES {
+                unique.push(s);
+            }
+        }
+        list.truncate(cross_chart::MAX_NODES);
+        return Ok(cross_chart::open(unique, list, days));
+    }
     Ok(Box::new(Compare {
         nodes: list,
         days,
@@ -43,6 +64,7 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
         da: false,
         component: Component::Lmp,
         picker: NodePicker::default(),
+        security_picker: SecurityPicker::default(),
     }))
 }
 
@@ -55,6 +77,7 @@ struct Compare {
     da: bool,
     component: Component,
     picker: NodePicker,
+    security_picker: SecurityPicker,
 }
 
 impl Panel for Compare {
@@ -86,6 +109,7 @@ impl Panel for Compare {
         if self.days == 0 {
             self.days = cx.config.data.history_days.clamp(1, 90);
         }
+        let mut open_cross = None;
         ui.horizontal_wrapped(|ui| {
             let mut remove = None;
             for (i, n) in self.nodes.iter().enumerate() {
@@ -105,7 +129,21 @@ impl Panel for Compare {
             {
                 self.nodes.push(n);
             }
+            // A security turns this into a stock-against-nodes chart.
+            if cx.alpaca.is_ready()
+                && let Some(s) = self
+                    .security_picker
+                    .show(ui, cx, "cmp-add-sec", "add a security…")
+            {
+                let mut args = vec![s.to_string()];
+                args.extend(self.nodes.iter().take(cross_chart::MAX_NODES).cloned());
+                args.push(self.days.max(1).to_string());
+                open_cross = Some(Route::new("CMP", args));
+            }
         });
+        if let Some(route) = open_cross {
+            cx.open(route);
+        }
         if self.nodes.is_empty() {
             ui.label(
                 RichText::new("Add nodes above, or type CMP MINN.HUB MICHIGAN.HUB ILLINOIS.HUB.")
@@ -245,5 +283,11 @@ mod tests {
             Route::new("CMP", ["MINN.HUB", "MICHIGAN.HUB", "14"])
         );
         assert_eq!(open(&[]).unwrap().route(), Route::code("CMP"));
+        // A security among them: the stock-against-nodes chart.
+        let args: Vec<String> = ["XEL US", "minn.hub", "30", "XEL US"]
+            .map(String::from)
+            .to_vec();
+        let p = open(&args).unwrap();
+        assert_eq!(p.route(), Route::new("CMP", ["XEL US", "MINN.HUB", "30"]));
     }
 }

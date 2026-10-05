@@ -178,8 +178,14 @@ as decided above). Paths and message formats were taken from Alpaca's own
 - **The energy angle.** Built-in lists for `Q`: `POWER` (all of the below, the
   default), `UTILITIES` (AEE, XEL, LNT, WEC, DTE, CMS, ETR, CNP, MGEE, NI, OTTR),
   `GENERATORS` (VST, NRG, CEG, TLN), `ETFS` (XLU, XLE, UNG) and `GAS` (UNG, EQT, AR,
-  RRC, EXE; Coterra stopped trading in May 2026); `[[markets.lists]]` adds or replaces lists. Still to come: a
-  stock against a MISO hub price on one chart.
+  RRC, EXE; Coterra stopped trading in May 2026); `[[markets.lists]]` adds or replaces lists.
+- **Stocks against hub prices.** `CMP XEL US MINN.HUB 30` puts up to four
+  securities (price, or % change for several) above up to four nodes' hourly RT
+  or DA, on linked charts spanning the same time in market time (EST), with
+  each node's daily average drawn over its hours on daily views. A grid gives
+  the correlation of each security's daily return with the day-to-day change in
+  each node's daily average price, over the trading days both have (five at
+  least). CMP with nodes offers a security picker that opens this view.
 - **Recordings.** `cargo run -p mt-alpaca --example capture_alpaca` records every
   dataset through the queries themselves, plus short stream sessions (the live
   feed with the default list, Alpaca's always-on test feed, news). By default

@@ -109,6 +109,12 @@ fn routes(registry: &Registry) -> Vec<Route> {
     out.push(Route::new("DES", ["NOTATICKER US"]));
     out.push(Route::new("CN", ["XLU US"]));
     out.push(Route::new("WL", ["XLU US"]));
+    out.push(Route::new("CMP", ["XLU US", "MINN.HUB", "7"]));
+    out.push(Route::new(
+        "CMP",
+        ["XLU US", "XEL US", "MINN.HUB", "ILLINOIS.HUB", "30"],
+    ));
+    out.push(Route::new("CMP", ["XEL US"]));
     out
 }
 
