@@ -135,10 +135,12 @@ Until auto-merge and the `main` ruleset are on, Claude waits for CI to pass
   by `--version`, in HELP and LOG, and in the zip's name. Builds that are not
   releases add the commit (`0.2.0+3f2a1c9`), so a bug report from a CI build
   or a source checkout says exactly what was running.
-- **The first release is `v0.2.0`**: the MISO functions, themes, news, and
-  Alpaca stock and ETF data (markets phases 0 to 2), and the tutorials. After
-  that, a minor release closes each markets phase (Phase 3 is `0.3.0`), with
-  patch releases as needed in between. No fixed calendar.
+- **The first release is `v0.2.0`**: the MISO functions, themes, news,
+  Alpaca stock and ETF data, and the paper account, read-only (markets phases
+  0 to 3; Phase 3 was finished before the release and folded in, on
+  2026-10-05), and the tutorials. After that, a minor release closes each
+  markets phase (Phase 4, paper trading, is `0.3.0`), with patch releases as
+  needed in between. No fixed calendar.
 - Release candidates are tagged `v0.2.0-rc.1`, carry that version in
   `Cargo.toml` (so `--version` says so), and are published as GitHub
   pre-releases.
