@@ -289,6 +289,8 @@ pub fn parse_option_snapshots(
             let snap = OptionSnapshot {
                 latest_trade: part("latestTrade").and_then(parse::trade),
                 latest_quote: part("latestQuote").and_then(parse::quote),
+                daily_bar: part("dailyBar").and_then(parse::bar),
+                prev_daily_bar: part("prevDailyBar").and_then(parse::bar),
                 greeks: Greeks {
                     delta: greek("delta"),
                     gamma: greek("gamma"),
@@ -337,7 +339,7 @@ fn trading_hours() -> bool {
 }
 
 /// A minute while the market trades (the full re-sync), less often when closed.
-fn every_minute_while_trading(closed_secs: u64) -> Freshness {
+pub(crate) fn every_minute_while_trading(closed_secs: u64) -> Freshness {
     Freshness::Every(Duration::from_secs(if trading_hours() {
         60
     } else {

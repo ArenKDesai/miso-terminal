@@ -21,6 +21,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "A − B price spread between two nodes: today at 5 minutes, or hourly DA and RT spreads over N days.",
     takes_node: true,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

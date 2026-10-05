@@ -24,6 +24,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Live prices for stocks and ETFs (Alpaca): last, change, bid and ask, volume, the day's range and today's chart. Q alone is the Power & gas list; Q WL your watchlist; Q XEL US AEE US any securities.",
     takes_node: false,
     takes_security: true,
+    takes_option: false,
     open,
 };
 

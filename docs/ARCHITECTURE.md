@@ -229,6 +229,22 @@ the quantity (`Position::mark`), so Alpaca's reference for the day is kept and
 the next re-read replaces the estimate. `AccountMode` (paper, later live)
 names the band above the status bar, the queries' keys and the stream's.
 
+### Options data
+
+`mt_alpaca::options` reads an underlying's contract list
+(`/v2/options/contracts`, every page, out three years; refreshed hourly) into
+an `mt_core::options::ContractList`, and one expiry's chain
+(`/v1beta1/options/snapshots/{underlying}?expiration_date=…`, the indicative
+feed) into an `OptionChain` of `OptionSnapshot`s: quote, latest trade, daily
+bars, greeks and implied volatility. Alpaca streams options only in
+MessagePack, so chains are re-read every minute instead. `chain_rows` pairs
+calls and puts by strike from the contract list and the chain together;
+adjusted contracts (another root, after a corporate action) are left out.
+`FixtureTransport` picks `contracts@XLU.json` and `XLU@2026-12-18.json` by the
+first query value. The repository's chains are made up by
+`tools/sample_options.py` (Black-Scholes around the synthetic stock prices),
+and only `capture_alpaca --verbatim` records a real one, for the drift job.
+
 ### The order desk
 
 Orders go through `mt_alpaca::OrderDesk`, never the data hub: nothing is
@@ -359,7 +375,8 @@ Bloomberg style: `XLU US` (Bloomberg's trailing `Equity` is accepted); options
 are OCC symbols (`XLU261218C00082500`). `mt_core::instrument` parses and prints
 them. The command line joins a security's tokens into one argument (`XLU US GP
 30` is `GP` with `XLU US` and `30`) and refuses securities for functions whose
-`FunctionSpec::takes_security` is false.
+`FunctionSpec::takes_security` is false, and options for those whose
+`takes_option` is false. An option typed alone opens its chain in OMON.
 
 Amounts that feed an order or a position (prices, fractional quantities,
 notionals, cash, P&L) are exact `rust_decimal::Decimal`s, never `f64`;
@@ -370,11 +387,11 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 
 | Layer | Tests |
 |---|---|
-| `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces; New York time across clock changes, and sessions; security and OCC parsing; exact decimals from broker JSON; marking positions (shorts, options, opened today), net delta, account figures, drawdowns, activity categories and merging; order requests the broker would refuse, order values, merging and day trades; every guardrail (switch, restricted list, sessions, the three caps, the collar, size, shorts, buying power, day trades) |
+| `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces; New York time across clock changes, and sessions; security and OCC parsing; option contract lists, chains by strike, the money's window, price steps and expiry cutoffs; exact decimals from broker JSON; marking positions (shorts, options, opened today), net delta, account figures, drawdowns, activity categories and merging; order requests the broker would refuse, order values, merging and day trades; every guardrail (switch, restricted list, sessions, the three caps, the collar, size, shorts, buying power, day trades) |
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; streams against a scripted server (shared connections, subscription unions, reconnect and resubscribe, refused logins, lingering topics, pause); a real WebSocket round trip on localhost; conditional GETs, status mapping, budgets and `429`s; secrets kept out of the log; the Windows Credential Manager round trip; transports; disk cache |
 | `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
-| `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions within the plan's limit (trades before quotes, halving after a `405`), refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed; the account, positions, equity curves, activities, option greeks, orders and order events against the sample account (reconciled to the cent) or a live recording; the order desk against a fake broker: an order goes in once, a lost answer is looked up rather than resent, an order that never arrived goes again under the same id (and a late arrival is found, not duplicated), rejections, rate limits, unknown fates, cancels, replaces and the kill switch, with keys kept out of the audit log |
+| `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions within the plan's limit (trades before quotes, halving after a `405`), refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed; option contract lists and chains against the sample chains (live in the drift job); the account, positions, equity curves, activities, option greeks, orders and order events against the sample account (reconciled to the cent) or a live recording; the order desk against a fake broker: an order goes in once, a lost answer is looked up rather than resent, an order that never arrived goes again under the same id (and a late arrival is found, not duplicated), rejections, rate limits, unknown fates, cancels, replaces and the kill switch, with keys kept out of the audit log |
 | `mt-news` | RSS 2.0, RSS 1.0 and Atom (CDATA, escaped HTML, entities, dates, Atom links, no article bodies); every built-in feed against its recording (sample text in the feed's real structure; live in the drift job via `MT_FIXTURES`); identities, merging, combining, keyword rules, config overrides, read marks |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
 | `mt-ui` | Command parsing, completion and hints; alert engine (headline alerts included); series maths; the headline browser and archived headlines and read marks across a restart; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart; ticket commands parsed and round-tripped; commands from outside the window (`--run`, a forwarded launch, a hotkey) opening tickets against fixtures posing as the live network, with nothing but GETs sent |

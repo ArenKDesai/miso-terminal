@@ -120,6 +120,7 @@ and themes.
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
 | `Q` | Quote monitor | Live prices for a list of stocks and ETFs (Alpaca): last, change, bid and ask, volume, the day's range and today's chart, with every trade streaming (the free plan allows 30 trade and quote subscriptions). `Q` is the Power & gas list (utilities in MISO's footprint, independent generators, energy ETFs, gas producers); also `Q UTILITIES`, `Q GAS`, `Q WL` (your watchlist) or any securities (`Q XEL US AEE US`) |
 | `DES` | Security description | What a stock or ETF is and where it lists, how it trades with Alpaca (shortable, marginable, fractional), today's prices, and its 52-week range and returns (`DES XLU US`) |
+| `OMON` | Option monitor | An option chain from Alpaca: calls and puts by strike for one expiry (a tab per expiry, the monthly ones in bold), with bid, ask, last and its change, volume, open interest, implied volatility and delta (gamma, theta and vega on request), in-the-money contracts shaded and a line at the stock's price; the strikes nearest the money, or all (`OMON XLU US`, `OMON XLU US 2026-12-18 ALL`). An OCC symbol typed alone opens its chain. On the free plan prices are Alpaca's indicative feed (quotes derived from OPRA's, trades 15 minutes late), re-read every minute |
 | `TOP` | Top stories | The newest top stories from the Financial Times, Bloomberg and the Washington Post in one list. Click one for its summary; Enter or a double-click opens the article in your browser, where you are signed in |
 | `NEWS` | News search | Every headline from every feed, kept for three weeks so search reaches back across restarts: by publisher (`NEWS FT`, `NEWS BBG`, `NEWS WP`), by words (`NEWS natural gas`), unread only, and mark read |
 | `NI` | News by topic | Headlines on a topic from keyword rules: `NI ENERGY`, `POWER`, `GRID`, `GAS`, `OIL`, `UTILITIES`, `POLICY`, `CLIMATE`, `MACRO`. `NI` alone lists the topics with today's counts. Change them or add your own in config |
@@ -157,7 +158,7 @@ by OCC symbol, `XLU261218C00082500`), so they never clash with node names like
 `AECI` or `TVA`. Put the security first or after the code (`XLU US GP 30` or
 `GP XLU US 30`), or type it alone to chart it. Completion offers tickers and
 company names from Alpaca's asset list, and after a security, the functions that
-take one (`XLU US D…` → `DES`). Options arrive with `OMON`.
+take one (`XLU US D…` → `DES`). An option symbol typed alone opens its chain in `OMON`.
 
 Orders: `BUY` and `SELL` open a ticket and nothing else, whoever asks (the
 command line, `--run`, a hotkey or another launch of the terminal): only a click

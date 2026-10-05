@@ -177,12 +177,15 @@ pub struct Greeks {
     pub rho: Option<f64>,
 }
 
-/// One option contract right now: its latest trade and quote, and the
-/// greeks and implied volatility the source derives from them.
+/// One option contract right now: its latest trade and quote, today's and
+/// the previous session's daily bars, and the greeks and implied volatility
+/// the source derives from them.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct OptionSnapshot {
     pub latest_trade: Option<Trade>,
     pub latest_quote: Option<Quote>,
+    pub daily_bar: Option<Bar>,
+    pub prev_daily_bar: Option<Bar>,
     pub greeks: Greeks,
     pub implied_volatility: Option<f64>,
 }
@@ -195,6 +198,44 @@ impl OptionSnapshot {
             .and_then(Quote::mid)
             .or_else(|| self.latest_trade.as_ref().map(|t| t.price))
             .filter(|p| p.is_finite() && *p >= 0.0)
+    }
+
+    /// The bid, if anyone is bidding.
+    pub fn bid(&self) -> Option<f64> {
+        self.latest_quote
+            .as_ref()
+            .map(|q| q.bid)
+            .filter(|p| p.is_finite() && *p > 0.0)
+    }
+
+    /// The ask, if anyone is offering.
+    pub fn ask(&self) -> Option<f64> {
+        self.latest_quote
+            .as_ref()
+            .map(|q| q.ask)
+            .filter(|p| p.is_finite() && *p > 0.0)
+    }
+
+    pub fn last(&self) -> Option<f64> {
+        self.latest_trade
+            .as_ref()
+            .map(|t| t.price)
+            .filter(|p| p.is_finite() && *p >= 0.0)
+    }
+
+    /// Contracts traded in the latest session.
+    pub fn volume(&self) -> Option<f64> {
+        self.daily_bar.as_ref().map(|b| b.volume)
+    }
+
+    /// The last trade against the previous session's close.
+    pub fn change(&self) -> Option<f64> {
+        let prev = self
+            .prev_daily_bar
+            .as_ref()
+            .map(|b| b.close)
+            .filter(|p| p.is_finite() && *p > 0.0)?;
+        Some(self.last()? - prev)
     }
 }
 

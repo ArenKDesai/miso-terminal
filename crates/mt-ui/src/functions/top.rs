@@ -16,6 +16,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Top stories from the Financial Times, Bloomberg and the Washington Post, newest first. Enter opens one in your browser.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

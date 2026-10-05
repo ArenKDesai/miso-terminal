@@ -21,6 +21,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "The Alpaca paper account's history: fills, dividends, fees, transfers, and option exercises, assignments and expiries, newest first, with order events as they stream (ACT FILLS, ACT DIV).",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

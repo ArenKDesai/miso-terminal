@@ -462,16 +462,22 @@ impl TerminalApp {
                     self.set_theme(ctx, id);
                     return;
                 }
-                if let Some(Instrument::Option(o)) = command::security_arg(&route) {
+                if let Some(spec) = self.registry.find(&route.code)
+                    && !spec.takes_option
+                    && let Some(o) = command::option_arg(&route)
+                {
                     self.feedback(
-                        format!("{o} is an option. Options arrive with OMON (markets phase 5)."),
+                        format!(
+                            "{o} is an option, which {} does not take. OMON {o} shows its chain.",
+                            spec.code
+                        ),
                         true,
                     );
                     return;
                 }
                 if let Some(spec) = self.registry.find(&route.code)
                     && !spec.takes_security
-                    && let Some(sec) = command::security_arg(&route)
+                    && let Some(sec) = command::security_only_arg(&route)
                 {
                     self.feedback(
                         format!("{} takes MISO nodes; {sec} is a security.", spec.code),
@@ -488,8 +494,14 @@ impl TerminalApp {
                 self.feedback(route.to_string(), false);
                 self.workspace.open(route, &self.registry);
             }
+            // A bare option opens its chain at its expiry.
+            Parsed::Instrument(Instrument::Option(o)) => {
+                let route = Route::new("OMON", [o.to_string()]);
+                self.feedback(route.to_string(), false);
+                self.workspace.open(route, &self.registry);
+            }
             Parsed::Instrument(inst) => self.feedback(
-                format!("{inst} is an option. Options arrive with OMON (markets phase 5)."),
+                format!("{inst} is not something the terminal can show."),
                 true,
             ),
             Parsed::Unknown(s) => self.feedback(

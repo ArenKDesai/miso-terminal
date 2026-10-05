@@ -15,6 +15,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Real-time regulation, spinning, supplemental, short-term reserve and ramp MCPs by reserve zone.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

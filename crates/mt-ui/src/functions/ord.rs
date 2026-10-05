@@ -30,6 +30,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "The Alpaca paper account's orders, kept current by the order stream: open, filled and cancelled; cancel or replace open orders; the kill switch (cancel every open order, optionally close every position, and turn trading off); the order audit log.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

@@ -18,6 +18,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Alerts on prices, spreads, constraints, N–S transfer, load vs forecast, ACE and headlines: add rules, see which hold now, and what fired.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

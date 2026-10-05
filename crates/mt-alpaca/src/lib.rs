@@ -3,7 +3,8 @@
 //! completion, the market clock and calendar, company news (Benzinga's,
 //! through Alpaca), and the paper account: balances, positions, the equity
 //! curve, activities, orders and order events ([`account`], [`orders`],
-//! [`TradeStream`]). Orders are placed, replaced and cancelled only by the
+//! [`TradeStream`]); and options: the contracts listed on an underlying and
+//! each expiry's chain of quotes and greeks ([`options`]). Orders are placed, replaced and cancelled only by the
 //! [`OrderDesk`], never by a query, and every request it sends is written to
 //! the [`AuditLog`].
 //!
@@ -23,6 +24,7 @@ mod audit;
 pub mod board;
 pub mod config;
 pub mod desk;
+pub mod options;
 pub mod orders;
 pub mod parse;
 mod queries;
@@ -44,6 +46,7 @@ pub use account::{
 pub use audit::AuditLog;
 pub use config::{MarketsConfig, SecurityList, builtin_lists, normalize_symbol};
 pub use desk::{ActionState, OrderDesk, Outcome, new_client_order_id};
+pub use options::{OptionChain, OptionChainQuery, OptionContractsQuery};
 pub use orders::{OrdersQuery, Replacement};
 pub use queries::{
     ASSETS_KEY, AssetsQuery, BarSet, BarSource, BarsQuery, CalendarQuery, ClockQuery, NewsList,
@@ -294,6 +297,18 @@ impl Alpaca {
         symbols: impl IntoIterator<Item = S>,
     ) -> OptionSnapshotsQuery {
         OptionSnapshotsQuery::new(self.clone(), symbols)
+    }
+
+    /// Every active contract listed on `underlying` (a ticker), with open
+    /// interest and the latest close; the expiries OMON offers.
+    pub fn option_contracts(&self, underlying: &str) -> OptionContractsQuery {
+        OptionContractsQuery::new(self.clone(), underlying)
+    }
+
+    /// One expiry's chain on `underlying`: quotes, greeks and implied
+    /// volatility for every contract (Alpaca's indicative feed).
+    pub fn option_chain(&self, underlying: &str, expiry: NaiveDate) -> OptionChainQuery {
+        OptionChainQuery::new(self.clone(), underlying, expiry)
     }
 
     /// The account's orders, open and recent, newest first.

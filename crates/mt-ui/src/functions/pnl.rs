@@ -24,6 +24,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "The Alpaca paper account's equity curve: today at five minutes, a week hourly, or one, three or twelve months daily, with the change, high, low and deepest drawdown (PNL 1M).",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

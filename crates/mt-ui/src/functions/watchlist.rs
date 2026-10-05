@@ -24,6 +24,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Your favourite nodes (RT vs DA, change, today's sparkline) and securities (last, change, volume, today's chart). WL <node> or WL XLU US adds one; ☆ in GP does too.",
     takes_node: true,
     takes_security: true,
+    takes_option: false,
     open,
 };
 

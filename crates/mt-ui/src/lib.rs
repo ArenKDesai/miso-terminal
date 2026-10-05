@@ -25,6 +25,7 @@ pub mod geo;
 pub mod market;
 pub mod news;
 pub mod notify;
+pub mod options;
 pub mod portfolio;
 pub mod remote;
 pub mod series;

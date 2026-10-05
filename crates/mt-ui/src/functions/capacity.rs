@@ -16,6 +16,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Committed capacity vs demand through the day, with forecasts, available capacity, RSG commitments and tomorrow's STR requirement.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

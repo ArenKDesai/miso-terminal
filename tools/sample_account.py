@@ -16,6 +16,9 @@ everything reconciles: equity is cash plus positions, the day's P&L is the
 positions' day P&L, and the equity curve ends at the account's equity. Run it
 again after re-recording the Alpaca fixtures.
 
+Run tools/sample_options.py afterwards: it prices the option chains around
+these positions and gives their contracts the chain's greeks.
+
 Writes, under paper-api.alpaca.markets/: v2/account.json, v2/positions.json,
 v2/orders.json, v2/account/activities.json,
 v2/account/portfolio/history@{1D,1W,1M,3M,1A}.json and stream.jsonl (a login
@@ -60,7 +63,8 @@ OPTION_TRADES = [
     ("2026-09-08", "XLU261218C00045000", "buy", 2, "1.35"),
     ("2026-09-21", "VST261120P00035000", "sell", 1, "1.10"),
 ]
-#: OCC symbol -> (previous close, now, delta, implied volatility).
+#: OCC symbol -> (previous close, now, delta, implied volatility). The greeks
+#: are placeholders: tools/sample_options.py replaces them with its chain's.
 OPTION_MARKS = {
     "XLU261218C00045000": ("1.28", "1.60", 0.52, 0.214),
     "VST261120P00035000": ("0.62", "0.88", -0.30, 0.468),

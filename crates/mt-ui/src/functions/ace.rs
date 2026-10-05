@@ -17,6 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "MISO's area control error over the last two hours (30-second): how far generation is from balancing load.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

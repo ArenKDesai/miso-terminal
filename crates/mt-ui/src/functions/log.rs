@@ -19,6 +19,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Every data feed with its freshness and last error, recent fetch activity, cache and file locations.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

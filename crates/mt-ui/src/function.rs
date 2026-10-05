@@ -118,10 +118,13 @@ pub struct FunctionSpec {
     pub description: &'static str,
     /// Whether the first argument is a pricing node (enables node completion).
     pub takes_node: bool,
-    /// Whether arguments may be securities (`XLU US`) or options (OCC
-    /// symbols). The command line refuses them for functions that cannot,
-    /// and completes tickers for those that can.
+    /// Whether arguments may be securities (`XLU US`). The command line
+    /// refuses them for functions that cannot, and completes tickers for
+    /// those that can.
     pub takes_security: bool,
+    /// Whether arguments may be option contracts (OCC symbols,
+    /// `XLU261218C00045000`): the option monitor and the order tickets.
+    pub takes_option: bool,
     pub open: OpenFn,
 }
 

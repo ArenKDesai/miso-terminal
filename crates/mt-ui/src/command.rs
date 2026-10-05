@@ -90,6 +90,28 @@ pub fn security_arg(route: &Route) -> Option<Instrument> {
         .find_map(|a| Instrument::parse_security(a))
 }
 
+/// The first stock or ETF (`XLU US`) among a route's arguments.
+pub fn security_only_arg(route: &Route) -> Option<instrument::Security> {
+    route
+        .args
+        .iter()
+        .find_map(|a| match Instrument::parse_security(a)? {
+            Instrument::Security(s) => Some(s),
+            _ => None,
+        })
+}
+
+/// The first option contract among a route's arguments.
+pub fn option_arg(route: &Route) -> Option<instrument::OptionContract> {
+    route
+        .args
+        .iter()
+        .find_map(|a| match Instrument::parse_security(a)? {
+            Instrument::Option(o) => Some(o),
+            _ => None,
+        })
+}
+
 /// Usage and description of the function being typed, once its code is
 /// recognised: `GP <node> [days] [HEAT] — Price chart for one node…`.
 pub fn hint(input: &str, registry: &Registry) -> Option<(&'static str, &'static str)> {

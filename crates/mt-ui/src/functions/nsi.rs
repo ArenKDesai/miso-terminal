@@ -16,6 +16,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Net scheduled interchange by neighbouring balancing authority, now and over the last day.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 
