@@ -1,5 +1,7 @@
 //! Record Alpaca's responses (offline mode, parser tests, the weekly drift
-//! job). About fifteen requests and three short stream sessions.
+//! job). About fifteen requests and three short stream sessions, and with
+//! `--verbatim` the paper account too (about ten more requests and a session
+//! of its order events).
 //!
 //!     cargo run -p mt-alpaca --example capture_alpaca [--verbatim] [DIR]
 //!
@@ -16,6 +18,10 @@
 //! trimmed to the symbols the fixtures use. That is what goes in the
 //! repository's `fixtures/`. `--verbatim` keeps everything, for the drift
 //! job, which parses a live recording and throws it away.
+//!
+//! The account (balances, positions, equity curve, activities, order events)
+//! is only recorded with `--verbatim`: the repository's account fixtures are a
+//! made-up portfolio from `tools/sample_account.py`, never an account's own.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -23,7 +29,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, NaiveDate, Utc};
-use mt_alpaca::{Alpaca, MarketsConfig, Timeframe};
+use mt_alpaca::{Alpaca, HistoryPeriod, MarketsConfig, Timeframe};
 use mt_core::equity::Feed;
 use mt_core::exchange;
 use mt_data::{
@@ -137,6 +143,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .stream(&ctx, &alpaca.news_stream(), &["news:*".to_owned()])
         .await?;
 
+    if verbatim {
+        // The paper account, read-only, for the drift job's parsers.
+        run(&ctx, alpaca.account()).await?;
+        let positions = run(&ctx, alpaca.positions()).await?;
+        println!("{} positions", positions.len());
+        for period in HistoryPeriod::ALL {
+            run(&ctx, alpaca.portfolio_history(period)).await?;
+        }
+        run(&ctx, alpaca.activities()).await?;
+        let options: Vec<String> = positions
+            .iter()
+            .filter(|p| p.is_option())
+            .map(|p| p.symbol.clone())
+            .collect();
+        if !options.is_empty() {
+            run(&ctx, alpaca.option_snapshots(&options)).await?;
+        }
+        recorder
+            .stream(
+                &ctx,
+                &alpaca.trade_stream(),
+                &[mt_alpaca::TRADE_UPDATES.to_owned()],
+            )
+            .await?;
+    }
+
     let symbols: Vec<String> = quoted
         .iter()
         .cloned()
@@ -216,7 +248,10 @@ impl Recorder {
         };
         let variant = match path.file_name().and_then(|n| n.to_str()) {
             Some("bars.json") => param("timeframe"),
-            Some("snapshots.json") => param("feed").filter(|f| f != "iex"),
+            Some("snapshots.json") if url.contains("/v2/stocks/") => {
+                param("feed").filter(|f| f != "iex")
+            }
+            Some("history.json") => param("period"),
             _ => None,
         };
         match variant {
@@ -277,8 +312,11 @@ impl Recorder {
             tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), conn.recv()).await
         {
             let frame = frame?;
-            if let Frame::Text(t) = &frame {
-                frames.push(t.clone());
+            match &frame {
+                Frame::Text(t) => frames.push(t.clone()),
+                // The account's order events come in binary frames.
+                Frame::Binary(b) => frames.push(String::from_utf8_lossy(b).into_owned()),
+                Frame::Pong => {}
             }
             match s.apply(&mut state, &frame) {
                 Ok(Applied::Ready) if !ready => {

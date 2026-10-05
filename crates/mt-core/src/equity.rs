@@ -167,6 +167,37 @@ impl Snapshot {
     }
 }
 
+/// An option's sensitivities, per share of the underlying.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Greeks {
+    pub delta: Option<f64>,
+    pub gamma: Option<f64>,
+    pub theta: Option<f64>,
+    pub vega: Option<f64>,
+    pub rho: Option<f64>,
+}
+
+/// One option contract right now: its latest trade and quote, and the
+/// greeks and implied volatility the source derives from them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct OptionSnapshot {
+    pub latest_trade: Option<Trade>,
+    pub latest_quote: Option<Quote>,
+    pub greeks: Greeks,
+    pub implied_volatility: Option<f64>,
+}
+
+impl OptionSnapshot {
+    /// The mid of a two-sided quote, else the last trade.
+    pub fn mark(&self) -> Option<f64> {
+        self.latest_quote
+            .as_ref()
+            .and_then(Quote::mid)
+            .or_else(|| self.latest_trade.as_ref().map(|t| t.price))
+            .filter(|p| p.is_finite() && *p >= 0.0)
+    }
+}
+
 /// A security that can be looked up (and, with an account, traded).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Asset {

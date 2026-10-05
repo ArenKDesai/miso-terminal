@@ -2,7 +2,9 @@
 //! `Panel`, then list it below. The command line, menus, HELP, layout
 //! persistence and the smoke tests pick it up from this list.
 
+mod acct;
 mod ace;
+mod act;
 mod alrt;
 mod asm;
 mod bch;
@@ -27,6 +29,8 @@ mod news;
 mod ni;
 mod nsi;
 mod outages;
+mod pnl;
+mod port;
 mod quote;
 mod renew;
 mod seam;
@@ -72,6 +76,10 @@ pub fn all() -> Vec<FunctionSpec> {
         news::SPEC,
         ni::SPEC,
         cn::SPEC,
+        port::SPEC,
+        acct::SPEC,
+        pnl::SPEC,
+        act::SPEC,
         alrt::SPEC,
         log::SPEC,
         theme::SPEC,

@@ -1,5 +1,6 @@
-//! HOME: the launchpad. Headline numbers, the trading hubs, the generation mix,
-//! the constraints that matter right now, weather and the top stories.
+//! HOME: the launchpad. Headline numbers (and the paper account's equity,
+//! once Alpaca keys are stored), the trading hubs, the generation mix, the
+//! constraints that matter right now, weather and the top stories.
 
 use egui::{Grid, RichText, ScrollArea, Ui};
 use mt_core::{TRADING_HUBS, hub_short};
@@ -149,6 +150,7 @@ impl Panel for Home {
                     )
                     .on_hover_text("Gas spot (EIA). Heat rate = MISO's marginal energy cost / gas, MMBtu/MWh. GAS for more.");
                 }
+                account_tile(ui, cx);
             });
 
             widgets::section(ui, skin, "Trading hubs · $/MWh");
@@ -340,6 +342,30 @@ impl Panel for Home {
 
             self.headlines(ui, cx);
         });
+    }
+}
+
+/// The paper account's equity and the day's P&L, live; a click opens PORT.
+fn account_tile(ui: &mut Ui, cx: &mut PanelCx<'_>) {
+    if !cx.alpaca.is_ready() {
+        return;
+    }
+    let skin = cx.skin;
+    let book = crate::portfolio::watch(cx);
+    let lines = book.lines();
+    let Some(t) = book.totals(&lines) else { return };
+    let resp = widgets::stat_tile(
+        ui,
+        skin,
+        &format!("{} equity", cx.alpaca.mode().name()),
+        &crate::portfolio::usd(t.equity),
+        Some(crate::portfolio::pl_text(skin, t.day_pl, t.day_pct)),
+    )
+    .interact(egui::Sense::click())
+    .on_hover_text("Alpaca paper account: today's P&L from the previous close. PORT for positions.")
+    .on_hover_cursor(egui::CursorIcon::PointingHand);
+    if resp.clicked() {
+        cx.open(Route::code("PORT"));
     }
 }
 

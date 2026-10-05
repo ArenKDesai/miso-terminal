@@ -3,8 +3,8 @@
 A plan: headlines from the Financial Times, Bloomberg and the Washington Post;
 US stock, ETF and options data from Alpaca; paper trading through Alpaca, with
 live trading later; and account and portfolio tracking. Phase 0 (foundations),
-Phase 1 (news) and Phase 2 (market data) are built (2026-10-04); the later phases
-are not yet.
+Phase 1 (news) and Phase 2 (market data) are built (2026-10-04), and Phase 3
+(account and portfolio) on 2026-10-05; the later phases are not yet.
 Facts about the sources were checked on 2026-10-04. The README's roadmap tracks
 progress against the phases below.
 
@@ -195,23 +195,58 @@ as decided above). Paths and message formats were taken from Alpaca's own
   `--verbatim` is for the drift job. A recording can be picked by a query value
   (`bars@1Day.json`), a `FixtureTransport` feature added for this.
 
-## Phase 3: Account and portfolio
+## Phase 3: Account and portfolio (built)
 
-Read-only Alpaca access to a paper account, before any trading, so the read
-side and reconciliation are proven first.
+Built on 2026-10-05: read-only access to the paper account, before any
+trading, so the read side and reconciliation are proven first. Nothing in this
+phase can place an order.
 
-- **`PORT`:** positions (quantity, average cost, market value, unrealized and
-  day P&L), cash, buying power and equity; options grouped by underlying with
-  net delta.
-- **`ACCT`:** status, pattern-day-trader flag and day-trade count, margin,
-  options level.
-- **`PNL`:** the equity curve from portfolio history (1 day, 1 month, 1 year).
-- **`ACT`:** activities: fills, dividends, fees, exercises, assignments,
-  expiries.
-- Trade updates and the quote stream keep figures live, with a full re-sync
-  every minute and on reconnect. An equity and day-P&L tile on HOME.
-- A **PAPER** band across the status bar whenever Alpaca is connected; live
-  gets a different, unmistakable band.
+| Dataset | Endpoint | Refresh |
+|---|---|---|
+| Account: balances, buying power, margin, flags | `paper-api.alpaca.markets/v2/account` | a minute in any session, five when closed, and at once after an order event |
+| Positions | `paper-api.alpaca.markets/v2/positions` | the same |
+| Equity curve | `/v2/account/portfolio/history`: `1D` at 5 minutes, `1W` hourly (regular hours, P&L from the start of the period), `1M`, `3M`, `1A` daily | a minute (1D); 15 minutes (1W); hourly |
+| Activities | `/v2/account/activities`, newest first, 100 a page: three pages at first, then the newest page merged into what is kept (up to 1,000) | two minutes, and after an order event |
+| Option greeks for held contracts | `data.alpaca.markets/v1beta1/options/snapshots?feed=indicative` | a minute |
+| Order events | `wss://paper-api.alpaca.markets/stream`, `trade_updates` (single JSON objects in **binary** frames, unlike the market-data streams) | streamed |
+
+- **Types** (`mt_core::account`): `Account`, `Position`, `PortfolioHistory`,
+  `Activity` (with a category per Alpaca code: fills, dividends, interest, fees,
+  transfers, option events, corporate actions) and `OrderEvent`. Every amount
+  is a `Decimal` parsed from Alpaca's strings; only the equity curve is `f64`.
+- **Live figures.** Alpaca's valuation is the truth and is re-read every
+  minute. In between, a stock position whose price has traded since that
+  re-read is marked at the newer price: market value and both P&Ls move by the
+  change times the quantity, which keeps Alpaca's own reference for the day
+  (the previous close, or the entry price for a position opened today). Equity
+  and the day's P&L move by the same amounts. Options keep Alpaca's price.
+- **Re-sync.** The order-event stream counts logins and events; the app
+  watches that token and refreshes the account, positions, activities and
+  today's curve as soon as it changes (a reconnect may have missed events), on
+  top of the minute's refresh. Only queries something has asked for are
+  refreshed.
+- **Functions:** `PORT` (equity, the day's and unrealized P&L, cash, buying
+  power, long and short value; sortable positions; options grouped by
+  underlying with net delta in shares: the shares held plus contracts × 100 ×
+  delta, from Alpaca's indicative greeks, with expiry warnings), `ACCT`
+  (standing and blocks, balances, buying powers, margin and excess equity,
+  the pattern-day-trader flag and day trades used against the three allowed
+  under $25,000, options levels), `PNL [1D|1W|1M|3M|1Y]` (the equity curve
+  against its starting value, with change, high, low and the deepest drawdown)
+  and `ACT [FILLS|DIV|FEES|TRANSFERS|OPTIONS]` (the history, filtered by kind
+  or symbol, under the latest order events). HOME has a paper-equity tile.
+- **The band.** A strip above the status bar whenever keys are stored: `PAPER`
+  on the theme's info colour (`LIVE` will be on its negative colour), what the
+  account is, and whether it answers (connected, keys refused, retrying, any
+  blocks). It never shows a balance, and ACCT masks the account number, so
+  screenshots carry neither. Clicking `PAPER` opens ACCT.
+- **Fixtures.** The repository's account is a made-up portfolio written by
+  `tools/sample_account.py` from the synthetic prices already in the fixtures:
+  six stocks (one short), two options, dividends, an expired option and a
+  partly filled order on the recording day, all reconciling (equity is cash
+  plus positions; the day's P&L is the positions'). The drift job records the
+  CI account's real answers with `capture_alpaca --verbatim` and runs the
+  parsers on them; sample-copy recordings leave the account out.
 
 ## Phase 4: Paper trading (stocks)
 

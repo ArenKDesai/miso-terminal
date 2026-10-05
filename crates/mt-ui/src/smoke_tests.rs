@@ -115,6 +115,13 @@ fn routes(registry: &Registry) -> Vec<Route> {
         ["XLU US", "XEL US", "MINN.HUB", "ILLINOIS.HUB", "30"],
     ));
     out.push(Route::new("CMP", ["XEL US"]));
+    // The paper account.
+    for p in ["1W", "1M", "3M", "1Y"] {
+        out.push(Route::new("PNL", [p]));
+    }
+    for k in ["FILLS", "DIV", "OPTIONS", "FEES"] {
+        out.push(Route::new("ACT", [k]));
+    }
     out
 }
 

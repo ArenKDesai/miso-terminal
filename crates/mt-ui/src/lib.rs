@@ -8,6 +8,7 @@
 //! - [`widgets`]: shared building blocks (tiles, tables, charts, formatting).
 //! - [`news`]: combined headlines and the headline browser (TOP, NEWS, NI, CN).
 //! - [`market`]: shared pieces for securities (market status, live rows, formats).
+//! - [`portfolio`]: shared pieces for the account (live marks, re-sync, the band).
 
 pub mod alerts;
 pub mod app;
@@ -23,6 +24,7 @@ pub mod geo;
 pub mod market;
 pub mod news;
 pub mod notify;
+pub mod portfolio;
 pub mod remote;
 pub mod series;
 pub mod skin;

@@ -372,6 +372,42 @@ title = "My utilities"
 symbols = ["XEL", "WEC", "AEE", "MGEE"]
 ```
 
+## Track your paper account
+
+![PORT: the sample paper account's positions](screenshots/tutorials/port.webp)
+
+The Alpaca keys from the last tutorial also open your **paper account**: Alpaca's
+practice account, with simulated money. For now the terminal only reads it; order
+tickets come later. Whenever an account is connected, a **PAPER** band runs across
+the window above the status bar, saying whether the account answers. Click *PAPER*
+to open `ACCT`.
+
+**Try these:**
+
+- `PORT`: equity, today's P&L, cash and buying power on top, then every position
+  with quantity, average cost, last price, market value, its weight in the account,
+  and P&L for today and since you bought. Click a column heading to sort, a
+  security to chart it. Alpaca values the positions once a minute; in between,
+  stock prices move with the live stream (a price newer than Alpaca's turns
+  green). Options sit underneath, grouped by the stock they are on, with a **net
+  delta**: the number of shares the stock and its options move like together.
+- `ACCT`: whether the account is active or blocked, its balances, buying power
+  and margin (with how much equity is spare above the maintenance requirement),
+  day trades used out of the three allowed below $25,000 of equity, and the
+  options level.
+- `PNL`: today's equity every five minutes, against the previous close.
+  *1W* is a week hourly; *1M*, *3M* and *1Y* are daily. The tiles give the change,
+  the high and low, and the deepest drawdown. `PNL 1Y` opens straight on the year.
+- `ACT`: fills, dividends, fees, transfers and option exercises, assignments and
+  expiries, newest first. The buttons filter by kind (`ACT FILLS`, `ACT DIV`) and
+  the box by symbol. Order events appear at the top as they happen, and the other
+  panels re-read the account straight away when one arrives.
+- `HOME` gains a *Paper equity* tile with today's P&L; click it for `PORT`.
+
+**Mind what you share.** The band never shows a balance and `ACCT` masks the
+account number, so a screenshot of the terminal carries neither. `PORT`, `PNL`
+and the HOME tile do show amounts.
+
 ## Make it yours
 
 **Settings.** `SET` edits `config.toml` in place: zoom, the price levels that

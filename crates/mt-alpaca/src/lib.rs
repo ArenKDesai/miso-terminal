@@ -1,6 +1,8 @@
 //! Alpaca as a data source: US stock and ETF prices (snapshots, bars, live
 //! trades and quotes), the asset list behind ticker completion, the market
-//! clock and calendar, and company news (Benzinga's, through Alpaca).
+//! clock and calendar, company news (Benzinga's, through Alpaca), and the
+//! paper account, read-only: balances, positions, the equity curve,
+//! activities and order events ([`account`], [`TradeStream`]).
 //!
 //! Built for Alpaca's free plan: real-time prices from IEX alone, or every
 //! exchange fifteen minutes late ([`Feed`]); 200 requests a minute per key,
@@ -13,12 +15,14 @@
 //! needs none. Like `mt-nws`, this crate depends only on `mt-core` and
 //! `mt-data`.
 
+pub mod account;
 pub mod board;
 pub mod config;
 pub mod parse;
 mod queries;
 mod stream;
 mod text;
+mod trades;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,12 +31,17 @@ use chrono::NaiveDate;
 use mt_core::equity::Feed;
 use mt_data::{Budget, FetchCtx, FetchError, Request, SecretStore};
 
+pub use account::{
+    AccountQuery, Activities, ActivitiesQuery, HistoryPeriod, OPTION_FEED_LABEL, OptionSnapshots,
+    OptionSnapshotsQuery, PortfolioHistoryQuery, PositionsQuery,
+};
 pub use config::{MarketsConfig, SecurityList, builtin_lists, normalize_symbol};
 pub use queries::{
     ASSETS_KEY, AssetsQuery, BarSet, BarSource, BarsQuery, CalendarQuery, ClockQuery, NewsList,
     NewsQuery, Snapshots, SnapshotsQuery, Timeframe, assets_from_bytes, assets_to_bytes,
 };
 pub use stream::{LiveMarket, LiveNews, MarketStream, NewsStream, market_topics};
+pub use trades::{LiveTrades, TRADE_UPDATES, TradeStream};
 
 /// The paper account's key ID in the secret store.
 pub const KEY_ID: &str = "alpaca/paper/key-id";
@@ -42,15 +51,49 @@ pub const SECRET_KEY: &str = "alpaca/paper/secret-key";
 /// Alpaca allows 200 requests a minute per key, across its APIs.
 pub const REQUESTS_PER_MINUTE: u32 = 180;
 
+/// Which account the keys open. Only paper exists until live trading
+/// (the markets plan's last phase); the status bar's band says which.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum AccountMode {
+    #[default]
+    Paper,
+    Live,
+}
+
+impl AccountMode {
+    /// For keys and URLs: `paper`, `live`.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Paper => "paper",
+            Self::Live => "live",
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        self.key()
+    }
+
+    /// What the status bar's band says.
+    pub fn band(self) -> &'static str {
+        match self {
+            Self::Paper => "PAPER",
+            Self::Live => "LIVE",
+        }
+    }
+}
+
 /// Where Alpaca's APIs live.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Endpoints {
     /// Market data: bars, snapshots, news.
     pub data: String,
-    /// The paper trading API: assets, clock, calendar.
+    /// The paper trading API: the account, positions, activities, and the
+    /// assets, clock and calendar.
     pub trading: String,
     /// Market data streams.
     pub stream: String,
+    /// The account's order events.
+    pub trading_stream: String,
 }
 
 impl Default for Endpoints {
@@ -59,6 +102,7 @@ impl Default for Endpoints {
             data: "https://data.alpaca.markets".into(),
             trading: "https://paper-api.alpaca.markets".into(),
             stream: "wss://stream.data.alpaca.markets".into(),
+            trading_stream: "wss://paper-api.alpaca.markets/stream".into(),
         }
     }
 }
@@ -144,6 +188,11 @@ impl Alpaca {
         self.feed
     }
 
+    /// Which account the keys open: paper, until live trading exists.
+    pub fn mode(&self) -> AccountMode {
+        AccountMode::Paper
+    }
+
     /// The latest trade, quote and bars for each symbol, refreshed every minute.
     pub fn snapshots<S: AsRef<str>>(&self, symbols: impl IntoIterator<Item = S>) -> SnapshotsQuery {
         SnapshotsQuery::new(self.clone(), symbols)
@@ -204,6 +253,39 @@ impl Alpaca {
     /// New stories as they are published. Topics are `news:XLU` or `news:*`.
     pub fn news_stream(&self) -> NewsStream {
         NewsStream::new(format!("{}/v1beta1/news", self.endpoints.stream))
+    }
+
+    /// Balances, buying power, margin and the account's standing.
+    pub fn account(&self) -> AccountQuery {
+        AccountQuery::new(self.clone())
+    }
+
+    /// Open positions, valued by Alpaca.
+    pub fn positions(&self) -> PositionsQuery {
+        PositionsQuery::new(self.clone())
+    }
+
+    /// The equity curve over `period`.
+    pub fn portfolio_history(&self, period: HistoryPeriod) -> PortfolioHistoryQuery {
+        PortfolioHistoryQuery::new(self.clone(), period)
+    }
+
+    /// Fills, dividends, fees, transfers and option events, newest first.
+    pub fn activities(&self) -> ActivitiesQuery {
+        ActivitiesQuery::new(self.clone())
+    }
+
+    /// Quotes and greeks for option contracts (OCC symbols).
+    pub fn option_snapshots<S: AsRef<str>>(
+        &self,
+        symbols: impl IntoIterator<Item = S>,
+    ) -> OptionSnapshotsQuery {
+        OptionSnapshotsQuery::new(self.clone(), symbols)
+    }
+
+    /// The account's order events. The topic is [`TRADE_UPDATES`].
+    pub fn trade_stream(&self) -> TradeStream {
+        TradeStream::new(self.endpoints.trading_stream.clone(), self.mode())
     }
 
     /// The market-data stream's path segment for the feed.

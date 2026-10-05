@@ -74,16 +74,18 @@ pub enum Category {
     Prices,
     Grid,
     Markets,
+    Account,
     News,
     System,
 }
 
 impl Category {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Overview,
         Self::Prices,
         Self::Grid,
         Self::Markets,
+        Self::Account,
         Self::News,
         Self::System,
     ];
@@ -94,6 +96,7 @@ impl Category {
             Self::Prices => "Prices",
             Self::Grid => "Grid conditions",
             Self::Markets => "Stocks and ETFs",
+            Self::Account => "Account (paper)",
             Self::News => "News",
             Self::System => "System",
         }

@@ -208,6 +208,27 @@ intraday bars follow the live feed. `FixtureTransport` serves
 `bars@1Day.json` for `bars?timeframe=1Day&…`, so one endpoint can have a
 recording per timeframe.
 
+### The account
+
+The same keys open the paper account, read-only (`mt_alpaca::account`):
+queries for the account, positions, the equity curve (`history@1D.json` and
+so on, by period), activities (newest page merged into what is kept) and
+option snapshots for the greeks of held contracts, all parsed into
+`mt_core::account` types with exact decimals. `TradeStream` is the account's
+order-event stream; it speaks a different protocol from the market-data
+streams (single objects tagged `stream`, a `listen` message, binary frames)
+and counts logins and events in a sync token. The app watches that token
+(`mt_ui::portfolio::resync`, with `peek_stream`, so it never opens the
+stream itself) and refreshes the account's queries when it moves.
+
+`mt_ui::portfolio::Book` is what the account panels share: the account,
+positions, the order-event stream and a `market::Board` for the stock
+positions. A position is marked at a newer price only when the board's last
+trade is later than the positions' fetch, and then by the price change times
+the quantity (`Position::mark`), so Alpaca's reference for the day is kept and
+the next re-read replaces the estimate. `AccountMode` (paper, later live)
+names the band above the status bar, the queries' keys and the stream's.
+
 Securities never use MISO's market time: `mt_core::exchange` gives New York
 time, and charts of securities use `widgets::chart::exchange_plot`, whose grid
 follows New York midnights through the clock changes.
@@ -309,15 +330,15 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 
 | Layer | Tests |
 |---|---|
-| `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces; New York time across clock changes, and sessions; security and OCC parsing; exact decimals from broker JSON |
+| `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces; New York time across clock changes, and sessions; security and OCC parsing; exact decimals from broker JSON; marking positions (shorts, options, opened today), net delta, account figures, drawdowns, activity categories and merging |
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; streams against a scripted server (shared connections, subscription unions, reconnect and resubscribe, refused logins, lingering topics, pause); a real WebSocket round trip on localhost; conditional GETs, status mapping, budgets and `429`s; secrets kept out of the log; the Windows Credential Manager round trip; transports; disk cache |
 | `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
-| `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions within the plan's limit (trades before quotes, halving after a `405`), refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed |
+| `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions within the plan's limit (trades before quotes, halving after a `405`), refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed; the account, positions, equity curves, activities, option greeks and order events against the sample account (reconciled to the cent) or a live recording |
 | `mt-news` | RSS 2.0, RSS 1.0 and Atom (CDATA, escaped HTML, entities, dates, Atom links, no article bodies); every built-in feed against its recording (sample text in the feed's real structure; live in the drift job via `MT_FIXTURES`); identities, merging, combining, keyword rules, config overrides, read marks |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
 | `mt-ui` | Command parsing, completion and hints; alert engine (headline alerts included); series maths; the headline browser and archived headlines and read marks across a restart; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart |
-| visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen at their recording time, compared with committed images: every theme's layout and several zoomed panels |
+| visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen at their recording time, compared with committed images: every theme's layout and several zoomed panels (the account's four among them) |
 
 The smoke test iterates the registry, so a new function gets coverage without
 writing a test. Separately, the weekly `drift.yml` workflow records live MISO

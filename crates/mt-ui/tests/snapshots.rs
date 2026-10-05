@@ -60,6 +60,11 @@ fn the_terminal_looks_as_it_did() {
         ("gp-security", &["GP XLU US"][..]),
         ("des", &["DES XLU US"][..]),
         ("cmp-security", &["CMP XLU US MINN.HUB 7"][..]),
+        ("port", &["PORT"][..]),
+        ("acct", &["ACCT"][..]),
+        ("pnl", &["PNL"][..]),
+        ("pnl-year", &["PNL 1Y"][..]),
+        ("act", &["ACT"][..]),
     ] {
         scenes.push((
             format!("zoom-{name}"),
