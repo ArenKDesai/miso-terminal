@@ -96,7 +96,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `MAP` | Price map | Every node MISO plots, over an interpolated price surface of the footprint and the 230 kV-and-up transmission backbone, coloured by RT LMP, congestion, loss, DA or RT − DA. Hover for the breakdown, click to graph |
 | `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), N days of hourly DA vs RT with stats, an hour × day heatmap (`GP MINN.HUB 14 HEAT`), price duration curves (`… DUR`), or five-minute RT over past days from the local archive (`… 5MIN`). Switch between LMP, energy, congestion and loss. For a security, the latest session minute by minute against the previous close (`GP XLU US`), a few days at 15 minutes (`GP XLU US 5`) or daily closes for up to ten years (`GP XLU US 365`), with volume, in New York time |
 | `SPRD` | Node spread | A − B between any two nodes: today at 5 minutes, hourly DA and RT spreads over N days with stats, or five-minute spreads from the archive. Use the congestion component for an FTR-style view |
-| `CMP` | Compare nodes | Up to eight nodes on one chart: today's 5-minute RT, or hourly RT or DA over N days, with a latest/average/range row each (`CMP MINN.HUB MICHIGAN.HUB 7`) |
+| `CMP` | Compare | Up to eight nodes on one chart: today's 5-minute RT, or hourly RT or DA over N days, with a latest/average/range row each (`CMP MINN.HUB MICHIGAN.HUB 7`). With securities, their prices (or % change, for several) above the nodes' on one time axis in market time, and how each moved with each node day by day (`CMP XEL US MINN.HUB 30`) |
 | `SEAM` | Seams & interfaces | PJM's CTS forecast at the PJM interface against MISO's price there (with the spread and which way it favours flows), and RT and DA prices at all 22 interface nodes (PJM, SPP, TVA, Ontario…) |
 | `WL` | Watchlist | Your favourite nodes (RT vs DA, 5-min change, today's sparkline) and securities (last, change, volume, today's chart). Add from here, with `WL <node>` or `WL XLU US`, or with ☆ in GP. Saved to config |
 | `ASM` | Ancillary MCPs | Regulation, spinning, supplemental, short-term reserve and ramp MCPs by zone |
@@ -240,7 +240,8 @@ and [`docs/EXTENDING.md`](docs/EXTENDING.md) for step-by-step recipes: adding a
 function, a dataset, a non-MISO source, or a theme. CI runs on Windows (fmt,
 clippy, tests, release build). A weekly job re-records MISO's feeds (and the
 weather, gas, news and Alpaca sources) and runs the parsers against them. Pushing a
-`v*` tag builds a Windows zip release.
+`v*` tag builds a Windows zip release; the [release plan](docs/RELEASES.md) says
+how releases will be made (none yet).
 
 The documentation site, <https://arenkdesai.github.io/miso-terminal/>, is built
 from this README, `docs/` and `themes/README.md` (`uv run tools/build_docs.py site`)
@@ -350,13 +351,30 @@ through Alpaca. See the
 - [ ] Optionally make `miso-terminal` a target in Everforge's own `build.py`
       (per its port policy) instead of the sync example here.
 
+### Releases
+Nothing has been released yet. The [release plan](docs/RELEASES.md) sets out
+versioning, the changelog, the checklist, verification and signing.
+- [x] A release workflow: a `v*` tag builds the Windows zip and attaches it to a
+      GitHub release (never run so far).
+- [ ] The release process: one workspace version shown in `--version`, HELP and
+      LOG; a `CHANGELOG.md`; release candidates as pre-releases; the checklist.
+- [ ] Release workflow hardening: tag must match the version, `--locked` builds,
+      `SHA256SUMS.txt`, a build provenance attestation, third-party licence
+      notices (`cargo-about`), notes from the changelog with a link to the source.
+- [ ] **The first release, v0.2.0** (MISO functions, themes, news, Alpaca
+      market data), then a minor release closing each markets phase.
+- [ ] **Code signing** (SignPath Foundation, free for open source, applied for
+      after the first release). Unsigned executables trip SmartScreen and Smart
+      App Control; signing is required before live trading.
+- [ ] An update check against GitHub releases, off by default (a setting in SET;
+      it shows a link, never downloads anything).
+
 ### Windows distribution
 - [x] Per-user install script in the release zip (`packaging/install.ps1`).
-- [ ] A proper installer (MSI via `cargo-wix`, or MSIX for winget).
-- [ ] **Code signing.** Unsigned executables trip SmartScreen and Smart App Control.
+- [ ] A proper installer (MSI via `cargo-wix`, or MSIX), and a winget manifest,
+      once releases are signed.
 - [x] Single instance: a second launch hands its `--run` commands to the open window.
 - [ ] Jump-list entries for favourite functions (taskbar right-click).
-- [ ] An update check against GitHub releases.
 
 ### Engineering
 - [x] Offscreen rendering of the real app to PNG (`cargo run -p mt-ui --example render`),

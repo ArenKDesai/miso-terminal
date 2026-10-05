@@ -4,7 +4,8 @@ A Bloomberg-style terminal for MISO market data. It is read-only for MISO;
 trading, when it comes, goes only through Alpaca, paper by default. It is a
 Rust workspace with an egui UI, and Windows is the primary platform. Read
 `docs/ARCHITECTURE.md` before structural changes and `docs/EXTENDING.md` for
-recipes. `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
+recipes. `docs/RELEASES.md` is the plan for releases (none made yet; ask before
+tagging, since a `v*` tag publishes one). `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
 data, trading and portfolio tracking: Phase 0 (foundations), Phase 1 (news)
 and Phase 2 (market data) are built, the README's roadmap tracks the rest.
 
@@ -66,7 +67,8 @@ with WM_CLOSE, which lets it save.
   the free plan's 30 trade and quote subscriptions: trades first), snapshot + stream merging (`board.rs`) and the
   `[markets]` config and built-in lists (`config.rs`). `mt-ui/src/market.rs`
   holds what the securities panels share (status, board, formats, picker);
-  `functions/security_chart.rs` is GP for a security.
+  `functions/security_chart.rs` is GP for a security, `functions/cross_chart.rs`
+  is CMP with securities (stocks above node prices, daily correlations).
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.
