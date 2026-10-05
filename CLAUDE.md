@@ -23,6 +23,7 @@ cargo run -p mt-eia --example capture_gas            # re-record the Henry Hub g
 cargo run -p mt-news --example capture_news          # re-record the news feeds (story text replaced by samples)
 cargo run -p mt-alpaca --example capture_alpaca      # re-record Alpaca (needs keys; prices made synthetic, stories sampled)
 cargo run -p mt-alpaca --example check_paper_orders  # the order desk against the live paper API (needs paper keys; one order, cancelled)
+cargo run -p mt-alpaca --example check_option_orders # an option order and a spread against the live paper API (paper keys; both cancelled)
 uv run tools/sample_account.py         # rewrite the sample paper account and its orders (after re-recording Alpaca)
 uv run tools/sample_options.py         # then the sample option chains (OMON) around the account's contracts
 cargo run -p mt-theme --example sync_everforge -- ..\everforge

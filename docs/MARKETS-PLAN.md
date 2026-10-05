@@ -402,8 +402,11 @@ paper orders, then multi-leg spreads.
   and placing it again. The order list is read with `nested=true`, so legs come
   under their order; a parent has no symbol or side of its own (its side here
   is the net's: buy for a debit). The sample account has an open GTC spread.
-- **To check live:** `check_paper_orders` covers stock orders only; a run with
-  an option and a spread on the CI paper account is the next thing to try.
+- **To check live:** `cargo run -p mt-alpaca --example check_option_orders`
+  (by hand, with paper keys; not part of the drift workflow) places one
+  contract and one two-leg spread that cannot fill, checks Alpaca accepts both
+  as the desk sends them, that the answers and the order list parse (the spread
+  with its legs), and that each is found by its client id, then cancels both.
 - In-the-money contracts are exercised automatically at expiry: PORT and the
   ticket warn about contracts expiring today.
 
