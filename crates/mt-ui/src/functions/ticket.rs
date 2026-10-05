@@ -38,6 +38,7 @@ pub const BUY: FunctionSpec = FunctionSpec {
     description: "An order ticket to buy a stock or ETF in the Alpaca paper account, filled in from the command (BUY XLU US 10 LMT 82.50 DAY): the cost, buying power and position afterwards, and every guardrail. Only its Confirm button sends the order.",
     takes_node: false,
     takes_security: true,
+    takes_option: false,
     open: open_buy,
 };
 
@@ -50,6 +51,7 @@ pub const SELL: FunctionSpec = FunctionSpec {
     description: "An order ticket to sell (or sell short) a stock or ETF in the Alpaca paper account, filled in from the command (SELL XLU US 10): the proceeds, the position afterwards and every guardrail. Only its Confirm button sends the order.",
     takes_node: false,
     takes_security: true,
+    takes_option: false,
     open: open_sell,
 };
 

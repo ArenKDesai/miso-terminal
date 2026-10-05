@@ -18,6 +18,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Headline grid numbers, trading-hub prices, generation mix, top binding constraints, weather and top stories.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

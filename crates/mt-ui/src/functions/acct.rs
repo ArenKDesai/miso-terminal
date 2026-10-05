@@ -22,6 +22,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "The Alpaca paper account: status and any restrictions, balances, buying power, margin, the pattern-day-trader flag and day trades used, and the options level.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

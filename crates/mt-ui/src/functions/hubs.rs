@@ -20,6 +20,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "All eight trading hubs over N days: DA, RT and DART averages, on-peak and off-peak, RT volatility and extremes.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

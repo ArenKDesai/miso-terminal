@@ -60,6 +60,7 @@ fn the_terminal_looks_as_it_did() {
         ("gp-security", &["GP XLU US"][..]),
         ("des", &["DES XLU US"][..]),
         ("cmp-security", &["CMP XLU US MINN.HUB 7"][..]),
+        ("omon", &["OMON XLU US 2026-12-18"][..]),
         ("port", &["PORT"][..]),
         ("acct", &["ACCT"][..]),
         ("pnl", &["PNL"][..]),

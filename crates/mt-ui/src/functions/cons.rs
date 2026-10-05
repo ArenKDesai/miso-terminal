@@ -20,6 +20,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Real-time binding transmission constraints with shadow prices, and how long each has bound this session.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

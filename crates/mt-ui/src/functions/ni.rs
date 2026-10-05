@@ -20,6 +20,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Headlines on a topic, from keyword rules: NI ENERGY, POWER, GRID, GAS, OIL, UTILITIES, POLICY, CLIMATE, MACRO. NI alone lists them; add your own in config.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

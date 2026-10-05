@@ -20,6 +20,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Current temperature, highs and lows and the hourly outlook for a city in each MISO zone (National Weather Service).",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

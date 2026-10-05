@@ -24,6 +24,7 @@ cargo run -p mt-news --example capture_news          # re-record the news feeds 
 cargo run -p mt-alpaca --example capture_alpaca      # re-record Alpaca (needs keys; prices made synthetic, stories sampled)
 cargo run -p mt-alpaca --example check_paper_orders  # the order desk against the live paper API (needs paper keys; one order, cancelled)
 uv run tools/sample_account.py         # rewrite the sample paper account and its orders (after re-recording Alpaca)
+uv run tools/sample_options.py         # then the sample option chains (OMON) around the account's contracts
 cargo run -p mt-theme --example sync_everforge -- ..\everforge
 cargo run -p mt-ui --example render -- out.png --run "MAP MCC" --zoom   # offscreen PNG, fixtures, no window
 $env:UPDATE_SNAPSHOTS=force; cargo test -p mt-ui --test snapshots           # accept intended visual changes
@@ -99,6 +100,10 @@ asked to see.
   switch; a fake broker in its tests), `mt-alpaca/src/audit.rs` (the audit log),
   `mt-ui/src/trading.rs` (what tickets and ORD share) and the functions
   `ticket.rs` (BUY and SELL) and `ord.rs`.
+- Options: `mt-core/src/options.rs` (contract lists, chains by strike, price
+  steps, expiry rules), `mt-alpaca/src/options.rs` (the contract list and
+  chain queries), `mt-ui/src/options.rs` (formats and expiries the option
+  functions share) and `functions/omon.rs`.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.
@@ -154,7 +159,8 @@ asked to see.
   a connection from a panel.
 - Securities are written `XLU US` (`mt_core::instrument`); a bare token is a
   node or a code, never a ticker. Functions that accept securities set
-  `takes_security`. Exchange times use `mt_core::exchange` (New York, with
+  `takes_security`, and those that accept option contracts (OCC symbols)
+  `takes_option`. Exchange times use `mt_core::exchange` (New York, with
   daylight saving), never `mt_core::time`; charts of securities use
   `widgets::chart::exchange_plot`. Order and position amounts are
   `Decimal` (`mt_core::money`), never `f64`; quotes and charts may use `f64`.
@@ -166,7 +172,8 @@ asked to see.
   main dev machine: the drift workflow (run by hand with `alpaca_fixtures`)
   records fresh fixtures with the CI paper account and uploads them as an artifact.
   The account's fixtures are a made-up portfolio from `tools/sample_account.py`
-  (never an account's own); rerun it after new Alpaca fixtures land.
+  (never an account's own), and the option chains are priced around it by
+  `tools/sample_options.py`; rerun both after new Alpaca fixtures land.
 - Orders: only `mt_alpaca::OrderDesk` sends them, and only when a ticket's
   *Confirm*, ORD's *Cancel*/*Confirm replace* or the kill switch is clicked.
   Commands (typed, `--run`, forwarded, hotkeys) open tickets and never send;

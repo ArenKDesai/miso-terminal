@@ -316,9 +316,30 @@ then the tickets, the blotter and the kill switch.
 
 ## Phase 5: Options
 
-- **Data:** chains and snapshots. On the free plan Alpaca's options prices come
-  from its indicative feed, not OPRA, and are labelled so. `OMON` shows a chain
-  by expiry with bid/ask, implied volatility and greeks.
+Being built in parts: the chain and `OMON` first (2026-10-05), then
+single-leg and multi-leg paper orders.
+
+| Dataset | Endpoint | Refresh |
+|---|---|---|
+| Contracts on an underlying: expiries, strikes, open interest, the latest close, penny-program flag | `paper-api.alpaca.markets/v2/options/contracts?underlying_symbols=…` (an end date three years out: without one Alpaca stops at the next weekend), 10,000 a page | hourly |
+| One expiry's chain: quote, latest trade, daily bars, greeks, implied volatility | `data.alpaca.markets/v1beta1/options/snapshots/{underlying}?expiration_date=…&feed=indicative`, 1,000 a page | a minute while the market trades, ten when closed |
+
+- **Data:** on the free plan Alpaca's option prices come from its indicative
+  feed: quotes derived from OPRA's and sampled (at most one a second), trades
+  15 minutes late. Every view says so. Alpaca streams options only in
+  MessagePack, so chains are polled instead of streamed.
+- **`OMON`** shows a chain for one expiry (a tab per expiry, monthly ones in
+  bold): calls left, puts right, bid, ask, last and change, volume, open
+  interest, implied volatility and delta, with gamma, theta and vega on
+  request; in-the-money contracts shaded and a line at the stock's price; the
+  10 or 20 strikes either side of the money, or all. `OMON XLU261218C00045000`
+  (or the symbol alone) opens at that contract. Adjusted contracts (another
+  root after a corporate action) are left out, with a note.
+- **Fixtures:** made up, like the account: `tools/sample_options.py` prices
+  XLU's and VST's chains with Black-Scholes and a volatility smile around the
+  synthetic stock prices, fitted to the sample account's held contracts. The
+  drift job records XLU's real contract list and one monthly chain
+  (`capture_alpaca --verbatim`) and runs the parsers on them.
 - **Paper trading:** single-leg first, then multi-leg spreads (Alpaca's level
   3, enabled in paper). The ticket enforces Alpaca's rules: whole contracts, day
   or GTC only, no extended hours, stop orders single-leg only.

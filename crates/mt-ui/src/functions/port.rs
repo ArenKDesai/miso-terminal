@@ -26,6 +26,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "The Alpaca paper account's positions: quantity, average cost, market value, the day's and unrealized P&L, kept live by the quote stream; cash, buying power and equity; options grouped by underlying with net delta. Right-click a position for a ticket to buy, sell or close it.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

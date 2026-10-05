@@ -21,6 +21,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Price chart for one node: today's 5-minute RT vs DA, hourly DA vs RT over N days, or five-minute RT from the local archive, by component. For a security (GP XLU US 365), today's trading or daily closes, with volume.",
     takes_node: true,
     takes_security: true,
+    takes_option: false,
     open,
 };
 
@@ -32,7 +33,11 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
         Some(mt_core::instrument::Instrument::Security(sec)) => {
             return super::security_chart::open(sec, args);
         }
-        Some(other) => return Err(format!("{other} is an option; options arrive with OMON")),
+        Some(other) => {
+            return Err(format!(
+                "{other} is an option: OMON {other} shows its chain"
+            ));
+        }
         None => {}
     }
     let node = args

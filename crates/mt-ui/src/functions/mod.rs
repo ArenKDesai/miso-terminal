@@ -28,6 +28,7 @@ mod map;
 mod news;
 mod ni;
 mod nsi;
+mod omon;
 mod ord;
 mod outages;
 mod pnl;
@@ -74,6 +75,7 @@ pub fn all() -> Vec<FunctionSpec> {
         outages::SPEC,
         quote::SPEC,
         des::SPEC,
+        omon::SPEC,
         top::SPEC,
         news::SPEC,
         ni::SPEC,

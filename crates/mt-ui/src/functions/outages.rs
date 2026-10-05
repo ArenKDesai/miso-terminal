@@ -18,6 +18,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Planned, unplanned, forced and derated generation outages for ±5 days.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

@@ -22,6 +22,9 @@
 //! The account (balances, positions, orders, equity curve, activities, order events)
 //! is only recorded with `--verbatim`: the repository's account fixtures are a
 //! made-up portfolio from `tools/sample_account.py`, never an account's own.
+//! So are option chains (XLU's contract list and one expiry's quotes): the
+//! repository's are priced around the synthetic stock prices by
+//! `tools/sample_options.py`.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -51,6 +54,8 @@ const ASSET_EXTRA: &[&str] = &[
     "AAPL", "AEP", "AMZN", "BRK.B", "CVX", "D", "DIA", "DUK", "ED", "EIX", "EXC", "GOOGL", "IWM",
     "JPM", "META", "MSFT", "NEE", "NVDA", "PCG", "PEG", "SO", "SRE", "TSLA", "VPU", "XOM",
 ];
+/// The underlying whose option chain a `--verbatim` recording takes.
+const CHAIN: &str = "XLU";
 /// How long each stream session records.
 const STREAM_SECS: u64 = 15;
 
@@ -162,6 +167,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if !options.is_empty() {
             run(&ctx, alpaca.option_snapshots(&options)).await?;
         }
+        // An option chain: the contract list, and the soonest monthly
+        // expiry at least a week out (the busiest chain).
+        let contracts = run(&ctx, alpaca.option_contracts(CHAIN)).await?;
+        let expiries = contracts.expiries();
+        println!(
+            "{} {CHAIN} contracts, {} expiries",
+            contracts.contracts.len(),
+            expiries.len()
+        );
+        let expiry = expiries
+            .iter()
+            .copied()
+            .find(|d| mt_core::options::is_monthly(*d) && *d >= today + chrono::Duration::days(7))
+            .or_else(|| expiries.first().copied())
+            .ok_or("no option expiries")?;
+        let chain = run(&ctx, alpaca.option_chain(CHAIN, expiry)).await?;
+        println!("{} contracts in the {expiry} chain", chain.by_symbol.len());
         recorder
             .stream(
                 &ctx,
@@ -254,6 +276,8 @@ impl Recorder {
                 param("feed").filter(|f| f != "iex")
             }
             Some("history.json") => param("period"),
+            Some("contracts.json") => param("underlying_symbols"),
+            _ if url.contains("/v1beta1/options/snapshots/") => param("expiration_date"),
             _ => None,
         };
         match variant {
@@ -288,6 +312,23 @@ impl Recorder {
                 }
             }
             return;
+        }
+        // Pages of contracts and of a chain merge too.
+        if let Some(Kept::Json(old)) = kept.get_mut(&path) {
+            if let (Some(Value::Array(have)), Some(Value::Array(add))) = (
+                old.get_mut("option_contracts"),
+                value.get("option_contracts"),
+            ) {
+                have.extend(add.iter().cloned());
+                return;
+            }
+            if url.contains("/v1beta1/options/snapshots/")
+                && let (Some(Value::Object(have)), Some(Value::Object(add))) =
+                    (old.get_mut("snapshots"), value.get("snapshots"))
+            {
+                have.extend(add.iter().map(|(k, v)| (k.clone(), v.clone())));
+                return;
+            }
         }
         let mut value = value;
         if value.get("next_page_token").is_some() {

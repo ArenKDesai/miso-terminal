@@ -24,6 +24,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Hourly day-ahead prices at the eight hubs for one day, with on-peak, off-peak and all-hours averages, or the change from the day before.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

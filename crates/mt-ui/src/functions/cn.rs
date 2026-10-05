@@ -24,6 +24,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "News about a stock or ETF (Benzinga, through Alpaca), live as it is published. CN alone covers your watchlist's securities, or the Power & gas list.",
     takes_node: false,
     takes_security: true,
+    takes_option: false,
     open,
 };
 

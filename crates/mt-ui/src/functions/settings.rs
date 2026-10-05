@@ -20,6 +20,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Display, price highlighting, data, news feed, market data, trading limit and endpoint settings (saved to config.toml, or reset to the defaults), and API keys (kept in Windows Credential Manager).",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

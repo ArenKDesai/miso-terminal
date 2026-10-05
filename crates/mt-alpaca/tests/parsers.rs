@@ -429,3 +429,91 @@ fn order_events() {
         assert!(state.events.iter().any(|e| e.is_fill()));
     }
 }
+
+/// Option chains: the sample's (from `tools/sample_options.py`), or in a
+/// live recording made with `--verbatim`, one underlying's contracts and a
+/// chain for one of its expiries. A sample-copy recording has none.
+#[test]
+fn option_chains() {
+    let contracts_dir = root().join("paper-api.alpaca.markets/v2/options");
+    let lists: Vec<PathBuf> = std::fs::read_dir(&contracts_dir)
+        .map(|d| d.flatten().map(|e| e.path()).collect())
+        .unwrap_or_default();
+    if lists.is_empty() {
+        assert!(
+            !sample(),
+            "the repository's sample option chains are missing"
+        );
+        eprintln!("no option chains in this recording; skipped");
+        return;
+    }
+    let chains_dir = root().join("data.alpaca.markets/v1beta1/options/snapshots");
+    let mut chains = 0;
+    for list in &lists {
+        let name = list.file_stem().unwrap().to_string_lossy().into_owned();
+        let (contracts, _) = mt_alpaca::options::parse_contracts(&std::fs::read(list).unwrap())
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        // `contracts.json` is what other underlyings replay: nothing listed.
+        let Some(underlying) = name.strip_prefix("contracts@") else {
+            continue;
+        };
+        let list = mt_core::options::ContractList::new(underlying, contracts);
+        assert!(!list.contracts.is_empty(), "{name}: no contracts");
+        for c in &list.contracts {
+            assert_eq!(c.underlying, underlying, "{}", c.symbol);
+            assert!(
+                c.contract.strike > mt_core::money::Decimal::ZERO,
+                "{}",
+                c.symbol
+            );
+            assert!(!c.multiplier.is_zero(), "{}", c.symbol);
+        }
+        let expiries = list.expiries();
+        assert!(!expiries.is_empty(), "{name}: no standard contracts");
+        assert!(expiries.windows(2).all(|w| w[0] < w[1]));
+        for file in std::fs::read_dir(&chains_dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            let file_name = file.file_name().to_string_lossy().into_owned();
+            let Some(day) = file_name
+                .strip_prefix(&format!("{underlying}@"))
+                .and_then(|d| d.strip_suffix(".json"))
+            else {
+                continue;
+            };
+            let day: chrono::NaiveDate = day.parse().expect("<ticker>@<expiry>.json");
+            let (snaps, _) = parse_option_snapshots(&std::fs::read(file.path()).unwrap())
+                .unwrap_or_else(|e| panic!("{file_name}: {e}"));
+            assert!(!snaps.is_empty(), "{file_name}: an empty chain");
+            let rows =
+                mt_core::options::chain_rows(underlying, day, snaps.keys().map(String::as_str));
+            assert!(!rows.is_empty(), "{file_name}: no rows");
+            for (sym, s) in &snaps {
+                let c = mt_core::instrument::OptionContract::parse_occ(sym)
+                    .unwrap_or_else(|| panic!("{sym} is not an OCC symbol"));
+                assert_eq!(c.expiry, day, "{sym} in {file_name}");
+                if let Some(q) = &s.latest_quote {
+                    assert!(q.bid >= 0.0 && q.ask >= 0.0, "{sym}: {q:?}");
+                    assert!(q.ask == 0.0 || q.bid <= q.ask, "{sym}: crossed {q:?}");
+                }
+                if let Some(d) = s.greeks.delta {
+                    assert!((-1.0..=1.0).contains(&d), "{sym}: delta {d}");
+                }
+                if let Some(iv) = s.implied_volatility {
+                    assert!(iv.is_finite() && iv >= 0.0, "{sym}: IV {iv}");
+                }
+            }
+            if sample() {
+                // Every listed contract of that expiry has a quote, and the
+                // other way round.
+                let listed: Vec<&str> = list.on(day).map(|c| c.symbol.as_str()).collect();
+                assert_eq!(listed.len(), snaps.len(), "{file_name}");
+                assert!(listed.iter().all(|s| snaps.contains_key(*s)));
+            }
+            chains += 1;
+        }
+    }
+    assert!(chains > 0, "contracts without any chain");
+}

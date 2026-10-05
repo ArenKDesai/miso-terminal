@@ -21,6 +21,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "MISO's interfaces with PJM, SPP, TVA, Ontario and others: PJM's CTS forecast at the PJM interface against MISO's price there, and RT and DA prices at every interface node.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

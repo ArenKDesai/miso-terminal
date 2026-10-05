@@ -24,6 +24,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Up to eight nodes on one chart: today's five-minute RT, or hourly RT or DA over N days, by component. With securities (CMP XEL US MINN.HUB 30), their prices above the nodes' on one time axis, and how they moved together day by day.",
     takes_node: true,
     takes_security: true,
+    takes_option: false,
     open,
 };
 

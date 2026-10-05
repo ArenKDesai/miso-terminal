@@ -17,6 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     takes_node: false,
     // `NEWS XLU US` searches the feeds for the ticker; CN has company news.
     takes_security: true,
+    takes_option: false,
     open,
 };
 

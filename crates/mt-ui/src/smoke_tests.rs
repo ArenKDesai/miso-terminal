@@ -115,6 +115,13 @@ fn routes(registry: &Registry) -> Vec<Route> {
         ["XLU US", "XEL US", "MINN.HUB", "ILLINOIS.HUB", "30"],
     ));
     out.push(Route::new("CMP", ["XEL US"]));
+    // Options.
+    out.push(Route::new("OMON", ["XLU US"]));
+    out.push(Route::new("OMON", ["XLU US", "2026-12-18", "ALL"]));
+    out.push(Route::new("OMON", ["XLU US", "2025-01-17"]));
+    out.push(Route::new("OMON", ["VST US", "3"]));
+    out.push(Route::new("OMON", ["XLU261218P00035000"]));
+    out.push(Route::new("OMON", ["NOTATICKER US"]));
     // The paper account.
     for p in ["1W", "1M", "3M", "1Y"] {
         out.push(Route::new("PNL", [p]));
@@ -451,10 +458,10 @@ fn app_shell_runs_frames_and_executes_commands() {
                 .any(|r| r.to_string() == opens)
         );
     }
-    // Options wait for OMON; functions that take only nodes refuse securities.
+    // Functions that take no options refuse them, and those that take only
+    // nodes refuse securities; a bare option opens its chain.
     for (cmd, says) in [
         ("GP XLU261218C00082500", "is an option"),
-        ("XLU261218C00082500", "is an option"),
         ("HUBS XLU US", "is a security"),
     ] {
         app.apply_commands(&ctx, vec![AppCommand::Run(cmd.into())]);
@@ -462,6 +469,10 @@ fn app_shell_runs_frames_and_executes_commands() {
         assert!(error && msg.contains(says), "{cmd}: {msg}");
     }
     assert_eq!(app.workspace_mut().routes().len(), before + 3);
+    app.apply_commands(&ctx, vec![AppCommand::Run("XLU261218C00045000".into())]);
+    let (msg, error) = app.last_feedback().cloned().unwrap_or_default();
+    assert!(!error && msg == "OMON XLU261218C00045000", "{msg}");
+    assert_eq!(app.workspace_mut().routes().len(), before + 4);
     // A security on the watchlist goes to its own list.
     app.apply_commands(&ctx, vec![AppCommand::AddFavorite("xel us".into())]);
     assert!(

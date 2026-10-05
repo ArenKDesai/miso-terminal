@@ -17,6 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "Generation by fuel for the current interval and as a stacked chart for the day so far.",
     takes_node: false,
     takes_security: false,
+    takes_option: false,
     open,
 };
 

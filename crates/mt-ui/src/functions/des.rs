@@ -22,6 +22,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     description: "What a stock or ETF is and where it lists, how it trades with Alpaca (shortable, marginable, fractional), today's prices and its range and returns over the past year.",
     takes_node: false,
     takes_security: true,
+    takes_option: false,
     open,
 };
 
@@ -171,7 +172,16 @@ impl Panel for Des {
                 None => widgets::placeholder(ui, skin, assets.error.as_ref().map(ToString::to_string)),
             }
             ui.horizontal_wrapped(|ui| {
-                for (code, what) in [("GP", "Chart"), ("CN", "Company news"), ("Q", "Quote")] {
+                let options = asset.as_ref().is_some_and(|a| a.has_attribute("has_options"));
+                for (code, what) in [
+                    ("GP", "Chart"),
+                    ("CN", "Company news"),
+                    ("Q", "Quote"),
+                    ("OMON", "Options"),
+                ] {
+                    if code == "OMON" && !options {
+                        continue;
+                    }
                     if ui.button(format!("{code} · {what}")).clicked() {
                         cx.open(Route::new(code, [sec.to_string()]));
                     }
