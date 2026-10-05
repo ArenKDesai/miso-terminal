@@ -344,9 +344,11 @@ Only after paper trading has run cleanly for a few weeks.
 - The weekly drift job records live Alpaca responses with the CI paper
   account's keys (repository secrets `ALPACA_PAPER_KEY_ID`,
   `ALPACA_PAPER_SECRET_KEY`) and runs the parsers on them, as it does for
-  MISO. A manually run job places and cancels paper orders on that account;
-  never live. Installed copies of the terminal never see these keys: each user
-  adds their own.
+  MISO. A manually run job (`paper_orders`) places, replaces and cancels one
+  order that cannot fill on that account through the order desk, and checks
+  that Alpaca refuses a second order with the same `client_order_id`; never
+  live (`check_paper_orders` refuses any endpoint but paper). Installed copies
+  of the terminal never see these keys: each user adds their own.
 - Visual snapshots for each new panel.
 
 ## Risks
