@@ -753,6 +753,20 @@ mod tests {
                 "type": body["type"], "time_in_force": body["time_in_force"],
                 "limit_price": body.get("limit_price").cloned().unwrap_or(Value::Null),
                 "status": "new", "filled_qty": "0", "asset_class": "us_equity",
+                "order_class": body.get("order_class").cloned().unwrap_or(Value::Null),
+                // Each leg comes back as an order of its own.
+                "legs": body.get("legs").and_then(Value::as_array).map(|legs| {
+                    legs.iter()
+                        .enumerate()
+                        .map(|(i, l)| {
+                            let mut l = l.clone();
+                            l["id"] = json!(format!("ord-{}-leg-{i}", orders.len() + 1));
+                            l["status"] = json!("new");
+                            l["filled_qty"] = json!("0");
+                            l
+                        })
+                        .collect::<Vec<_>>()
+                }),
                 "created_at": "2026-10-02T18:00:00Z", "updated_at": "2026-10-02T18:00:00Z",
             });
             orders.push(o.clone());
@@ -951,6 +965,7 @@ mod tests {
             tif: TimeInForce::Day,
             extended_hours: false,
             position_intent: None,
+            legs: Vec::new(),
         }
     }
 
@@ -1008,6 +1023,38 @@ mod tests {
         assert!(audit.contains("\"action\":\"place\"") && audit.contains("\"status\":200"));
         assert!(audit.contains("\"limit_price\":\"82.5\""));
         assert!(!audit.contains("PKSECRETID") && !audit.contains("SKVERYSECRET"));
+    }
+
+    #[test]
+    fn a_spread_goes_in_as_one_order() {
+        use mt_core::options::Leg;
+        let s = setup();
+        let spread = OrderRequest {
+            symbol: String::new(),
+            qty: d("2"),
+            limit_price: Some(d("0.85")),
+            legs: vec![
+                Leg::new("XLU261218C00045000", OrderSide::Buy, 1),
+                Leg::new("XLU261218C00047000", OrderSide::Sell, 1),
+            ],
+            ..ticket("mt-spread")
+        };
+        s.desk.submit(spread).unwrap();
+        let Outcome::Accepted(o) = settle(&s.desk, "mt-spread") else {
+            panic!("{:?}", s.desk.outcome("mt-spread"));
+        };
+        assert!(o.is_multi_leg() && o.legs.len() == 2, "{o:?}");
+        assert_eq!((s.broker.order_count(), s.broker.posts_made()), (1, 1));
+        let audit = s.desk.audit().recent().join("\n");
+        assert!(audit.contains("\"order_class\":\"mleg\""), "{audit}");
+        // A spread Alpaca would refuse never leaves the desk.
+        let lopsided = OrderRequest {
+            symbol: String::new(),
+            legs: vec![Leg::new("XLU261218C00045000", OrderSide::Buy, 1)],
+            ..ticket("mt-spread-2")
+        };
+        assert!(s.desk.submit(lopsided).unwrap_err().contains("two to"));
+        assert_eq!(s.broker.posts_made(), 1);
     }
 
     #[test]

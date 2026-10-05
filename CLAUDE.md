@@ -7,8 +7,8 @@ Rust workspace with an egui UI, and Windows is the primary platform. Read
 recipes. `docs/RELEASES.md` is the plan for releases (none made yet; ask before
 tagging, since a `v*` tag publishes one). `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
 data, trading and portfolio tracking: Phase 0 (foundations), Phase 1 (news),
-Phase 2 (market data), Phase 3 (the paper account) and Phase 4 (paper trading)
-are built, the README's roadmap tracks the rest.
+Phase 2 (market data), Phase 3 (the paper account), Phase 4 (paper trading)
+and Phase 5 (options) are built, the README's roadmap tracks the rest.
 
 ## Commands
 
@@ -23,6 +23,7 @@ cargo run -p mt-eia --example capture_gas            # re-record the Henry Hub g
 cargo run -p mt-news --example capture_news          # re-record the news feeds (story text replaced by samples)
 cargo run -p mt-alpaca --example capture_alpaca      # re-record Alpaca (needs keys; prices made synthetic, stories sampled)
 cargo run -p mt-alpaca --example check_paper_orders  # the order desk against the live paper API (needs paper keys; one order, cancelled)
+cargo run -p mt-alpaca --example check_option_orders # an option order and a spread against the live paper API (paper keys; both cancelled)
 uv run tools/sample_account.py         # rewrite the sample paper account and its orders (after re-recording Alpaca)
 uv run tools/sample_options.py         # then the sample option chains (OMON) around the account's contracts
 cargo run -p mt-theme --example sync_everforge -- ..\everforge
@@ -101,9 +102,14 @@ asked to see.
   `mt-ui/src/trading.rs` (what tickets and ORD share) and the functions
   `ticket.rs` (BUY and SELL) and `ord.rs`.
 - Options: `mt-core/src/options.rs` (contract lists, chains by strike, price
-  steps, expiry rules), `mt-alpaca/src/options.rs` (the contract list and
-  chain queries), `mt-ui/src/options.rs` (formats and expiries the option
-  functions share) and `functions/omon.rs`.
+  steps, expiry rules, position intents, legs, strategy names, net prices,
+  payoffs and Alpaca's spread margin), `mt-core/src/guard/options.rs` and
+  `guard/spread.rs` (the single-contract and spread guardrails),
+  `mt-alpaca/src/options.rs` (the contract list and chain queries; order bodies
+  and `mleg` parsing are in `orders.rs`), `mt-ui/src/options.rs` (formats and
+  expiries the option functions share), `trading::OptionMarket` (what option
+  tickets are checked against) and the functions `omon.rs`, `ticket.rs` (for a
+  contract) and `mleg.rs`.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.
@@ -176,11 +182,12 @@ asked to see.
   `tools/sample_options.py`; rerun both after new Alpaca fixtures land.
 - Orders: only `mt_alpaca::OrderDesk` sends them, and only when a ticket's
   *Confirm*, ORD's *Cancel*/*Confirm replace* or the kill switch is clicked.
-  Commands (typed, `--run`, forwarded, hotkeys) open tickets and never send;
+  Commands (typed, `--run`, forwarded, hotkeys) open tickets (BUY, SELL,
+  MLEG) and never send;
   nothing trades automatically (`commands_from_outside_the_window_only_open_tickets`
-  checks it). Every ticket runs `mt_core::guard::review` (options:
-  `review_option`, in `guard/options.rs`) first; a new rule goes there with a
-  test. A ticket keeps one `client_order_id` until its order is
+  checks it). Every ticket runs `mt_core::guard::review` (a contract:
+  `review_option`; a spread: `review_spread`) first; a new rule goes there with
+  a test. A ticket keeps one `client_order_id` until its order is
   placed, so a resend after a lost answer cannot duplicate it. Tickets are not
   restored after a restart. Order amounts are `Decimal`. The audit log never
   holds keys (they are headers) and its path (which names the Windows user)

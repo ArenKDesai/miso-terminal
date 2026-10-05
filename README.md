@@ -120,7 +120,7 @@ and themes.
 | `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
 | `Q` | Quote monitor | Live prices for a list of stocks and ETFs (Alpaca): last, change, bid and ask, volume, the day's range and today's chart, with every trade streaming (the free plan allows 30 trade and quote subscriptions). `Q` is the Power & gas list (utilities in MISO's footprint, independent generators, energy ETFs, gas producers); also `Q UTILITIES`, `Q GAS`, `Q WL` (your watchlist) or any securities (`Q XEL US AEE US`) |
 | `DES` | Security description | What a stock or ETF is and where it lists, how it trades with Alpaca (shortable, marginable, fractional), today's prices, and its 52-week range and returns (`DES XLU US`) |
-| `OMON` | Option monitor | An option chain from Alpaca: calls and puts by strike for one expiry (a tab per expiry, the monthly ones in bold), with bid, ask, last and its change, volume, open interest, implied volatility and delta (gamma, theta and vega on request), in-the-money contracts shaded and a line at the stock's price; the strikes nearest the money, or all (`OMON XLU US`, `OMON XLU US 2026-12-18 ALL`). An OCC symbol typed alone opens its chain. On the free plan prices are Alpaca's indicative feed (quotes derived from OPRA's, trades 15 minutes late), re-read every minute |
+| `OMON` | Option monitor | An option chain from Alpaca: calls and puts by strike for one expiry (a tab per expiry, the monthly ones in bold), with bid, ask, last and its change, volume, open interest, implied volatility and delta (gamma, theta and vega on request), in-the-money contracts shaded and a line at the stock's price; the strikes nearest the money, or all (`OMON XLU US`, `OMON XLU US 2026-12-18 ALL`). An OCC symbol typed alone opens its chain. Click a bid or ask for a ticket at that price; right-click a contract to trade it, add it to a spread, or build a spread from its strike (verticals, a straddle, a strangle, an iron condor, butterflies) for `MLEG`. On the free plan prices are Alpaca's indicative feed (quotes derived from OPRA's, trades 15 minutes late), re-read every minute |
 | `TOP` | Top stories | The newest top stories from the Financial Times, Bloomberg and the Washington Post in one list. Click one for its summary; Enter or a double-click opens the article in your browser, where you are signed in |
 | `NEWS` | News search | Every headline from every feed, kept for three weeks so search reaches back across restarts: by publisher (`NEWS FT`, `NEWS BBG`, `NEWS WP`), by words (`NEWS natural gas`), unread only, and mark read |
 | `NI` | News by topic | Headlines on a topic from keyword rules: `NI ENERGY`, `POWER`, `GRID`, `GAS`, `OIL`, `UTILITIES`, `POLICY`, `CLIMATE`, `MACRO`. `NI` alone lists the topics with today's counts. Change them or add your own in config |
@@ -131,6 +131,7 @@ and themes.
 | `ACT` | Account activity | Fills, dividends, fees, transfers and option exercises, assignments and expiries, newest first, by kind or symbol (`ACT FILLS`, `ACT DIV`), with order events as they stream |
 | `BUY` | Buy ticket | An order ticket for the paper account, filled in from the command (`BUY XLU US 10 LMT 44.50 DAY`; also `MKT`, `STP 80`, `STPLMT 80 79.50`, `GTC`, `IOC`, `FOK`, `OPG`, `CLS`, `EXT` for extended hours): the latest prices, the cost, buying power and position afterwards, and every guardrail's verdict. Warnings must be ticked off; only its **Confirm** button sends the order. For an option contract, by its OCC symbol (`BUY XLU261218C00046000 2 LMT 1.16`): whole contracts, `DAY` or `GTC`, the quote and greeks, the premium and options buying power, whether it opens or closes a position, and what it pays at expiry |
 | `SELL` | Sell ticket | The same ticket to sell, or sell short (`SELL XLU US 200`); for options, to close a position, or to write a covered call or a cash-secured put (Alpaca allows no uncovered options). PORT's right-click menu opens one to close a position, and OMON opens one at a bid or ask you click |
+| `MLEG` | Spread ticket | An options strategy of two to four legs sent as one order (`MLEG +XLU261218C00045000 -XLU261218C00047000 2 LMT 0.85`: `+` buys a leg, `-` sells it, `2*` gives it a ratio, a negative limit or `CREDIT 0.40` is a credit), usually built in OMON. Each leg's quote and whether it opens or closes a position; the natural, mid and far net prices; the premium, the margin Alpaca holds and buying power; what it can make and lose at expiry, with a chart; and every guardrail. Only its **Confirm** button sends the order |
 | `ORD` | Orders | The paper account's orders, kept current by the order stream: open, filled, cancelled (`ORD ALL`); cancel or replace open ones; the **kill switch** (cancel every open order, optionally close every position, and turn trading off until you turn it back on); where the order audit log is |
 | `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast, ACE and headlines (`MISO, PJM, power prices`): add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, live streams and request budgets (when a source uses them), fetch activity, cache and file locations |
@@ -160,7 +161,7 @@ by OCC symbol, `XLU261218C00082500`), so they never clash with node names like
 company names from Alpaca's asset list, and after a security, the functions that
 take one (`XLU US D…` → `DES`). An option symbol typed alone opens its chain in `OMON`.
 
-Orders: `BUY` and `SELL` open a ticket and nothing else, whoever asks (the
+Orders: `BUY`, `SELL` and `MLEG` open a ticket and nothing else, whoever asks (the
 command line, `--run`, a hotkey or another launch of the terminal): only a click
 on the ticket's **Confirm** sends an order. Before that, the ticket checks the
 order against Alpaca's rules and your limits under `[trading]` in config.toml (or
@@ -171,7 +172,9 @@ orders also check the account's options level, that a sold call is covered by
 shares and a sold put by buying power, the contract's expiry (Alpaca takes no
 orders for contracts expiring that day after 15:15 New York time), a limit
 against the bid or ask, the exchanges' price steps and the contracts per order;
-a restricted stock's options are restricted too. The kill
+a restricted stock's options are restricted too. A spread needs options level 3,
+every sold leg covered by a bought one in the same order and expiry, and buying
+power for the margin Alpaca holds plus the net premium. The kill
 switch in `ORD` cancels everything and turns trading off. Every order request and
 answer is appended to `orders-YYYY-MM.jsonl` in `%LOCALAPPDATA%\MISO Terminal\audit`.
 
@@ -202,7 +205,10 @@ exchange fifteen minutes late; daily history always from every exchange. Every f
 says which. Snapshots refresh each minute and a stream adds every trade (and quotes while
 room remains: the free plan allows 30 trade and quote subscriptions in all) and
 minute bars for the rest, within Alpaca's 200 requests a minute. Company news is Benzinga's, through Alpaca: headlines and
-summaries only, linked to the article.
+summaries only, linked to the article. Option chains come from Alpaca too: on the free
+plan its indicative feed (quotes derived from OPRA's and sampled, trades fifteen minutes
+late, greeks and implied volatility computed by Alpaca), re-read every minute while the
+market trades, since Alpaca streams options only in MessagePack.
 
 The **paper account** behind the same keys is traded only through confirmed tickets:
 balances, positions, orders, the equity curve and activities are re-read every minute and
@@ -317,8 +323,11 @@ through Alpaca. See the
       Confirm can send, the `ORD` blotter (cancel, replace), order ids that cannot
       go in twice, guardrails (caps, collar, fat-finger check, restricted list,
       sessions, buying power, day trades), a kill switch and an order audit log.
-- [ ] **Phase 5, options:** `OMON` chains and greeks; single-leg, then multi-leg,
-      paper trades.
+- [x] **Phase 5, options:** `OMON` chains with greeks and implied volatility from
+      Alpaca's indicative feed; single-contract tickets (`BUY`/`SELL` with an OCC
+      symbol: covered calls, cash-secured puts, opening and closing) and multi-leg
+      spreads (`MLEG`, built from OMON's chain, with payoff at expiry), with the
+      option guardrails: levels, cover, expiry-day cutoffs, quote collars.
 - [ ] **Phase 6, live trading:** off by default, behind a typed confirmation and
       a security review, after paper trading has run cleanly.
 

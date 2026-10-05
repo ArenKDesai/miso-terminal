@@ -489,6 +489,84 @@ If you work in energy or financial markets, check your employer's
 personal-trading policy before you ever trade live; some require pre-clearance
 or forbid certain names. Put those names on the restricted list.
 
+## Trade options on paper
+
+![OMON: XLU's December chain](screenshots/tutorials/omon.webp)
+
+Options trade in the same paper account, through the same kind of ticket. On
+Alpaca's free plan their prices come from its *indicative* feed: quotes derived
+from the official ones and sampled, trades fifteen minutes late. The terminal
+says so beside every figure.
+
+**Read a chain.**
+
+- `OMON XLU US`: XLU's option monitor. Calls are on the left, puts on the right,
+  the strike between them. Each shows its bid, ask, last trade and the change,
+  volume, open interest, implied volatility and delta; tick *Gamma, theta, vega*
+  for the rest. Contracts in the money are shaded, and a line marks where the
+  stock trades.
+- The tabs along the top are the expiries (monthly ones in bold, the days to go
+  beside each). *±10*, *±20* and *All* choose how many strikes either side of the
+  money to show. `OMON XLU US 2026-12-18 ALL` opens one expiry with every
+  strike.
+- An option's symbol on its own, such as `XLU261218C00045000` (XLU, 18 Dec 2026,
+  a call, strike 45.000), opens its chain at that contract. `DES XLU US` has an
+  *OMON · Options* button, and `PORT` links each stock's options to OMON.
+
+**Trade one contract.**
+
+- Click an ask in OMON for a ticket to buy one contract at that price, or a bid
+  to sell one; or right-click a contract and choose *Buy…* or *Sell…*. On the
+  command line it is `BUY` or `SELL` with the option's symbol:
+  `BUY XLU261218C00046000 2 LMT 1.16`. Leave the price out and the limit starts
+  at the mid.
+- The ticket says what the order does to your position (*Buy to open*, *Sell to
+  close* and so on), and shows the quote and greeks, the premium (the price is
+  per share, so a contract costs a hundred times it), options buying power
+  before and after, and what it pays at expiry: the break-even and the most it
+  can lose, or for a call you write, what happens if your shares are called
+  away.
+- To close an option you hold, right-click it in `PORT` and choose *Close the
+  position*. You can also write a covered call against shares you hold, or a
+  cash-secured put against buying power. Alpaca does not allow uncovered
+  options, so the ticket blocks a call your shares do not cover.
+
+**Build a spread.**
+
+![MLEG: two 45/47 bull call spreads](screenshots/tutorials/mleg.webp)
+
+- Right-click a contract in OMON and open *Spread from this strike*: a bull or
+  bear call spread, a bull or bear put spread, a straddle, a strangle, an iron
+  condor or a butterfly, built from the strikes around it. The `MLEG` ticket
+  opens with its legs filled in.
+- Or add legs yourself: *Add to the spread as a buy* (or *as a sell*). A bar
+  above the chain shows the spread, its name and its mid; *Open ticket…* opens it
+  and *Clear* starts again.
+- On the command line: `MLEG +XLU261218C00045000 -XLU261218C00047000 2 LMT 0.85`.
+  `+` buys a leg and `-` sells it, `2*` before a symbol gives it a ratio, and a
+  negative limit (or `CREDIT 0.40`) is a credit.
+- The ticket lists the legs with their quotes and what each does; change a
+  leg's *Buy*/*Sell* or ratio, add one by its symbol, or remove one with ✕. Under
+  *Estimate* are the net price three ways (*natural*: crossing every leg's
+  spread; the mid; the far side), the premium, the margin Alpaca holds, what the
+  order ties up, and what it can make and lose at expiry, with a chart of profit
+  and loss across the stock's price.
+- Alpaca sends a spread as one order and fills the legs together. Every leg you
+  sell must be covered by one you buy in the same order and expiry, so a
+  calendar spread with the near month sold is refused. Spreads need options
+  level 3 (paper accounts have it).
+- In `ORD` a spread is one row named for its strategy; hover for its legs. To
+  change one, cancel it and place it again.
+
+**The option rules**, on top of the stock ones: the options level (2 to buy
+calls and puts, 1 for covered calls and cash-secured puts, 3 for spreads;
+closing needs none); no orders for a contract expiring today after 15:15 New
+York time (15:30 for SPY and QQQ), and a warning earlier that day, since a
+contract in the money by a cent at the close is exercised automatically; the
+collar measured against the bid or ask (for a spread, against the natural
+price); the exchanges' price steps; and `max_contracts` per order. A stock on
+the restricted list takes its options with it.
+
 ## Make it yours
 
 **Settings.** `SET` edits `config.toml` in place: zoom, the price levels that

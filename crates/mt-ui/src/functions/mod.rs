@@ -25,6 +25,7 @@ mod lmp;
 mod load;
 mod log;
 mod map;
+mod mleg;
 mod news;
 mod ni;
 mod nsi;
@@ -86,6 +87,7 @@ pub fn all() -> Vec<FunctionSpec> {
         act::SPEC,
         ticket::BUY,
         ticket::SELL,
+        mleg::SPEC,
         ord::SPEC,
         alrt::SPEC,
         log::SPEC,

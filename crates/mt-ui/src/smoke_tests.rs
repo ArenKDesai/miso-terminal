@@ -149,6 +149,32 @@ fn routes(registry: &Registry) -> Vec<Route> {
     out.push(Route::new("SELL", ["XLU261218C00047000", "2", "GTC"]));
     out.push(Route::new("SELL", ["VST261120P00034000", "1"]));
     out.push(Route::new("BUY", ["XLU261218P00044000", "1", "MKT"]));
+    // Spreads: a debit, a credit, an iron condor, a calendar (two chains),
+    // none and one leg.
+    out.push(Route::new(
+        "MLEG",
+        ["+XLU261218C00045000", "-XLU261218C00047000", "2"],
+    ));
+    out.push(Route::new(
+        "MLEG",
+        ["-XLU261218C00045000", "+XLU261218C00047000", "LMT", "-0.70"],
+    ));
+    out.push(Route::new(
+        "MLEG",
+        [
+            "+XLU261218P00040000",
+            "-XLU261218P00042000",
+            "-XLU261218C00047000",
+            "+XLU261218C00049000",
+            "LMT",
+            "-0.60",
+        ],
+    ));
+    out.push(Route::new(
+        "MLEG",
+        ["-XLU261120C00045000", "+XLU261218C00045000", "MKT"],
+    ));
+    out.push(Route::new("MLEG", ["+XLU261218C00045000"]));
     for v in ["FILLED", "CANCELED", "ALL", "KILL"] {
         out.push(Route::new("ORD", [v]));
     }
@@ -1031,6 +1057,7 @@ fn commands_from_outside_the_window_only_open_tickets() {
             "BUY XLU US 10 LMT 44.50 DAY".into(),
             "ORD KILL".into(),
             "SELL XLU261218C00045000 2 LMT 1.60".into(),
+            "MLEG +XLU261218C00045000 -XLU261218C00047000 1 LMT 0.85".into(),
         ],
         remote: Some(inbox),
         notifier: None,
@@ -1091,6 +1118,7 @@ fn commands_from_outside_the_window_only_open_tickets() {
         "SELL XEL US 10",
         "SELL XLU261218C00045000 2",
         "BUY XLU261218C00046000 1",
+        "MLEG +XLU261218C00045000 -XLU261218C00047000 1",
         "ORD",
     ] {
         assert!(

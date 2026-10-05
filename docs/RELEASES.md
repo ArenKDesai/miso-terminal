@@ -139,7 +139,8 @@ Until auto-merge and the `main` ruleset are on, Claude waits for CI to pass
   Alpaca stock and ETF data, and the paper account, read-only (markets phases
   0 to 3; Phase 3 was finished before the release and folded in, on
   2026-10-05), and the tutorials. After that, a minor release closes each
-  markets phase (Phase 4, paper trading, is `0.3.0`), with patch releases as
+  markets phase (Phase 4, paper trading, is `0.3.0`; Phase 5, options,
+  `0.4.0`), with patch releases as
   needed in between. No fixed calendar.
 - Release candidates are tagged `v0.2.0-rc.1`, carry that version in
   `Cargo.toml` (so `--version` says so), and are published as GitHub

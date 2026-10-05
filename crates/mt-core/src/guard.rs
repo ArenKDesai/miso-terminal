@@ -11,13 +11,16 @@
 //! per-order, daily and per-position caps in dollars; a collar on limit and
 //! stop prices around the last trade; a fat-finger check on size; buying
 //! power; and the pattern-day-trader count. Option orders have their own
-//! review ([`review_option`]), sharing the switches, lists and caps.
+//! review ([`review_option`]), and multi-leg orders theirs ([`review_spread`]),
+//! sharing the switches, lists and caps.
 
 mod options;
+mod spread;
 
 use serde::{Deserialize, Serialize};
 
 pub use options::{OptionContext, review_option};
+pub use spread::{LegMarket, SpreadContext, SpreadReview, review_spread};
 
 use crate::account::{Account, OrderSide, PDT_DAY_TRADES};
 use crate::equity::Asset;

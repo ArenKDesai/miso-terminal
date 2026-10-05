@@ -20,7 +20,7 @@ Run tools/sample_options.py afterwards: it prices the option chains around
 these positions and gives their contracts the chain's greeks.
 
 Writes, under paper-api.alpaca.markets/: v2/account.json, v2/positions.json,
-v2/orders.json, v2/account/activities.json,
+v2/orders.json (with an open multi-leg order), v2/account/activities.json,
 v2/account/portfolio/history@{1D,1W,1M,3M,1A}.json and stream.jsonl (a login
 and the day's order events); and
 data.alpaca.markets/v1beta1/options/snapshots.json (greeks for the options).
@@ -83,6 +83,15 @@ DIVIDENDS = [
 TODAY_ORDER = ("CEG", 60, [20, 40], time(14, 31))
 #: Still open: a GTC sell above the market, holding 100 of the 200 XLU shares.
 OPEN_SELL = ("XLU", 100, Decimal("47.00"), date(2026, 9, 29), time(10, 15))
+#: Still open: a GTC 46/48 call spread on XLU at a net debit, placed the day
+#: before: (units, net limit, day, placed, [(OCC symbol, side, intent)]).
+OPEN_SPREAD = (
+    2,
+    Decimal("0.45"),
+    date(2026, 10, 1),
+    time(13, 40),
+    [("XLU261218C00046000", "buy", "buy_to_open"), ("XLU261218C00048000", "sell", "sell_to_open")],
+)
 #: Cancelled before it filled: (symbol, qty, limit, day, placed, cancelled).
 CANCELLED = ("VST", 100, Decimal("34.00"), date(2026, 10, 1), time(10, 2), time(11, 20))
 EXCHANGES = {"XLU": "ARCA", "XEL": "NASDAQ", "VST": "NYSE", "CEG": "NASDAQ", "AEE": "NYSE", "UNG": "ARCA"}
@@ -602,6 +611,16 @@ def main() -> None:
         order_json(uid("order", o_sym, "open"), o_sym, "sell", o_qty, "limit", "gtc", "new",
                    ny(o_day, o_at), limit=o_limit)
     )
+    units, net, s_day, s_at, legs = OPEN_SPREAD
+    spread = order_json(uid("order", "spread"), "", "", units, "limit", "gtc", "new", ny(s_day, s_at), limit=net)
+    spread.update(symbol="", side="", asset_class="", asset_id=None, order_class="mleg")
+    spread["legs"] = []
+    for leg_sym, leg_side, intent in legs:
+        leg = order_json(uid("order", "spread", leg_sym), leg_sym, leg_side, units, "limit", "gtc", "new",
+                         ny(s_day, s_at), client=uid("client", "spread", leg_sym))
+        leg.update(ratio_qty="1", position_intent=intent, limit_price=None, order_class="mleg")
+        spread["legs"].append(leg)
+    order_list.append(spread)
     c_sym, c_qty, c_limit, c_day, c_at, c_end = CANCELLED
     order_list.append(
         order_json(uid("order", c_sym, "cancelled"), c_sym, "buy", c_qty, "limit", "day", "canceled",

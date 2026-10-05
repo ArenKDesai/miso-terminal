@@ -365,7 +365,18 @@ fn orders() {
     let orders =
         mt_alpaca::orders::parse_orders(&read("paper-api.alpaca.markets/v2/orders.json")).unwrap();
     for o in &orders {
-        assert!(!o.id.is_empty() && !o.symbol.is_empty(), "{o:?}");
+        // A multi-leg order names its contracts in its legs.
+        assert!(
+            !o.id.is_empty() && (!o.symbol.is_empty() || o.is_multi_leg()),
+            "{o:?}"
+        );
+        if o.is_multi_leg() {
+            assert!(o.legs.len() >= 2, "{o:?}");
+            for l in &o.legs {
+                assert!(l.is_option() && !l.is_multi_leg(), "{l:?}");
+                assert!(l.ratio_qty.is_some(), "{l:?}");
+            }
+        }
         assert!(o.created_at.is_some(), "{o:?}");
         assert!(o.filled_qty <= o.qty.unwrap_or(o.filled_qty), "{o:?}");
         if o.status == mt_core::order::OrderStatus::Filled {
@@ -377,8 +388,17 @@ fn orders() {
         // Open sell orders hold shares: the positions say so.
         let positions =
             parse_positions(&read("paper-api.alpaca.markets/v2/positions.json")).unwrap();
-        let open: Vec<_> = orders.iter().filter(|o| o.status.is_open()).collect();
+        let open: Vec<_> = orders
+            .iter()
+            .filter(|o| o.status.is_open() && !o.is_multi_leg())
+            .collect();
         assert!(!open.is_empty());
+        assert!(
+            orders
+                .iter()
+                .any(|o| o.is_multi_leg() && o.status.is_open()),
+            "the sample has an open spread"
+        );
         for o in open {
             let p = positions.iter().find(|p| p.symbol == o.symbol).unwrap();
             assert_eq!(p.qty_available, Some(p.qty - o.remaining()), "{}", o.symbol);

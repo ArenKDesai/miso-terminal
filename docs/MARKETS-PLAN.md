@@ -4,9 +4,9 @@ A plan: headlines from the Financial Times, Bloomberg and the Washington Post;
 US stock, ETF and options data from Alpaca; paper trading through Alpaca, with
 live trading later; and account and portfolio tracking. Phase 0 (foundations),
 Phase 1 (news) and Phase 2 (market data) are built (2026-10-04), and Phase 3
-(account and portfolio) and Phase 4 (paper trading) on 2026-10-05; the later
-phases are not yet.
-Facts about the sources were checked on 2026-10-04. The README's roadmap tracks
+(account and portfolio), Phase 4 (paper trading) and Phase 5 (options) on
+2026-10-05; Phase 6 (live trading) is not yet.
+Facts about the sources were checked on 2026-10-04 (options on 2026-10-05). The README's roadmap tracks
 progress against the phases below.
 
 ## Decisions
@@ -314,10 +314,10 @@ then the tickets, the blotter and the kill switch.
   replays, a cancelled order and an open GTC sell that holds 100 of the 200 XLU
   shares (`qty_available`).
 
-## Phase 5: Options
+## Phase 5: Options (built)
 
-Being built in parts: the chain and `OMON` first, then single-leg paper
-orders (both 2026-10-05), then multi-leg spreads.
+Built on 2026-10-05 in three parts: the chain and `OMON`, single-contract
+paper orders, then multi-leg spreads.
 
 | Dataset | Endpoint | Refresh |
 |---|---|---|
@@ -367,7 +367,46 @@ orders (both 2026-10-05), then multi-leg spreads.
   0.05/0.10); `[trading] max_contracts` (50); the fat-finger check; a warning
   on a market order into a quote more than 10% wide; buying power for the
   premium; and day trades. ORD's *Replace…* runs the same review.
-- **Multi-leg spreads** (Alpaca's level 3, enabled in paper) come next.
+- **Multi-leg spreads** (`MLEG`, Alpaca's `mleg` order class, level 3, enabled
+  in paper): two to four option legs on one underlying sent as one order, its
+  quantity in units of the strategy and its limit the net price (positive a
+  debit, negative a credit), each leg with its ratio (in lowest terms), side and
+  `position_intent`. `MLEG +XLU261218C00045000 -XLU261218C00047000 2 LMT 0.85`;
+  `+` buys, `-` sells, `2*` a ratio, `CREDIT 0.40` a credit. OMON builds them:
+  right-click a contract to add it as a buy or sell (a bar above the chain shows
+  the spread and its mid, and *Open ticket…*), or to build a bull or bear call
+  or put spread, a straddle, a strangle, an iron condor or a butterfly from its
+  strike; an open MLEG ticket that has sent nothing takes the new legs.
+- **The spread ticket** names the strategy (`mt_core::options::strategy_name`),
+  lists each leg's quote, greeks and intent (worked out from the positions),
+  and shows the natural price (every leg crossed), the mid and the far side; the
+  premium; the margin Alpaca's universal spread rule holds (per expiry, the most
+  the opening legs can lose at expiry, premiums left out; the largest of
+  those); what the order ties up (margin plus net premium) against options
+  buying power; and for one expiry what it can make and lose, its break-evens
+  and a chart of profit and loss across the stock's price.
+- **Spread rules** (`mt_core::guard::review_spread`, each tested): what
+  `OrderRequest` refuses (two to four legs, options on one underlying, no repeats,
+  ratios in lowest terms, market or limit, `DAY` or `GTC`, whole units, cents);
+  the switch, the restricted list, the account; level 3 to open; each contract
+  tradable and its expiry day; each closing leg backed by the position and not
+  held by open orders, no leg against an opposite position; every sold leg
+  covered by a bought one of the same expiry (so a calendar with the near month
+  sold is refused, as Alpaca does); the session; the caps on what it ties up; a
+  collar on the net price against the natural one (beyond it a warning, beyond
+  the collar's percentage, at least five cents, a block); contracts in the
+  biggest leg against `max_contracts`; the fat-finger check; buying power; day
+  trades.
+- **In ORD** a spread is one row named for its strategy, its legs on hover, its
+  net price as a debit or credit; it can be cancelled, and changed by cancelling
+  and placing it again. The order list is read with `nested=true`, so legs come
+  under their order; a parent has no symbol or side of its own (its side here
+  is the net's: buy for a debit). The sample account has an open GTC spread.
+- **To check live:** `cargo run -p mt-alpaca --example check_option_orders`
+  (by hand, with paper keys; not part of the drift workflow) places one
+  contract and one two-leg spread that cannot fill, checks Alpaca accepts both
+  as the desk sends them, that the answers and the order list parse (the spread
+  with its legs), and that each is found by its client id, then cancels both.
 - In-the-money contracts are exercised automatically at expiry: PORT and the
   ticket warn about contracts expiring today.
 

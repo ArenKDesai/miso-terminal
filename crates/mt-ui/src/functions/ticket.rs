@@ -187,6 +187,7 @@ impl Draft {
             tif: self.tif,
             extended_hours: self.extended,
             position_intent: None,
+            legs: Vec::new(),
         })
     }
 }
@@ -291,13 +292,32 @@ struct Ticket {
     draft: Draft,
     /// Fill the limit from the last price once it is known (nothing typed yet).
     prefill: bool,
-    /// The order the user ticked the warnings for (its description).
-    acknowledged: Option<String>,
+    sending: Sending,
+}
+
+/// What a ticket's Confirm remembers (every ticket: BUY, SELL and MLEG).
+pub(crate) struct Sending {
     /// The id the next Confirm sends under. It changes only with *New order*,
     /// after the order was placed.
-    client_order_id: String,
+    pub client_order_id: String,
+    /// The order the user ticked the warnings for (its description).
+    pub acknowledged: Option<String>,
     /// A message from the desk that refused to send (already on its way…).
-    message: Option<String>,
+    pub message: Option<String>,
+}
+
+impl Sending {
+    pub fn new() -> Self {
+        Self {
+            client_order_id: mt_alpaca::new_client_order_id(),
+            acknowledged: None,
+            message: None,
+        }
+    }
+
+    fn new_order(&mut self) {
+        *self = Self::new();
+    }
 }
 
 impl Ticket {
@@ -305,16 +325,16 @@ impl Ticket {
         Self {
             prefill: draft.order_type.needs_limit() && draft.limit.trim().is_empty(),
             draft,
-            acknowledged: None,
-            client_order_id: mt_alpaca::new_client_order_id(),
-            message: None,
+            sending: Sending::new(),
         }
     }
+}
 
-    fn new_order(&mut self) {
-        self.client_order_id = mt_alpaca::new_client_order_id();
-        self.acknowledged = None;
-        self.message = None;
+/// The fill of a Confirm button: buying green, selling red.
+pub(crate) fn side_fill(skin: &crate::skin::Skin, side: OrderSide) -> egui::Color32 {
+    match side {
+        OrderSide::Buy => skin.positive,
+        OrderSide::Sell => skin.negative,
     }
 }
 
@@ -353,7 +373,7 @@ impl Panel for Ticket {
         if market::needs_keys(ui, cx) {
             return;
         }
-        let outcome = cx.desk.outcome(&self.client_order_id);
+        let outcome = cx.desk.outcome(&self.sending.client_order_id);
         // Once placed (or while its fate is open), the fields stay as sent.
         let locked = outcome.as_ref().is_some_and(|o| !o.may_send());
 
@@ -362,7 +382,7 @@ impl Panel for Ticket {
             .show(ui, |ui| {
                 ui.add_enabled_ui(!locked, |ui| self.fields(ui, cx));
                 if let Some(c) = self.draft.contract() {
-                    self.option_body(ui, cx, &c, outcome.as_ref(), locked);
+                    self.option_body(ui, cx, &c, outcome.as_ref());
                     return;
                 }
                 let symbol = mt_alpaca::normalize_symbol(&self.draft.symbol);
@@ -376,7 +396,7 @@ impl Panel for Ticket {
                     );
                     return;
                 };
-                self.body(ui, cx, &symbol, outcome.as_ref(), locked);
+                self.body(ui, cx, &symbol, outcome.as_ref());
             });
     }
 }
@@ -490,14 +510,7 @@ impl Ticket {
         });
     }
 
-    fn body(
-        &mut self,
-        ui: &mut Ui,
-        cx: &mut PanelCx<'_>,
-        symbol: &str,
-        outcome: Option<&Outcome>,
-        locked: bool,
-    ) {
+    fn body(&mut self, ui: &mut Ui, cx: &mut PanelCx<'_>, symbol: &str, outcome: Option<&Outcome>) {
         let skin = cx.skin;
         let account = cx.hub.watch(&cx.alpaca.account());
         let positions = cx.hub.watch(&cx.alpaca.positions());
@@ -584,7 +597,7 @@ impl Ticket {
             }
         });
 
-        let request = self.draft.request(&self.client_order_id);
+        let request = self.draft.request(&self.sending.client_order_id);
         let today = trading::today();
         let context = guard::Context {
             account: account.data(),
@@ -696,149 +709,154 @@ impl Ticket {
                 }
             });
 
-        self.confirm(ui, cx, (request, review), outcome, locked, &book);
-    }
-
-    /// The checks, the acknowledgement, Confirm, and what became of the order.
-    fn confirm(
-        &mut self,
-        ui: &mut Ui,
-        cx: &mut PanelCx<'_>,
-        checked: (Result<OrderRequest, String>, Option<Review>),
-        outcome: Option<&Outcome>,
-        locked: bool,
-        book: &trading::OrderBook,
-    ) {
-        let skin = cx.skin;
-        widgets::section(ui, skin, "Checks");
-        let (request, review) = match checked {
-            (Ok(request), Some(review)) => (request, review),
-            (Err(e), _) => {
-                ui.label(RichText::new(e).color(skin.text_muted));
-                return;
-            }
-            (Ok(_), None) => return,
-        };
-        for c in trading::ordered(&review.checks) {
-            trading::check_line(ui, skin, c);
-        }
-        let description = request.describe();
-        let has_warnings = review.warnings().next().is_some();
-        let mut ack = self.acknowledged.as_deref() == Some(description.as_str());
-        if has_warnings
-            && !locked
-            && ui
-                .checkbox(
-                    &mut ack,
-                    "I have read the warnings and want to send this order",
-                )
-                .changed()
-        {
-            self.acknowledged = ack.then(|| description.clone());
-        }
-
-        // Confirm.
-        ui.add_space(8.0);
-        let can_send = cx.desk.can_send();
-        let ready = review.can_confirm(ack) && can_send.is_ok() && !locked;
-        let again = matches!(outcome, Some(Outcome::NotPlaced { .. }));
-        let fill = match self.draft.side {
-            OrderSide::Buy => skin.positive,
-            OrderSide::Sell => skin.negative,
-        };
-        let label = format!(
-            "{}: {description}",
-            if again { "Send again" } else { "Confirm" }
+        let fill = side_fill(skin, self.draft.side);
+        confirm(
+            ui,
+            cx,
+            &mut self.sending,
+            (request, review),
+            outcome,
+            &book,
+            fill,
         );
-        let button = egui::Button::new(RichText::new(label).strong().color(if ready {
-            skin.background
-        } else {
-            skin.text_muted
-        }))
-        .fill(if ready { fill } else { skin.surface_alt })
-        .min_size(egui::vec2(260.0, 30.0));
-        let clicked = ui
-            .add_enabled(ready, button)
-            .on_hover_text("Sends the order to Alpaca. Nothing else does.")
-            .clicked();
-        if clicked {
-            self.message = cx.desk.submit(request.clone()).err();
-        }
-        if !locked && !ready {
-            let why = if let Err(e) = &can_send {
-                e.clone()
-            } else if let Some(b) = review.checks.iter().find(|c| c.level == Level::Block) {
-                format!("Blocked: {}", b.message)
-            } else {
-                "Tick the box above once you have read the warnings.".to_owned()
-            };
-            ui.label(RichText::new(why).small().color(skin.text_muted));
-        }
-        if let Some(m) = &self.message {
-            ui.label(RichText::new(m).color(skin.warning));
-        }
+    }
+}
 
-        // What became of it.
-        if let Some(o) = outcome {
-            ui.add_space(6.0);
-            trading::outcome_line(ui, skin, o);
-            match o {
-                Outcome::Accepted(placed) => {
-                    let live = book.get(&placed.id).unwrap_or(placed);
-                    ui.horizontal_wrapped(|ui| {
-                        let mut s =
-                            format!("{} · order {}", live.status.label(), short_id(&live.id));
-                        if live.filled_qty > Decimal::ZERO {
-                            s.push_str(&format!(
-                                " · filled {}{}",
-                                portfolio::qty(live.filled_qty),
-                                live.filled_avg_price
-                                    .map(|p| format!(" at {}", portfolio::price(p)))
-                                    .unwrap_or_default()
-                            ));
-                        }
-                        ui.label(RichText::new(s).color(skin.text));
-                    });
-                    ui.horizontal(|ui| {
-                        if live.status.can_cancel() && ui.button("Cancel order").clicked() {
-                            cx.desk.cancel(&live.id);
-                        }
-                        if let Some(a) = cx.desk.action(&mt_alpaca::OrderDesk::cancel_key(&live.id))
-                        {
-                            ui.label(
-                                RichText::new(action_text(&a))
-                                    .small()
-                                    .color(skin.text_muted),
-                            );
-                        }
-                        if ui.button("Open ORD").clicked() {
-                            cx.open(Route::code("ORD"));
-                        }
-                        if ui
-                            .button("New order")
-                            .on_hover_text("Start another order from these fields")
-                            .clicked()
-                        {
-                            self.new_order();
-                        }
-                    });
-                }
-                Outcome::Unknown { .. } if ui.button("Check again").clicked() => {
-                    cx.desk.check_again(&self.client_order_id);
-                }
-                _ => {}
-            }
+/// The checks, the acknowledgement, Confirm (filled with `fill` when ready),
+/// and what became of the order: what every ticket ends with.
+pub(crate) fn confirm(
+    ui: &mut Ui,
+    cx: &mut PanelCx<'_>,
+    sending: &mut Sending,
+    checked: (Result<OrderRequest, String>, Option<Review>),
+    outcome: Option<&Outcome>,
+    book: &trading::OrderBook,
+    fill: egui::Color32,
+) {
+    let locked = outcome.is_some_and(|o| !o.may_send());
+    let skin = cx.skin;
+    widgets::section(ui, skin, "Checks");
+    let (request, review) = match checked {
+        (Ok(request), Some(review)) => (request, review),
+        (Err(e), _) => {
+            ui.label(RichText::new(e).color(skin.text_muted));
+            return;
         }
-        ui.add_space(8.0);
-        ui.label(
-            RichText::new(
-                "Paper trading: simulated orders against Alpaca's paper account. Limits and the \
-                 restricted list are in SET; the kill switch is in ORD.",
+        (Ok(_), None) => return,
+    };
+    for c in trading::ordered(&review.checks) {
+        trading::check_line(ui, skin, c);
+    }
+    let description = request.describe();
+    let has_warnings = review.warnings().next().is_some();
+    let mut ack = sending.acknowledged.as_deref() == Some(description.as_str());
+    if has_warnings
+        && !locked
+        && ui
+            .checkbox(
+                &mut ack,
+                "I have read the warnings and want to send this order",
             )
-            .small()
-            .color(skin.text_muted),
-        );
+            .changed()
+    {
+        sending.acknowledged = ack.then(|| description.clone());
     }
+
+    // Confirm.
+    ui.add_space(8.0);
+    let can_send = cx.desk.can_send();
+    let ready = review.can_confirm(ack) && can_send.is_ok() && !locked;
+    let again = matches!(outcome, Some(Outcome::NotPlaced { .. }));
+    let label = format!(
+        "{}: {description}",
+        if again { "Send again" } else { "Confirm" }
+    );
+    let button = egui::Button::new(RichText::new(label).strong().color(if ready {
+        skin.background
+    } else {
+        skin.text_muted
+    }))
+    .fill(if ready { fill } else { skin.surface_alt })
+    .min_size(egui::vec2(260.0, 30.0));
+    let clicked = ui
+        .add_enabled(ready, button)
+        .on_hover_text("Sends the order to Alpaca. Nothing else does.")
+        .clicked();
+    if clicked {
+        sending.message = cx.desk.submit(request.clone()).err();
+    }
+    if !locked && !ready {
+        let why = if let Err(e) = &can_send {
+            e.clone()
+        } else if let Some(b) = review.checks.iter().find(|c| c.level == Level::Block) {
+            format!("Blocked: {}", b.message)
+        } else {
+            "Tick the box above once you have read the warnings.".to_owned()
+        };
+        ui.label(RichText::new(why).small().color(skin.text_muted));
+    }
+    if let Some(m) = &sending.message {
+        ui.label(RichText::new(m).color(skin.warning));
+    }
+
+    // What became of it.
+    if let Some(o) = outcome {
+        ui.add_space(6.0);
+        trading::outcome_line(ui, skin, o);
+        match o {
+            Outcome::Accepted(placed) => {
+                let live = book.get(&placed.id).unwrap_or(placed);
+                ui.horizontal_wrapped(|ui| {
+                    let mut s = format!("{} · order {}", live.status.label(), short_id(&live.id));
+                    if live.filled_qty > Decimal::ZERO {
+                        s.push_str(&format!(
+                            " · filled {}{}",
+                            portfolio::qty(live.filled_qty),
+                            live.filled_avg_price
+                                .map(|p| format!(" at {}", portfolio::price(p)))
+                                .unwrap_or_default()
+                        ));
+                    }
+                    ui.label(RichText::new(s).color(skin.text));
+                });
+                ui.horizontal(|ui| {
+                    if live.status.can_cancel() && ui.button("Cancel order").clicked() {
+                        cx.desk.cancel(&live.id);
+                    }
+                    if let Some(a) = cx.desk.action(&mt_alpaca::OrderDesk::cancel_key(&live.id)) {
+                        ui.label(
+                            RichText::new(action_text(&a))
+                                .small()
+                                .color(skin.text_muted),
+                        );
+                    }
+                    if ui.button("Open ORD").clicked() {
+                        cx.open(Route::code("ORD"));
+                    }
+                    if ui
+                        .button("New order")
+                        .on_hover_text("Start another order from these fields")
+                        .clicked()
+                    {
+                        sending.new_order();
+                    }
+                });
+            }
+            Outcome::Unknown { .. } if ui.button("Check again").clicked() => {
+                cx.desk.check_again(&sending.client_order_id);
+            }
+            _ => {}
+        }
+    }
+    ui.add_space(8.0);
+    ui.label(
+        RichText::new(
+            "Paper trading: simulated orders against Alpaca's paper account. Limits and the \
+                 restricted list are in SET; the kill switch is in ORD.",
+        )
+        .small()
+        .color(skin.text_muted),
+    );
 }
 
 impl Ticket {
@@ -851,7 +869,6 @@ impl Ticket {
         cx: &mut PanelCx<'_>,
         contract: &OptionContract,
         outcome: Option<&Outcome>,
-        locked: bool,
     ) {
         let skin = cx.skin;
         let Some(occ) = contract.occ() else { return };
@@ -970,7 +987,10 @@ impl Ticket {
                 ),
                 _ => ui.label(RichText::new("No position").color(skin.text_muted)),
             };
-            let open_here = book.open().filter(|o| o.symbol == occ).count();
+            let open_here = book
+                .open()
+                .filter(|o| o.symbol == occ || o.legs.iter().any(|l| l.symbol == occ))
+                .count();
             if open_here > 0 {
                 let s = if open_here == 1 { "" } else { "s" };
                 ui.label(
@@ -984,7 +1004,7 @@ impl Ticket {
         }
 
         let intent = PositionIntent::of(self.draft.side, held);
-        let mut request = self.draft.request(&self.client_order_id);
+        let mut request = self.draft.request(&self.sending.client_order_id);
         if let Ok(r) = &mut request {
             r.position_intent = Some(intent);
         }
@@ -1101,7 +1121,16 @@ impl Ticket {
                     ui.end_row();
                 }
             });
-        self.confirm(ui, cx, (request, review), outcome, locked, &book);
+        let fill = side_fill(skin, self.draft.side);
+        confirm(
+            ui,
+            cx,
+            &mut self.sending,
+            (request, review),
+            outcome,
+            &book,
+            fill,
+        );
         ui.label(RichText::new(opt::FEED_NOTE).small().color(skin.text_muted));
     }
 }

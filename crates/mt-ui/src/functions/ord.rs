@@ -1,6 +1,7 @@
-//! ORD: the paper account's orders. Open, filled and cancelled orders, kept
-//! current by the order stream and reconciled with Alpaca's order list after
-//! every event and reconnect; cancel or replace open ones; and the kill
+//! ORD: the paper account's orders. Open, filled and cancelled orders (stock,
+//! option and multi-leg), kept current by the order stream and reconciled
+//! with Alpaca's order list after every event and reconnect; cancel or
+//! replace open ones (a spread is cancelled and placed again); and the kill
 //! switch, which cancels every open order (and, if asked, closes every
 //! position) and turns trading off until it is turned back on here.
 
@@ -179,6 +180,7 @@ impl ReplaceEdit {
             tif: o.tif.unwrap_or_default(),
             extended_hours: o.extended_hours,
             position_intent: o.position_intent,
+            legs: Vec::new(),
         };
         let changed = |new: Option<Decimal>, old: Option<Decimal>| new.filter(|n| Some(*n) != old);
         let rep = Replacement {
@@ -294,7 +296,11 @@ impl Panel for Blotter {
                 let rows: Vec<&Order> = all
                     .iter()
                     .filter(|o| self.filter.matches(o))
-                    .filter(|o| needle.is_empty() || o.symbol.contains(&needle))
+                    .filter(|o| {
+                        needle.is_empty()
+                            || o.symbol.contains(&needle)
+                            || o.legs.iter().any(|l| l.symbol.contains(&needle))
+                    })
                     .collect();
                 if book.list.data.is_none() && book.orders.is_empty() {
                     widgets::placeholder(
@@ -411,7 +417,7 @@ impl Blotter {
                     .column(Column::initial(150.0).at_least(80.0).clip(true))
                     .column(Column::initial(40.0))
                     .columns(Column::initial(56.0).at_least(44.0), 2)
-                    .column(Column::initial(86.0).at_least(70.0))
+                    .column(Column::initial(112.0).at_least(70.0))
                     .column(Column::initial(48.0))
                     .column(Column::initial(110.0).at_least(90.0))
                     .column(Column::initial(70.0).at_least(56.0))
@@ -449,7 +455,14 @@ impl Blotter {
                             });
                             row.col(|ui| {
                                 let name = format!("{} US", o.symbol);
-                                if let Some(c) =
+                                if o.is_multi_leg() {
+                                    let legs: Vec<String> = o
+                                        .strategy_legs()
+                                        .iter()
+                                        .map(mt_core::options::Leg::describe)
+                                        .collect();
+                                    ui.label(o.title()).on_hover_text(legs.join("\n"));
+                                } else if let Some(c) =
                                     mt_core::instrument::OptionContract::parse_occ(&o.symbol)
                                 {
                                     ui.label(portfolio::contract_name(&c))
@@ -520,9 +533,14 @@ impl Blotter {
                                 }
                                 if ui
                                     .add_enabled(
-                                        can_send && o.status.can_replace(),
+                                        can_send && o.status.can_replace() && !o.is_multi_leg(),
                                         egui::Button::new("Replace…").small(),
                                     )
+                                    .on_disabled_hover_text(if o.is_multi_leg() {
+                                        "To change a spread, cancel it and place it again from MLEG"
+                                    } else {
+                                        "This order can no longer be replaced"
+                                    })
                                     .clicked()
                                 {
                                     start_replace = Some(o.clone());
@@ -758,6 +776,13 @@ fn type_text(o: &Order) -> String {
     let name = o
         .order_type
         .map_or_else(|| o.type_name.replace('_', " "), |t| t.label().to_owned());
+    if o.is_multi_leg() {
+        return match o.limit_price {
+            Some(p) if p.is_sign_negative() => format!("{name} {} credit", price_text(-p)),
+            Some(p) => format!("{name} {} debit", price_text(p)),
+            None => name,
+        };
+    }
     match (o.stop_price, o.limit_price) {
         (Some(s), Some(l)) => format!("{name} {} / {}", price_text(s), price_text(l)),
         (Some(p), None) | (None, Some(p)) => format!("{name} {}", price_text(p)),
@@ -826,6 +851,7 @@ fn to_csv(rows: &[&Order]) -> String {
             "filled_avg_price",
             "filled_utc",
             "position_intent",
+            "legs",
         ],
         rows.iter().map(|o| {
             vec![
@@ -844,6 +870,11 @@ fn to_csv(rows: &[&Order]) -> String {
                 n(o.filled_avg_price),
                 t(o.filled_at),
                 o.position_intent.map_or("", |i| i.as_str()).to_owned(),
+                o.strategy_legs()
+                    .iter()
+                    .map(mt_core::options::Leg::describe)
+                    .collect::<Vec<_>>()
+                    .join("; "),
             ]
         }),
     )

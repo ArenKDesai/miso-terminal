@@ -5,7 +5,9 @@
 //! a line marks where the stock trades. Expiries are tabs; the strikes shown
 //! are those nearest the money. Clicking a bid opens a ticket to sell one
 //! contract there, clicking an ask one to buy, and right-clicking a contract
-//! offers both; nothing is sent until the ticket is confirmed.
+//! offers both, adds it to a spread, or builds a spread from that strike
+//! (verticals, a straddle, a strangle, an iron condor, butterflies) for the
+//! MLEG ticket. Nothing is sent until a ticket is confirmed.
 //!
 //! Prices come from Alpaca's indicative feed on the free plan and are re-read
 //! every minute; the contract list (expiries, open interest) every hour.
@@ -13,9 +15,10 @@
 use chrono::NaiveDate;
 use egui::{RichText, Ui};
 use egui_extras::{Column, TableBuilder};
+use mt_core::account::{OrderSide, from_f64};
 use mt_core::equity::OptionSnapshot;
 use mt_core::instrument::{OptionContract, OptionRight};
-use mt_core::options::{self, ChainRow, ContractList};
+use mt_core::options::{self, ChainRow, ContractList, Leg};
 
 use crate::context::PanelCx;
 use crate::function::{Category, FunctionSpec, Panel, Route};
@@ -48,6 +51,7 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
         greeks: false,
         picker: SecurityPicker::default(),
         scroll_to_focus: false,
+        spread: Vec::new(),
     };
     for a in args {
         if let Some(sec) = market::security_of(a) {
@@ -85,6 +89,122 @@ struct Omon {
     greeks: bool,
     picker: SecurityPicker,
     scroll_to_focus: bool,
+    /// A spread being built from the chain, for the MLEG ticket.
+    spread: Vec<Leg>,
+}
+
+/// What the table draws from: every strike, the ones shown, the quotes, the
+/// contract list and the stock's price.
+struct ChainView<'a> {
+    all: &'a [ChainRow],
+    shown: std::ops::Range<usize>,
+    quotes: Option<&'a mt_alpaca::OptionChain>,
+    list: &'a ContractList,
+    spot: Option<f64>,
+}
+
+/// What a right-click does to the spread being built.
+enum SpreadAction {
+    /// Add a leg (or turn an existing one round).
+    Add(Leg),
+    /// A whole strategy: open its ticket.
+    Build(Vec<Leg>),
+}
+
+/// Strategies built from one strike.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Template {
+    BullCall,
+    BearCall,
+    BullPut,
+    BearPut,
+    Straddle,
+    Strangle,
+    IronCondor,
+    Butterfly,
+}
+
+impl Template {
+    fn label(self) -> &'static str {
+        match self {
+            Self::BullCall => "Bull call spread: buy this call, sell the next strike up",
+            Self::BearCall => "Bear call spread: sell this call, buy the next strike up",
+            Self::BearPut => "Bear put spread: buy this put, sell the next strike down",
+            Self::BullPut => "Bull put spread: sell this put, buy the next strike down",
+            Self::Straddle => "Long straddle: buy this strike's call and put",
+            Self::Strangle => "Long strangle: buy the put a strike down and the call a strike up",
+            Self::IronCondor => {
+                "Iron condor around this strike: sell one strike out each side, buy two out"
+            }
+            Self::Butterfly => "Butterfly: buy a strike down and up, sell two here",
+        }
+    }
+
+    /// Those offered for a call or a put.
+    fn for_right(right: OptionRight) -> [Self; 6] {
+        match right {
+            OptionRight::Call => [
+                Self::BullCall,
+                Self::BearCall,
+                Self::Butterfly,
+                Self::Straddle,
+                Self::Strangle,
+                Self::IronCondor,
+            ],
+            OptionRight::Put => [
+                Self::BearPut,
+                Self::BullPut,
+                Self::Butterfly,
+                Self::Straddle,
+                Self::Strangle,
+                Self::IronCondor,
+            ],
+        }
+    }
+}
+
+/// The legs of `t` built at row `at` of `rows` (one expiry, lowest strike
+/// first), from the clicked side `right`; `None` when a strike or contract
+/// it needs is missing.
+fn template(t: Template, rows: &[ChainRow], at: usize, right: OptionRight) -> Option<Vec<Leg>> {
+    use OptionRight::{Call, Put};
+    use OrderSide::{Buy, Sell};
+    let leg = |i: isize, r: OptionRight, side: OrderSide, ratio: u32| -> Option<Leg> {
+        let row = rows.get(usize::try_from(at as isize + i).ok()?)?;
+        Some(Leg::new(row.symbol(r)?, side, ratio))
+    };
+    let legs = match t {
+        Template::BullCall => vec![leg(0, Call, Buy, 1)?, leg(1, Call, Sell, 1)?],
+        Template::BearCall => vec![leg(0, Call, Sell, 1)?, leg(1, Call, Buy, 1)?],
+        Template::BearPut => vec![leg(0, Put, Buy, 1)?, leg(-1, Put, Sell, 1)?],
+        Template::BullPut => vec![leg(0, Put, Sell, 1)?, leg(-1, Put, Buy, 1)?],
+        Template::Straddle => vec![leg(0, Call, Buy, 1)?, leg(0, Put, Buy, 1)?],
+        Template::Strangle => vec![leg(-1, Put, Buy, 1)?, leg(1, Call, Buy, 1)?],
+        Template::IronCondor => vec![
+            leg(-2, Put, Buy, 1)?,
+            leg(-1, Put, Sell, 1)?,
+            leg(1, Call, Sell, 1)?,
+            leg(2, Call, Buy, 1)?,
+        ],
+        Template::Butterfly => vec![
+            leg(-1, right, Buy, 1)?,
+            leg(0, right, Sell, 2)?,
+            leg(1, right, Buy, 1)?,
+        ],
+    };
+    Some(legs)
+}
+
+/// Add a leg to a spread: a new contract joins (up to four legs); the same
+/// contract on the same side gains a ratio, on the other side it turns round.
+fn add_leg(spread: &mut Vec<Leg>, leg: Leg) {
+    let full = spread.len() >= options::MAX_LEGS;
+    match spread.iter_mut().find(|l| l.symbol == leg.symbol) {
+        Some(l) if l.side == leg.side => l.ratio = (l.ratio + 1).min(10),
+        Some(l) => l.side = leg.side,
+        None if !full => spread.push(leg),
+        None => {}
+    }
 }
 
 /// One side's columns: what each shows for a contract.
@@ -279,7 +399,7 @@ impl Panel for Omon {
             Some(i) if !range.contains(&i) => range.start.min(i)..range.end.max(i + 1),
             _ => range,
         };
-        let shown = &rows[range];
+        let shown = &rows[range.clone()];
 
         // Controls.
         ui.horizontal_wrapped(|ui| {
@@ -316,11 +436,21 @@ impl Panel for Omon {
             return;
         }
 
+        if !self.spread.is_empty() {
+            self.spread_bar(ui, cx, quotes);
+        }
+        let view = ChainView {
+            all: &rows,
+            shown: range.clone(),
+            quotes,
+            list,
+            spot,
+        };
         egui::ScrollArea::vertical()
             .id_salt("omon-v")
             .auto_shrink(false)
             .show(ui, |ui| {
-                self.table(ui, cx, shown, quotes, list, spot);
+                self.table(ui, cx, &view);
                 ui.add_space(6.0);
                 let mut note =
                     format!("{FEED_NOTE} Refreshed every minute while the market trades.");
@@ -407,15 +537,83 @@ impl Omon {
         }
     }
 
-    fn table(
+    /// The spread being built: its legs, name and net prices, and buttons to
+    /// open its ticket or start again.
+    fn spread_bar(
         &mut self,
         ui: &mut Ui,
         cx: &mut PanelCx<'_>,
-        rows: &[ChainRow],
         quotes: Option<&mt_alpaca::OptionChain>,
-        list: &ContractList,
-        spot: Option<f64>,
     ) {
+        let skin = cx.skin;
+        let mut open = false;
+        let mut clear = false;
+        egui::Frame::new()
+            .stroke(egui::Stroke::new(1.0, skin.accent))
+            .inner_margin(egui::Margin::same(6))
+            .show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new(format!("Spread: {}", options::strategy_name(&self.spread)))
+                            .strong()
+                            .color(skin.text_strong),
+                    );
+                    let legs: Vec<String> = self.spread.iter().map(Leg::describe).collect();
+                    ui.label(RichText::new(legs.join(" / ")).color(skin.text));
+                    let exact = |v: Option<f64>| v.and_then(|v| from_f64(v, 2));
+                    let net = options::net_price(
+                        &self
+                            .spread
+                            .iter()
+                            .map(|l| {
+                                let s = quotes.and_then(|q| q.get(&l.symbol));
+                                (
+                                    l.signed(),
+                                    exact(s.and_then(OptionSnapshot::bid)),
+                                    exact(s.and_then(OptionSnapshot::ask)),
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    );
+                    if let Some(mid) = net.mid {
+                        let mid = mid.round_dp(2);
+                        ui.label(
+                            RichText::new(if mid.is_sign_negative() {
+                                format!("· mid {} credit", mt_core::order::price_text(-mid))
+                            } else {
+                                format!("· mid {} debit", mt_core::order::price_text(mid))
+                            })
+                            .color(skin.text_muted),
+                        );
+                    }
+                    if ui
+                        .add_enabled(self.spread.len() >= 2, egui::Button::new("Open ticket…"))
+                        .on_hover_text(
+                            "The MLEG ticket for this spread; nothing is sent until you confirm it",
+                        )
+                        .clicked()
+                    {
+                        open = true;
+                    }
+                    if ui.button("Clear").clicked() {
+                        clear = true;
+                    }
+                });
+            });
+        if open {
+            cx.open(Route::new(
+                "MLEG",
+                self.spread.iter().map(crate::functions::mleg::leg_arg),
+            ));
+        }
+        if clear {
+            self.spread.clear();
+        }
+    }
+
+    fn table(&mut self, ui: &mut Ui, cx: &mut PanelCx<'_>, view: &ChainView<'_>) {
+        let rows = &view.all[view.shown.clone()];
+        let (quotes, list, spot) = (view.quotes, view.list, view.spot);
         let skin = cx.skin;
         let cols = self.columns();
         let row_h = 21.0;
@@ -428,6 +626,7 @@ impl Omon {
         let focus = self.focus.clone();
         let mut scroll = std::mem::take(&mut self.scroll_to_focus);
         let mut open: Option<Route> = None;
+        let mut action: Option<SpreadAction> = None;
         ui.horizontal(|ui| {
             let side_w: f32 = cols.iter().map(|c| c.width() + 6.0).sum();
             ui.add_sized(
@@ -535,6 +734,15 @@ impl Omon {
                                                 if let Some(r) = trade_menu(ui, sym) {
                                                     open = Some(r);
                                                 }
+                                                if let Some(a) = spread_menu(
+                                                    ui,
+                                                    sym,
+                                                    right,
+                                                    view.all,
+                                                    view.shown.start + i,
+                                                ) {
+                                                    action = Some(a);
+                                                }
                                             });
                                         });
                                     }
@@ -569,10 +777,56 @@ impl Omon {
                 .color(skin.text_muted),
             );
         }
+        match action {
+            Some(SpreadAction::Add(leg)) => add_leg(&mut self.spread, leg),
+            Some(SpreadAction::Build(legs)) => {
+                open = Some(Route::new(
+                    "MLEG",
+                    legs.iter().map(crate::functions::mleg::leg_arg),
+                ));
+                self.spread = legs;
+            }
+            None => {}
+        }
         if let Some(r) = open {
             cx.open(r);
         }
     }
+}
+
+/// A contract's spread menu: add it to the spread being built, or build a
+/// strategy from its strike.
+fn spread_menu(
+    ui: &mut Ui,
+    symbol: &str,
+    right: OptionRight,
+    rows: &[ChainRow],
+    at: usize,
+) -> Option<SpreadAction> {
+    let mut out = None;
+    ui.separator();
+    if ui.button("Add to the spread as a buy").clicked() {
+        out = Some(SpreadAction::Add(Leg::new(symbol, OrderSide::Buy, 1)));
+    }
+    if ui.button("Add to the spread as a sell").clicked() {
+        out = Some(SpreadAction::Add(Leg::new(symbol, OrderSide::Sell, 1)));
+    }
+    ui.menu_button("Spread from this strike", |ui| {
+        for t in Template::for_right(right) {
+            let legs = template(t, rows, at, right);
+            if ui
+                .add_enabled(legs.is_some(), egui::Button::new(t.label()))
+                .clicked()
+                && let Some(legs) = legs
+            {
+                out = Some(SpreadAction::Build(legs));
+            }
+        }
+    });
+    if out.is_some() {
+        ui.close();
+    }
+    out
 }
 
 /// A ticket for one contract at the clicked bid (to sell) or ask (to buy).
@@ -753,5 +1007,78 @@ mod tests {
         );
         assert!(route(&["XLU US", "soon"]).is_err());
         assert_eq!(route(&[]).unwrap(), "OMON");
+    }
+
+    #[test]
+    fn templates_build_strategies_from_a_strike() {
+        let day = NaiveDate::from_ymd_opt(2026, 12, 18).unwrap();
+        let symbols: Vec<String> = [43, 44, 45, 46, 47]
+            .iter()
+            .flat_map(|k| ["C", "P"].map(|r| format!("XLU261218{r}{:08}", k * 1000)))
+            .collect();
+        let rows = options::chain_rows("XLU", day, symbols.iter().map(String::as_str));
+        let name = |t: Template, at: usize, right: OptionRight| {
+            template(t, &rows, at, right).map(|l| options::strategy_name(&l))
+        };
+        use OptionRight::{Call, Put};
+        assert_eq!(
+            name(Template::BullCall, 2, Call).as_deref(),
+            Some("Bull call spread")
+        );
+        assert_eq!(
+            name(Template::BearCall, 2, Call).as_deref(),
+            Some("Bear call spread")
+        );
+        assert_eq!(
+            name(Template::BearPut, 2, Put).as_deref(),
+            Some("Bear put spread")
+        );
+        assert_eq!(
+            name(Template::BullPut, 2, Put).as_deref(),
+            Some("Bull put spread")
+        );
+        assert_eq!(
+            name(Template::Straddle, 2, Call).as_deref(),
+            Some("Long straddle")
+        );
+        assert_eq!(
+            name(Template::Strangle, 2, Put).as_deref(),
+            Some("Long strangle")
+        );
+        assert_eq!(
+            name(Template::IronCondor, 2, Call).as_deref(),
+            Some("Iron condor")
+        );
+        assert_eq!(
+            name(Template::Butterfly, 2, Put).as_deref(),
+            Some("Long put butterfly")
+        );
+        // Off the edge of the chain there is no strike to use.
+        assert_eq!(name(Template::BullCall, 4, Call), None);
+        assert_eq!(name(Template::IronCondor, 1, Call), None);
+        // Adding legs by hand.
+        let mut spread = Vec::new();
+        add_leg(
+            &mut spread,
+            Leg::new("XLU261218C00045000", OrderSide::Buy, 1),
+        );
+        add_leg(
+            &mut spread,
+            Leg::new("XLU261218C00047000", OrderSide::Sell, 1),
+        );
+        add_leg(
+            &mut spread,
+            Leg::new("XLU261218C00047000", OrderSide::Sell, 1),
+        );
+        assert_eq!(spread[1].ratio, 2, "the same leg again adds to its ratio");
+        add_leg(
+            &mut spread,
+            Leg::new("XLU261218C00045000", OrderSide::Sell, 1),
+        );
+        assert_eq!(
+            spread[0].side,
+            OrderSide::Sell,
+            "the other side turns it round"
+        );
     }
 }
