@@ -18,6 +18,10 @@ on:
         description: "Also record a fresh set of Alpaca fixtures for the repository (synthetic prices, sample stories) as an artifact"
         type: boolean
         default: false
+      paper_orders:
+        description: "Also place, replace and cancel one order that cannot fill on the CI paper account, through the order desk"
+        type: boolean
+        default: false
 
 jobs:
   drift:
@@ -86,3 +90,22 @@ jobs:
           name: alpaca-fixtures
           path: ${{ runner.temp }}/fixtures
           retention-days: 14
+
+  # Run by hand: the order desk against Alpaca's live paper API with the CI
+  # account (paper money, nobody's real account). One order that cannot fill
+  # (one XLU share at half its price) is placed, sent again under the same
+  # client_order_id (Alpaca must refuse it), found by that id, replaced and
+  # cancelled; the example refuses any endpoint but paper.
+  paper-orders:
+    needs: drift
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.paper_orders
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Place, find, replace and cancel a paper order
+        env:
+          APCA_API_KEY_ID: ${{ secrets.ALPACA_PAPER_KEY_ID }}
+          APCA_API_SECRET_KEY: ${{ secrets.ALPACA_PAPER_SECRET_KEY }}
+        run: cargo run -p mt-alpaca --example check_paper_orders
