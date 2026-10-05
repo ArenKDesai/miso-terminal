@@ -455,10 +455,11 @@ enabled = true              # the kill switch turns this off
 max_order_value = 10000     # dollars per order
 max_daily_value = 50000     # today's orders: what filled plus what is still open
 max_position_value = 25000  # in one security, long or short
-collar_pct = 5.0            # limit and stop prices within 5% of the last trade
+collar_pct = 5.0            # limit and stop prices within 5% of the last trade (options: of the bid or ask)
 fat_finger_pct = 10.0       # orders over 10% of equity need the tick box
 max_shares = 5000           # shares in one order
-restricted = ["MGEE"]       # never trade these
+max_contracts = 50          # option contracts in one order
+restricted = ["MGEE"]       # never trade these, nor their options
 ```
 
 A cap of 0 turns it off. Some rules always hold: market orders only in the

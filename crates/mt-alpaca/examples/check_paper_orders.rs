@@ -187,6 +187,7 @@ fn run(
         stop_price: None,
         tif: TimeInForce::Day,
         extended_hours: false,
+        position_intent: None,
     };
     desk.submit(req.clone())?;
     let order = match settle(desk, &req.client_order_id) {

@@ -316,8 +316,8 @@ then the tickets, the blotter and the kill switch.
 
 ## Phase 5: Options
 
-Being built in parts: the chain and `OMON` first (2026-10-05), then
-single-leg and multi-leg paper orders.
+Being built in parts: the chain and `OMON` first, then single-leg paper
+orders (both 2026-10-05), then multi-leg spreads.
 
 | Dataset | Endpoint | Refresh |
 |---|---|---|
@@ -340,11 +340,36 @@ single-leg and multi-leg paper orders.
   synthetic stock prices, fitted to the sample account's held contracts. The
   drift job records XLU's real contract list and one monthly chain
   (`capture_alpaca --verbatim`) and runs the parsers on them.
-- **Paper trading:** single-leg first, then multi-leg spreads (Alpaca's level
-  3, enabled in paper). The ticket enforces Alpaca's rules: whole contracts, day
-  or GTC only, no extended hours, stop orders single-leg only.
-- In-the-money contracts are exercised automatically at expiry: positions
-  expiring today carry a warning.
+- **Single-leg tickets** are `BUY` and `SELL` with an OCC symbol
+  (`BUY XLU261218C00046000 2 LMT 1.16`), opened also by clicking a bid or ask
+  in OMON or from PORT's right-click menu. A limit starts at the mid, on the
+  contract's step. The ticket shows the quote (and when the last trade was:
+  the free feed's trades are 15 minutes late), the greeks, the premium times
+  100, options buying power before and after, and what the order pays at
+  expiry (breakeven and the most it can lose, or for a covered call or
+  cash-secured put what happens on assignment). It says whether the order
+  opens or closes a position and sends that as Alpaca's `position_intent`.
+- **Rules** (`mt_core::guard::review_option`, each tested): whole contracts,
+  `DAY` or `GTC`, no extended hours, prices in cents (from `OrderRequest`);
+  the switch, a restricted stock's options, the account's standing; the
+  contract tradable and not expired, a warning on its expiry day and a block
+  after Alpaca's cutoff (15:15 New York, 15:30 for SPY and QQQ); the options
+  level (2 to buy, 1 to sell covered calls and cash-secured puts, none to
+  close); no position flipped in one order and nothing closed that open
+  orders hold; a sold call covered by free shares (held, less those held by
+  open orders and those covering calls already sold) and a sold put secured by
+  options buying power at the strike, since Alpaca allows no uncovered
+  options; market orders in the regular session only (09:30 to 16:00); the
+  three caps on the premium; a collar against the quote (a buy limit above the
+  ask, or a sell limit below the bid, is a warning, and beyond the collar's
+  percentage, at least five cents, a block); a warning off the exchanges'
+  price step (pennies for SPY, QQQ and IWM, the penny program's 0.01/0.05, else
+  0.05/0.10); `[trading] max_contracts` (50); the fat-finger check; a warning
+  on a market order into a quote more than 10% wide; buying power for the
+  premium; and day trades. ORD's *Replace…* runs the same review.
+- **Multi-leg spreads** (Alpaca's level 3, enabled in paper) come next.
+- In-the-money contracts are exercised automatically at expiry: PORT and the
+  ticket warn about contracts expiring today.
 
 ## Phase 6: Live trading
 

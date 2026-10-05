@@ -10,9 +10,14 @@
 //! shortable, for a short); no market orders outside the regular session;
 //! per-order, daily and per-position caps in dollars; a collar on limit and
 //! stop prices around the last trade; a fat-finger check on size; buying
-//! power; and the pattern-day-trader count.
+//! power; and the pattern-day-trader count. Option orders have their own
+//! review ([`review_option`]), sharing the switches, lists and caps.
+
+mod options;
 
 use serde::{Deserialize, Serialize};
+
+pub use options::{OptionContext, review_option};
 
 use crate::account::{Account, OrderSide, PDT_DAY_TRADES};
 use crate::equity::Asset;
@@ -43,6 +48,8 @@ pub struct Limits {
     pub fat_finger_pct: f64,
     /// The most shares one order may be for.
     pub max_shares: u64,
+    /// The most option contracts one order may be for.
+    pub max_contracts: u64,
     /// Tickers that cannot be traded (`XEL` or `XEL US`), for an employer's
     /// personal-trading policy or anything else.
     pub restricted: Vec<String>,
@@ -58,6 +65,7 @@ impl Default for Limits {
             collar_pct: 5.0,
             fat_finger_pct: 10.0,
             max_shares: 5_000,
+            max_contracts: 50,
             restricted: Vec::new(),
         }
     }
@@ -900,6 +908,7 @@ mod tests {
             serde_json::from_str(r#"{"max_order_value": 2500, "restricted": ["MGEE"]}"#).unwrap();
         assert_eq!(l.max_order_value, 2500);
         assert_eq!(l.max_daily_value, Limits::default().max_daily_value);
+        assert_eq!(l.max_contracts, 50, "older files get the default");
         assert!(l.enabled && l.is_restricted("mgee"));
     }
 }

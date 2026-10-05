@@ -139,6 +139,16 @@ fn routes(registry: &Registry) -> Vec<Route> {
     ));
     out.push(Route::new("BUY", ["XEL US", "1000", "LMT", "90", "DAY"]));
     out.push(Route::new("SELL", ["NOTATICKER US", "1"]));
+    // Option tickets: buy to open, close the held call, a covered call short
+    // of shares, a cash-secured put, a market order.
+    out.push(Route::new(
+        "BUY",
+        ["XLU261218C00046000", "2", "LMT", "1.16"],
+    ));
+    out.push(Route::new("SELL", ["XLU261218C00045000", "2"]));
+    out.push(Route::new("SELL", ["XLU261218C00047000", "2", "GTC"]));
+    out.push(Route::new("SELL", ["VST261120P00034000", "1"]));
+    out.push(Route::new("BUY", ["XLU261218P00044000", "1", "MKT"]));
     for v in ["FILLED", "CANCELED", "ALL", "KILL"] {
         out.push(Route::new("ORD", [v]));
     }
@@ -1017,7 +1027,11 @@ fn commands_from_outside_the_window_only_open_tickets() {
         paths: temp_paths("orders"),
         reset_layout: true,
         // As a desktop shortcut would (`--run`).
-        startup_commands: vec!["BUY XLU US 10 LMT 44.50 DAY".into(), "ORD KILL".into()],
+        startup_commands: vec![
+            "BUY XLU US 10 LMT 44.50 DAY".into(),
+            "ORD KILL".into(),
+            "SELL XLU261218C00045000 2 LMT 1.60".into(),
+        ],
         remote: Some(inbox),
         notifier: None,
     };
@@ -1046,7 +1060,11 @@ fn commands_from_outside_the_window_only_open_tickets() {
         run(&mut app, Vec::new());
     }
     // Another launch forwards its commands; a hotkey runs one.
-    assert!(remote.send(vec!["SELL XLU US 5 MKT".into(), "BUY AEE US 1".into()]));
+    assert!(remote.send(vec![
+        "SELL XLU US 5 MKT".into(),
+        "BUY AEE US 1".into(),
+        "BUY XLU261218C00046000 1 MKT".into(),
+    ]));
     let f11 = egui::Event::Key {
         key: egui::Key::F11,
         physical_key: None,
@@ -1071,6 +1089,8 @@ fn commands_from_outside_the_window_only_open_tickets() {
         "SELL XLU US 5",
         "BUY AEE US 1",
         "SELL XEL US 10",
+        "SELL XLU261218C00045000 2",
+        "BUY XLU261218C00046000 1",
         "ORD",
     ] {
         assert!(

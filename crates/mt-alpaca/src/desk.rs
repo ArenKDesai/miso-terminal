@@ -950,6 +950,7 @@ mod tests {
             stop_price: None,
             tif: TimeInForce::Day,
             extended_hours: false,
+            position_intent: None,
         }
     }
 

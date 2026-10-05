@@ -417,7 +417,8 @@ fn trading(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig, restricted: &mu
             );
             ui.label(
                 RichText::new(
-                    "limit and stop prices within this of the last trade; 0 turns it off",
+                    "limit and stop prices within this of the last trade (for options, of the \
+                     bid or ask); 0 turns it off",
                 )
                 .small()
                 .color(skin.text_muted),
@@ -448,6 +449,18 @@ fn trading(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig, restricted: &mu
                     .color(skin.text_muted),
             );
             ui.end_row();
+            ui.label("Most option contracts in one order");
+            ui.add(
+                egui::DragValue::new(&mut t.max_contracts)
+                    .speed(1.0)
+                    .range(0..=100_000),
+            );
+            ui.label(
+                RichText::new("each for 100 shares; 0 turns it off")
+                    .small()
+                    .color(skin.text_muted),
+            );
+            ui.end_row();
             ui.label("Restricted list");
             // Keep the typed text while it still says the same thing.
             if crate::trading::parse_tickers(restricted) != t.restricted {
@@ -464,7 +477,7 @@ fn trading(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig, restricted: &mu
                 t.restricted = crate::trading::parse_tickers(restricted);
             }
             ui.label(
-                RichText::new("tickers no ticket may trade")
+                RichText::new("tickers no ticket may trade, nor their options")
                     .small()
                     .color(skin.text_muted),
             );

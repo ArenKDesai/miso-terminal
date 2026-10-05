@@ -1,6 +1,7 @@
 //! Options: the contracts a broker lists ([`ContractInfo`], [`ContractList`]),
 //! a chain by expiry and strike ([`chain_rows`]), the price steps exchanges
-//! quote premiums in ([`tick_for`]) and the expiry-day rules ([`expiry_cutoff`]).
+//! quote premiums in ([`tick_for`]), the expiry-day rules ([`expiry_cutoff`])
+//! and whether an order opens or closes a position ([`PositionIntent`]).
 //!
 //! A contract is named by its OCC symbol ([`OptionContract`]). A standard
 //! contract is for 100 shares and its premium is quoted per share. Quotes and
@@ -9,6 +10,7 @@
 
 use chrono::{Datelike, NaiveDate, NaiveTime, Weekday};
 
+use crate::account::OrderSide;
 use crate::instrument::{OptionContract, OptionRight};
 use crate::money::Decimal;
 
@@ -277,6 +279,72 @@ pub fn tick_for(price: Decimal, underlying: &str, penny: bool) -> Decimal {
     }
 }
 
+/// What an option order does to a position (Alpaca's `position_intent`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PositionIntent {
+    BuyToOpen,
+    BuyToClose,
+    SellToOpen,
+    SellToClose,
+}
+
+impl PositionIntent {
+    pub const ALL: [Self; 4] = [
+        Self::BuyToOpen,
+        Self::BuyToClose,
+        Self::SellToOpen,
+        Self::SellToClose,
+    ];
+
+    /// Alpaca's name: `buy_to_open`…
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::BuyToOpen => "buy_to_open",
+            Self::BuyToClose => "buy_to_close",
+            Self::SellToOpen => "sell_to_open",
+            Self::SellToClose => "sell_to_close",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|i| i.as_str().eq_ignore_ascii_case(s.trim()))
+    }
+
+    /// `Buy to open`…
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::BuyToOpen => "Buy to open",
+            Self::BuyToClose => "Buy to close",
+            Self::SellToOpen => "Sell to open",
+            Self::SellToClose => "Sell to close",
+        }
+    }
+
+    pub fn side(self) -> OrderSide {
+        match self {
+            Self::BuyToOpen | Self::BuyToClose => OrderSide::Buy,
+            Self::SellToOpen | Self::SellToClose => OrderSide::Sell,
+        }
+    }
+
+    pub fn opens(self) -> bool {
+        matches!(self, Self::BuyToOpen | Self::SellToOpen)
+    }
+
+    /// What an order on `side` does to a position of `held` contracts: it
+    /// closes a position on the other side, else it opens one.
+    pub fn of(side: OrderSide, held: Decimal) -> Self {
+        match side {
+            OrderSide::Buy if held.is_sign_negative() && !held.is_zero() => Self::BuyToClose,
+            OrderSide::Buy => Self::BuyToOpen,
+            OrderSide::Sell if held > Decimal::ZERO => Self::SellToClose,
+            OrderSide::Sell => Self::SellToOpen,
+        }
+    }
+}
+
 /// `XLU 45 call`, `VST 35 put`.
 pub fn right_word(right: OptionRight) -> &'static str {
     match right {
@@ -296,10 +364,37 @@ pub fn contract_name(c: &OptionContract) -> String {
     )
 }
 
+/// `XLU Dec 18 '26 45 call`, for one-line order descriptions.
+pub fn contract_words(c: &OptionContract) -> String {
+    format!(
+        "{} {} {} {}",
+        c.underlying,
+        c.expiry.format("%b %d '%y"),
+        c.strike.normalize(),
+        right_word(c.right)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::str::FromStr;
+
+    #[test]
+    fn intents_follow_the_position() {
+        use PositionIntent as I;
+        assert_eq!(I::of(OrderSide::Buy, Decimal::ZERO), I::BuyToOpen);
+        assert_eq!(I::of(OrderSide::Buy, Decimal::from(2)), I::BuyToOpen);
+        assert_eq!(I::of(OrderSide::Buy, Decimal::from(-1)), I::BuyToClose);
+        assert_eq!(I::of(OrderSide::Sell, Decimal::from(2)), I::SellToClose);
+        assert_eq!(I::of(OrderSide::Sell, Decimal::ZERO), I::SellToOpen);
+        for i in I::ALL {
+            assert_eq!(I::parse(i.as_str()), Some(i));
+        }
+        assert!(I::SellToOpen.opens() && !I::BuyToClose.opens());
+        assert_eq!(I::SellToClose.side(), OrderSide::Sell);
+        assert_eq!(I::BuyToClose.label(), "Buy to close");
+    }
 
     fn d(s: &str) -> Decimal {
         Decimal::from_str(s).unwrap()
@@ -407,6 +502,7 @@ mod tests {
         assert!(is_itm(&call, 45.5) && !is_itm(&call, 45.0));
         assert_eq!(intrinsic(OptionRight::Put, 45.0, 40.0), 5.0);
         assert_eq!(contract_name(&call), "XLU 45 call · Dec 18 '26");
+        assert_eq!(contract_words(&call), "XLU Dec 18 '26 45 call");
         assert_eq!(Style::parse("EUROPEAN"), Style::European);
     }
 }
