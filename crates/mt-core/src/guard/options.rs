@@ -150,7 +150,7 @@ pub fn review_option(req: &OrderRequest, cx: &OptionContext<'_>, limits: &Limits
             );
         }
     }
-    expiry(&contract, cx, &mut add);
+    expiry(&contract, cx.now, &mut add);
 
     // What the order does to the position.
     let held = cx.held(&symbol);
@@ -524,12 +524,12 @@ pub fn review_option(req: &OrderRequest, cx: &OptionContext<'_>, limits: &Limits
 }
 
 /// Expired contracts, and the expiry day's cutoff and automatic exercise.
-fn expiry(
+pub(super) fn expiry(
     contract: &OptionContract,
-    cx: &OptionContext<'_>,
+    now: DateTime<Utc>,
     add: &mut impl FnMut(Level, &'static str, String),
 ) {
-    let local = crate::exchange::to_exchange(cx.now);
+    let local = crate::exchange::to_exchange(now);
     let today = local.date_naive();
     let cutoff = expiry_cutoff(&contract.underlying);
     if contract.expiry < today {
@@ -732,6 +732,7 @@ mod tests {
             tif: TimeInForce::Day,
             extended_hours: false,
             position_intent: None,
+            legs: Vec::new(),
         }
     }
 

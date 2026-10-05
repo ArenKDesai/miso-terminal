@@ -1,6 +1,8 @@
-//! Orders on the paper account: parsing Alpaca's order objects, the order
-//! list behind the ORD blotter (`GET /v2/orders`), and the JSON bodies the
-//! order desk sends ([`crate::desk`]). Placing, cancelling and replacing are
+//! Orders on the paper account: parsing Alpaca's order objects (a
+//! multi-leg order, class `mleg`, has an empty symbol and side and its legs
+//! nested), the order list behind the ORD blotter (`GET /v2/orders`, legs
+//! rolled up under their order), and the JSON bodies the order desk sends
+//! ([`crate::desk`]). Placing, cancelling and replacing are
 //! the desk's alone: nothing here sends anything but GETs.
 
 use std::sync::Arc;
@@ -37,12 +39,41 @@ pub fn parse_order(v: &Value) -> Option<Order> {
     let type_name = text(v, "type")
         .or_else(|| text(v, "order_type"))
         .unwrap_or_default();
+    let order_class = text(v, "order_class").unwrap_or_default();
+    // The strategy itself, not one of its legs (which may carry the class too).
+    let multi = order_class.eq_ignore_ascii_case("mleg") && text(v, "symbol").is_none();
+    let legs: Vec<Order> = v
+        .get("legs")
+        .and_then(Value::as_array)
+        .map(|l| l.iter().filter_map(parse_order).collect())
+        .unwrap_or_default();
+    let limit_price = v.get("limit_price").and_then(decimal);
+    // A multi-leg order names neither a symbol nor a side: its legs do. Its
+    // side here is the net's: a buy for a debit, a sell for a credit.
+    let symbol = match text(v, "symbol") {
+        Some(s) => s.to_ascii_uppercase(),
+        None if multi => String::new(),
+        None => return None,
+    };
+    let side = match text(v, "side").and_then(|s| OrderSide::parse(&s)) {
+        Some(s) => s,
+        None if multi => match limit_price {
+            Some(p) if p.is_sign_negative() => OrderSide::Sell,
+            Some(_) => OrderSide::Buy,
+            None => legs.first().map_or(OrderSide::Buy, |l| l.side),
+        },
+        None => return None,
+    };
     Some(Order {
         id: text(v, "id")?,
         client_order_id: text(v, "client_order_id").unwrap_or_default(),
-        symbol: text(v, "symbol")?.to_ascii_uppercase(),
-        class: AssetClass::parse(&text(v, "asset_class").unwrap_or_default()),
-        side: OrderSide::parse(&text(v, "side")?)?,
+        symbol,
+        class: if multi {
+            AssetClass::Option
+        } else {
+            AssetClass::parse(&text(v, "asset_class").unwrap_or_default())
+        },
+        side,
         order_type: OrderType::parse(&type_name),
         tif: text(v, "time_in_force").and_then(|t| TimeInForce::parse(&t)),
         type_name,
@@ -50,7 +81,7 @@ pub fn parse_order(v: &Value) -> Option<Order> {
         notional: v.get("notional").and_then(decimal),
         filled_qty: v.get("filled_qty").and_then(decimal).unwrap_or_default(),
         filled_avg_price: v.get("filled_avg_price").and_then(decimal),
-        limit_price: v.get("limit_price").and_then(decimal),
+        limit_price,
         stop_price: v.get("stop_price").and_then(decimal),
         status: OrderStatus::parse(&text(v, "status").unwrap_or_default()),
         extended_hours: v
@@ -66,6 +97,9 @@ pub fn parse_order(v: &Value) -> Option<Order> {
         replaced_by: text(v, "replaced_by"),
         replaces: text(v, "replaces"),
         position_intent: text(v, "position_intent").and_then(|i| PositionIntent::parse(&i)),
+        ratio_qty: v.get("ratio_qty").and_then(decimal),
+        order_class,
+        legs,
     })
 }
 
@@ -101,6 +135,9 @@ fn amount(d: mt_core::money::Decimal) -> Value {
 
 /// `POST /v2/orders`. Amounts go as strings, exactly.
 pub fn order_body(req: &OrderRequest) -> Value {
+    if req.is_multi_leg() {
+        return spread_body(req);
+    }
     let mut m = Map::new();
     m.insert(
         "symbol".into(),
@@ -132,6 +169,45 @@ pub fn order_body(req: &OrderRequest) -> Value {
     if let Some(i) = req.position_intent {
         m.insert("position_intent".into(), json!(i.as_str()));
     }
+    m.insert("client_order_id".into(), json!(req.client_order_id));
+    Value::Object(m)
+}
+
+/// `POST /v2/orders` for a multi-leg order (`order_class: mleg`): the units,
+/// the net limit (positive a debit, negative a credit), and each leg's
+/// contract, ratio, side and intent. No symbol or side of its own.
+fn spread_body(req: &OrderRequest) -> Value {
+    let legs: Vec<Value> = req
+        .legs
+        .iter()
+        .map(|l| {
+            let mut leg = Map::new();
+            leg.insert("symbol".into(), json!(l.symbol.trim().to_ascii_uppercase()));
+            leg.insert("ratio_qty".into(), json!(l.ratio.to_string()));
+            leg.insert(
+                "side".into(),
+                json!(match l.side {
+                    OrderSide::Buy => "buy",
+                    OrderSide::Sell => "sell",
+                }),
+            );
+            if let Some(i) = l.intent {
+                leg.insert("position_intent".into(), json!(i.as_str()));
+            }
+            Value::Object(leg)
+        })
+        .collect();
+    let mut m = Map::new();
+    m.insert("order_class".into(), json!("mleg"));
+    m.insert("qty".into(), amount(req.qty));
+    m.insert("type".into(), json!(req.order_type.as_str()));
+    m.insert("time_in_force".into(), json!(req.tif.as_str()));
+    if req.order_type == OrderType::Limit
+        && let Some(p) = req.limit_price
+    {
+        m.insert("limit_price".into(), amount(p));
+    }
+    m.insert("legs".into(), Value::Array(legs));
     m.insert("client_order_id".into(), json!(req.client_order_id));
     Value::Object(m)
 }
@@ -182,7 +258,7 @@ impl OrdersQuery {
 
     pub fn url(&self) -> String {
         format!(
-            "{}/v2/orders?status=all&limit={ORDERS_KEEP}&direction=desc&nested=false",
+            "{}/v2/orders?status=all&limit={ORDERS_KEEP}&direction=desc&nested=true",
             self.alpaca.endpoints.trading
         )
     }
@@ -264,6 +340,7 @@ mod tests {
             tif: TimeInForce::Day,
             extended_hours: true,
             position_intent: None,
+            legs: Vec::new(),
         };
         let b = order_body(&req);
         assert_eq!(b["symbol"], "XLU");
@@ -295,6 +372,68 @@ mod tests {
         .unwrap();
         assert!(parsed.is_option());
         assert_eq!(parsed.position_intent, Some(PositionIntent::SellToClose));
+    }
+
+    #[test]
+    fn spreads_go_as_mleg_orders_and_come_back_with_their_legs() {
+        use mt_core::options::Leg;
+        let req = OrderRequest {
+            client_order_id: "mt-s".into(),
+            symbol: String::new(),
+            side: OrderSide::Sell,
+            qty: d("2"),
+            order_type: OrderType::Limit,
+            limit_price: Some(d("-0.70")),
+            stop_price: None,
+            tif: TimeInForce::Day,
+            extended_hours: false,
+            position_intent: None,
+            legs: vec![
+                Leg {
+                    intent: Some(PositionIntent::SellToOpen),
+                    ..Leg::new("XLU261218C00045000", OrderSide::Sell, 1)
+                },
+                Leg {
+                    intent: Some(PositionIntent::BuyToOpen),
+                    ..Leg::new("XLU261218C00047000", OrderSide::Buy, 1)
+                },
+            ],
+        };
+        let b = order_body(&req);
+        assert_eq!(
+            b,
+            json!({
+                "order_class": "mleg", "qty": "2", "type": "limit", "time_in_force": "day",
+                "limit_price": "-0.7", "client_order_id": "mt-s",
+                "legs": [
+                    {"symbol": "XLU261218C00045000", "ratio_qty": "1", "side": "sell", "position_intent": "sell_to_open"},
+                    {"symbol": "XLU261218C00047000", "ratio_qty": "1", "side": "buy", "position_intent": "buy_to_open"},
+                ],
+            })
+        );
+        // Alpaca's answer: no symbol, side or asset class on the order itself.
+        let o = parse_order(&json!({
+            "id": "m1", "client_order_id": "mt-s", "symbol": "", "side": "", "asset_class": "",
+            "order_class": "mleg", "qty": "2", "type": "limit", "limit_price": "-0.7",
+            "time_in_force": "day", "status": "new", "filled_qty": "0",
+            "legs": [
+                {"id": "l1", "symbol": "XLU261218C00045000", "side": "sell", "ratio_qty": "1",
+                 "position_intent": "sell_to_open", "asset_class": "us_option", "status": "new", "filled_qty": "0"},
+                {"id": "l2", "symbol": "XLU261218C00047000", "side": "buy", "ratio_qty": "1",
+                 "position_intent": "buy_to_open", "asset_class": "us_option", "status": "new", "filled_qty": "0"}
+            ]
+        }))
+        .unwrap();
+        assert!(o.is_multi_leg() && o.is_option());
+        assert_eq!(o.side, OrderSide::Sell, "a credit");
+        assert_eq!(o.legs.len(), 2);
+        assert_eq!(o.strategy_legs()[0].ratio, 1);
+        assert_eq!(o.title(), "Bear call spread on XLU");
+        assert_eq!(
+            o.value(None),
+            d("-140.0"),
+            "a credit's value is negative; day_value counts it whole"
+        );
         let r = replace_body(&Replacement {
             client_order_id: "mt-r".into(),
             limit_price: Some(d("82.55")),

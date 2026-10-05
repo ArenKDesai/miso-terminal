@@ -69,6 +69,10 @@ fn the_terminal_looks_as_it_did() {
         ("ticket", &["BUY XLU US 10 LMT 44.50 DAY"][..]),
         ("ticket-blocked", &["SELL XLU US 200"][..]),
         ("ticket-option", &["BUY XLU261218C00046000 2 DAY"][..]),
+        (
+            "mleg",
+            &["MLEG +XLU261218C00045000 -XLU261218C00047000 2"][..],
+        ),
         ("ord", &["ORD ALL"][..]),
     ] {
         scenes.push((

@@ -3,9 +3,11 @@
 //! passes before its Confirm is enabled are in [`crate::guard`].
 //!
 //! Quantities and prices are exact ([`Decimal`]). An order is for a stock or
-//! ETF (`symbol` a ticker, quantities in shares) or for an option contract
+//! ETF (`symbol` a ticker, quantities in shares), for an option contract
 //! (`symbol` an OCC symbol, quantities in contracts of 100 shares, premiums
-//! per share).
+//! per share), or for a strategy of two to four option legs (`legs`, Alpaca's
+//! `mleg` class: the quantity counts units of the strategy and the limit is
+//! its net price, positive for a debit and negative for a credit).
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -15,7 +17,9 @@ use chrono::{DateTime, NaiveDate, Utc};
 use crate::account::{AssetClass, OrderSide};
 use crate::instrument::OptionContract;
 use crate::money::Decimal;
-use crate::options::{MULTIPLIER, PositionIntent, contract_words};
+use crate::options::{
+    Leg, MAX_LEGS, MULTIPLIER, PositionIntent, common_factor, contract_words, strategy_name,
+};
 
 /// Prices at or above a dollar trade in cents; below, in hundredths of a cent.
 pub const PENNY: Decimal = Decimal::from_parts(1, 0, 0, false, 2);
@@ -289,16 +293,24 @@ pub struct OrderRequest {
     /// For an option: whether it opens or closes a position. Sent when set,
     /// so the broker need not work it out.
     pub position_intent: Option<PositionIntent>,
+    /// A multi-leg option order's legs; empty for anything else. Then
+    /// `symbol` is empty, `side` is `Buy` for a net debit and `Sell` for a
+    /// credit, and each leg carries its own side and intent.
+    pub legs: Vec<Leg>,
 }
 
 impl OrderRequest {
+    pub fn is_multi_leg(&self) -> bool {
+        !self.legs.is_empty()
+    }
+
     /// The option contract, when the order is for one.
     pub fn contract(&self) -> Option<OptionContract> {
         OptionContract::parse_occ(&self.symbol)
     }
 
     pub fn is_option(&self) -> bool {
-        self.contract().is_some()
+        self.is_multi_leg() || self.contract().is_some()
     }
 
     /// What a unit's price is multiplied by: 100 for an option contract.
@@ -324,6 +336,9 @@ impl OrderRequest {
     /// the tick, a fractional order that is not a day order, extended hours
     /// on anything but a day limit order.
     pub fn problems(&self) -> Vec<String> {
+        if self.is_multi_leg() {
+            return self.spread_problems();
+        }
         let mut out = Vec::new();
         if self.symbol.trim().is_empty() {
             out.push("No security.".to_owned());
@@ -398,6 +413,79 @@ impl OrderRequest {
         out
     }
 
+    /// What Alpaca refuses in a multi-leg order: fewer than two or more than
+    /// four legs, legs that are not options on one underlying or repeat a
+    /// contract, ratios not in lowest terms, anything but a market or limit
+    /// order for DAY or GTC, extended hours, fractions, prices finer than a cent.
+    fn spread_problems(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if !(2..=MAX_LEGS).contains(&self.legs.len()) {
+            out.push(format!(
+                "A multi-leg order has two to {MAX_LEGS} legs, not {}.",
+                self.legs.len()
+            ));
+        }
+        let mut underlying: Option<String> = None;
+        for (i, leg) in self.legs.iter().enumerate() {
+            match leg.contract() {
+                None => out.push(format!(
+                    "Leg {}: {} is not an option contract.",
+                    i + 1,
+                    leg.symbol
+                )),
+                Some(c) => match &underlying {
+                    Some(u) if *u != c.underlying => {
+                        out.push("Every leg must be on the same underlying.".to_owned());
+                    }
+                    _ => underlying = Some(c.underlying),
+                },
+            }
+            if leg.ratio == 0 {
+                out.push(format!("Leg {}: the ratio must be at least 1.", i + 1));
+            }
+            if self.legs[..i].iter().any(|l| l.symbol == leg.symbol) {
+                out.push(format!("{} is in the order twice.", leg.symbol));
+            }
+            if let Some(intent) = leg.intent
+                && intent.side() != leg.side
+            {
+                out.push(format!(
+                    "Leg {}: {} does not match a {}.",
+                    i + 1,
+                    intent.label(),
+                    leg.side.label().to_ascii_lowercase()
+                ));
+            }
+        }
+        if common_factor(&self.legs) > 1 {
+            out.push("The ratios must be in lowest terms (1:2, not 2:4).".to_owned());
+        }
+        if self.qty <= Decimal::ZERO || self.qty.fract() != Decimal::ZERO {
+            out.push("A multi-leg order is for a whole number of units.".to_owned());
+        }
+        match self.order_type {
+            OrderType::Market => {}
+            OrderType::Limit => match self.limit_price {
+                None => out.push("A limit order needs a net price.".to_owned()),
+                Some(p) if !(p % PENNY).is_zero() => {
+                    out.push(format!("The net price {p} is finer than a cent."));
+                }
+                Some(_) => {}
+            },
+            _ => out.push("Multi-leg orders are market or limit orders.".to_owned()),
+        }
+        if !matches!(self.tif, TimeInForce::Day | TimeInForce::Gtc) {
+            out.push("Option orders are DAY or GTC.".to_owned());
+        }
+        if self.extended_hours {
+            out.push("Options trade in the regular session only.".to_owned());
+        }
+        if self.position_intent.is_some() {
+            out.push("A multi-leg order's legs open or close positions, not the order.".to_owned());
+        }
+        out
+    }
+
     /// The price the order is valued at for caps and estimates: its limit,
     /// its stop, or for a market order the price it is likely to get.
     pub fn reference_price(&self, market: Option<Decimal>) -> Option<Decimal> {
@@ -411,6 +499,23 @@ impl OrderRequest {
     /// `Buy 10 XLU · limit 82.50 · DAY`, or for an option
     /// `Sell 1 XLU Dec 18 '26 45 call · limit 1.60 · DAY · to close`.
     pub fn describe(&self) -> String {
+        if self.is_multi_leg() {
+            let legs: Vec<String> = self.legs.iter().map(Leg::describe).collect();
+            let price = match (self.order_type, self.limit_price) {
+                (OrderType::Limit, Some(p)) if p < Decimal::ZERO => {
+                    format!("limit {} credit", price_text(-p))
+                }
+                (OrderType::Limit, Some(p)) => format!("limit {} debit", price_text(p)),
+                _ => "market".to_owned(),
+            };
+            return format!(
+                "{} × {} ({}) · {price} · {}",
+                crate::money::fmt_qty(self.qty),
+                strategy_name(&self.legs),
+                legs.join(" / "),
+                self.tif.code()
+            );
+        }
         let what = self
             .contract()
             .map_or_else(|| self.symbol.clone(), |c| contract_words(&c));
@@ -490,9 +595,53 @@ pub struct Order {
     pub replaces: Option<String>,
     /// For an option order: whether it opens or closes a position.
     pub position_intent: Option<PositionIntent>,
+    /// `simple`, `mleg`, `bracket`… (empty when the broker leaves it out).
+    pub order_class: String,
+    /// A multi-leg order's legs, each an order of its own.
+    pub legs: Vec<Order>,
+    /// For a leg: contracts per unit of its strategy.
+    pub ratio_qty: Option<Decimal>,
 }
 
 impl Order {
+    /// An options strategy of several legs (Alpaca's `mleg` class): the
+    /// order itself, which names no contract, not one of its legs.
+    pub fn is_multi_leg(&self) -> bool {
+        self.order_class.eq_ignore_ascii_case("mleg")
+            && OptionContract::parse_occ(&self.symbol).is_none()
+    }
+
+    /// A multi-leg order's legs as a ticket would write them.
+    pub fn strategy_legs(&self) -> Vec<Leg> {
+        self.legs
+            .iter()
+            .map(|l| Leg {
+                symbol: l.symbol.clone(),
+                side: l.side,
+                ratio: l
+                    .ratio_qty
+                    .and_then(|r| r.normalize().to_string().parse().ok())
+                    .unwrap_or(1),
+                intent: l.position_intent,
+            })
+            .collect()
+    }
+
+    /// `XLU 45 call`, `Bull call spread on XLU`, or the ticker.
+    pub fn title(&self) -> String {
+        if self.is_multi_leg() {
+            let legs = self.strategy_legs();
+            let under = legs
+                .iter()
+                .find_map(Leg::contract)
+                .map(|c| format!(" on {}", c.underlying))
+                .unwrap_or_default();
+            return format!("{}{under}", strategy_name(&legs));
+        }
+        OptionContract::parse_occ(&self.symbol)
+            .map_or_else(|| self.symbol.clone(), |c| contract_words(&c))
+    }
+
     /// What a unit's price is multiplied by: 100 for an option contract.
     pub fn multiplier(&self) -> Decimal {
         if self.is_option() {
@@ -544,7 +693,9 @@ impl Order {
     }
 
     pub fn is_option(&self) -> bool {
-        self.class == AssetClass::Option || OptionContract::parse_occ(&self.symbol).is_some()
+        self.class == AssetClass::Option
+            || self.is_multi_leg()
+            || OptionContract::parse_occ(&self.symbol).is_some()
     }
 }
 
@@ -600,7 +751,11 @@ pub fn day_value(
 /// Whether an order on `side` in `symbol` today would be a day trade: an
 /// order on the other side filled (at least partly) the same New York day.
 pub fn is_day_trade(orders: &[Order], day: NaiveDate, symbol: &str, side: OrderSide) -> bool {
-    orders.iter().any(|o| {
+    // A multi-leg order's fills are its legs'.
+    let all = orders
+        .iter()
+        .flat_map(|o| std::iter::once(o).chain(o.legs.iter()));
+    all.into_iter().any(|o| {
         o.symbol.eq_ignore_ascii_case(symbol)
             && o.side != side
             && o.filled_qty > Decimal::ZERO
@@ -637,6 +792,7 @@ pub(crate) mod tests {
             tif: TimeInForce::Day,
             extended_hours: false,
             position_intent: None,
+            legs: Vec::new(),
         }
     }
 
@@ -667,6 +823,9 @@ pub(crate) mod tests {
             replaced_by: None,
             replaces: None,
             position_intent: None,
+            order_class: String::new(),
+            legs: Vec::new(),
+            ratio_qty: None,
         }
     }
 
@@ -764,6 +923,49 @@ pub(crate) mod tests {
         filled.class = AssetClass::Option;
         filled.filled_avg_price = Some(d("1.55"));
         assert_eq!(filled.value(None), d("310.00"));
+    }
+
+    #[test]
+    fn spreads_follow_alpacas_multi_leg_rules() {
+        use crate::options::Leg;
+        let mut s = request("2", OrderType::Limit, Some("0.85"));
+        s.symbol.clear();
+        s.legs = vec![
+            Leg::new("XLU261218C00045000", OrderSide::Buy, 1),
+            Leg::new("XLU261218C00047000", OrderSide::Sell, 1),
+        ];
+        assert!(s.problems().is_empty(), "{:?}", s.problems());
+        assert!(s.is_option() && s.multiplier() == d("100"));
+        assert_eq!(
+            s.describe(),
+            "2 × Bull call spread (+1 XLU Dec 18 '26 45 call / -1 XLU Dec 18 '26 47 call) · limit 0.85 debit · DAY"
+        );
+        let bad = |f: &dyn Fn(&mut OrderRequest)| {
+            let mut x = s.clone();
+            f(&mut x);
+            x.problems().join(" ")
+        };
+        assert!(bad(&|x| x.legs.truncate(1)).contains("two to 4 legs"));
+        assert!(
+            bad(&|x| x.legs[1].symbol = "VST261120P00035000".into()).contains("same underlying")
+        );
+        assert!(bad(&|x| x.legs[1].symbol = x.legs[0].symbol.clone()).contains("twice"));
+        assert!(
+            bad(&|x| {
+                x.legs[0].ratio = 2;
+                x.legs[1].ratio = 4;
+            })
+            .contains("lowest terms")
+        );
+        assert!(bad(&|x| x.order_type = OrderType::Stop).contains("market or limit"));
+        assert!(bad(&|x| x.tif = TimeInForce::Ioc).contains("DAY or GTC"));
+        assert!(bad(&|x| x.qty = d("1.5")).contains("whole number"));
+        assert!(bad(&|x| x.limit_price = None).contains("net price"));
+        // A credit is a negative net price.
+        let mut credit = s.clone();
+        credit.limit_price = Some(d("-0.40"));
+        assert!(credit.problems().is_empty());
+        assert!(credit.describe().contains("limit 0.40 credit"));
     }
 
     #[test]

@@ -24,7 +24,7 @@ use crate::workspace::{Viewer, Workspace};
 
 const WORKSPACE_KEY: &str = "workspace";
 /// Order tickets: closed rather than restored at launch.
-const TICKET_CODES: &[&str] = &["BUY", "SELL"];
+const TICKET_CODES: &[&str] = &["BUY", "SELL", "MLEG"];
 const THEME_POLL: Duration = Duration::from_secs(2);
 const GC_EVERY: Duration = Duration::from_secs(60);
 const GC_IDLE: Duration = Duration::from_secs(15 * 60);

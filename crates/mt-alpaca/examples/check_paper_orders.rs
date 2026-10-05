@@ -188,6 +188,7 @@ fn run(
         tif: TimeInForce::Day,
         extended_hours: false,
         position_intent: None,
+        legs: Vec::new(),
     };
     desk.submit(req.clone())?;
     let order = match settle(desk, &req.client_order_id) {
