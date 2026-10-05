@@ -28,6 +28,7 @@ mod map;
 mod news;
 mod ni;
 mod nsi;
+mod ord;
 mod outages;
 mod pnl;
 mod port;
@@ -38,6 +39,7 @@ mod security_chart;
 mod settings;
 mod spread;
 mod theme;
+pub(crate) mod ticket;
 mod top;
 mod transfer;
 mod watchlist;
@@ -80,6 +82,9 @@ pub fn all() -> Vec<FunctionSpec> {
         acct::SPEC,
         pnl::SPEC,
         act::SPEC,
+        ticket::BUY,
+        ticket::SELL,
+        ord::SPEC,
         alrt::SPEC,
         log::SPEC,
         theme::SPEC,

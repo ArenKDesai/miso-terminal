@@ -122,6 +122,19 @@ fn routes(registry: &Registry) -> Vec<Route> {
     for k in ["FILLS", "DIV", "OPTIONS", "FEES"] {
         out.push(Route::new("ACT", [k]));
     }
+    // Trading: tickets and the blotter.
+    out.push(Route::new("BUY", ["XLU US", "10", "LMT", "44.50", "DAY"]));
+    out.push(Route::new("BUY", ["XLU US", "10", "MKT"]));
+    out.push(Route::new("SELL", ["XLU US", "200"]));
+    out.push(Route::new(
+        "SELL",
+        ["UNG US", "10", "STPLMT", "150", "149.50", "GTC"],
+    ));
+    out.push(Route::new("BUY", ["XEL US", "1000", "LMT", "90", "DAY"]));
+    out.push(Route::new("SELL", ["NOTATICKER US", "1"]));
+    for v in ["FILLED", "CANCELED", "ALL", "KILL"] {
+        out.push(Route::new("ORD", [v]));
+    }
     out
 }
 
@@ -132,6 +145,7 @@ struct Harness {
     nws: mt_nws::Nws,
     eia: mt_eia::Eia,
     alpaca: mt_alpaca::Alpaca,
+    desk: mt_alpaca::OrderDesk,
     config: AppConfig,
     paths: AppPaths,
     registry: Registry,
@@ -142,14 +156,21 @@ struct Harness {
 
 impl Harness {
     fn new(hub: DataHub) -> Self {
+        // Fixtures need no keys.
+        let alpaca = mt_alpaca::Alpaca::new(&mt_alpaca::MarketsConfig::default(), true);
         Self {
             ctx: egui::Context::default(),
+            desk: mt_alpaca::OrderDesk::new(
+                &alpaca,
+                hub.ctx().clone(),
+                hub.runtime().clone(),
+                mt_alpaca::AuditLog::in_memory(),
+            ),
             hub,
             miso: Miso::default(),
             nws: mt_nws::Nws::default(),
             eia: mt_eia::Eia::default(),
-            // Fixtures need no keys.
-            alpaca: mt_alpaca::Alpaca::new(&mt_alpaca::MarketsConfig::default(), true),
+            alpaca,
             config: AppConfig {
                 ui: crate::config::UiConfig {
                     favorite_securities: vec!["XLU US".into(), "VST US".into()],
@@ -203,6 +224,7 @@ impl Harness {
                     nws: &self.nws,
                     eia: &self.eia,
                     alpaca: &self.alpaca,
+                    desk: &self.desk,
                     skin,
                     config: &self.config,
                     paths: &self.paths,
@@ -906,4 +928,155 @@ fn log_and_set_show_streams_budgets_and_keys() {
         }
     }
     let _ = std::fs::remove_dir_all(root);
+}
+
+/// The fixtures, posing as the live network (so the order desk would send if
+/// anything asked it to), refusing and recording anything but a GET.
+struct LiveLooking {
+    fixtures: FixtureTransport,
+    writes: parking_lot::Mutex<Vec<String>>,
+}
+
+impl mt_data::Transport for LiveLooking {
+    fn send<'a>(
+        &'a self,
+        req: &'a mt_data::Request,
+    ) -> mt_data::BoxFuture<'a, Result<mt_data::Response, mt_data::FetchError>> {
+        if req.method == mt_data::Method::Get {
+            return self.fixtures.send(req);
+        }
+        self.writes.lock().push(req.describe());
+        Box::pin(async {
+            Ok(mt_data::Response {
+                status: 403,
+                headers: Vec::new(),
+                body: Vec::new().into(),
+            })
+        })
+    }
+
+    fn connect<'a>(
+        &'a self,
+        req: &'a mt_data::Request,
+    ) -> mt_data::BoxFuture<'a, Result<Box<dyn mt_data::StreamConn>, mt_data::FetchError>> {
+        self.fixtures.connect(req)
+    }
+
+    fn describe(&self) -> String {
+        "fixtures posing as live".into()
+    }
+}
+
+#[test]
+fn commands_from_outside_the_window_only_open_tickets() {
+    use mt_data::{MemorySecrets, Secret, SecretStore};
+
+    let rt = runtime();
+    let transport = Arc::new(LiveLooking {
+        fixtures: FixtureTransport::new(fixtures()),
+        writes: parking_lot::Mutex::default(),
+    });
+    let secrets = Arc::new(MemorySecrets::default());
+    secrets
+        .set(mt_alpaca::KEY_ID, &Secret::new("PKTEST"))
+        .unwrap();
+    secrets
+        .set(mt_alpaca::SECRET_KEY, &Secret::new("SKTEST"))
+        .unwrap();
+    let ctx = FetchCtx::new(
+        transport.clone(),
+        None,
+        FetchCtxOptions {
+            secrets,
+            polite_interval: Duration::ZERO,
+            ..FetchCtxOptions::default()
+        },
+        EventLog::default(),
+    );
+    let mut config = AppConfig::default();
+    config
+        .ui
+        .hotkeys
+        .insert("F11".into(), "SELL XEL US 10 MKT DAY".into());
+    let (remote, inbox) = crate::remote::channel_pair();
+    let deps = Deps {
+        hub: DataHub::new(rt.handle().clone(), ctx),
+        config,
+        config_error: None,
+        paths: temp_paths("orders"),
+        reset_layout: true,
+        // As a desktop shortcut would (`--run`).
+        startup_commands: vec!["BUY XLU US 10 LMT 44.50 DAY".into(), "ORD KILL".into()],
+        remote: Some(inbox),
+        notifier: None,
+    };
+    let egui_ctx = egui::Context::default();
+    let mut app = TerminalApp::headless(&egui_ctx, deps);
+    assert!(
+        app.desk().can_send().is_ok(),
+        "the desk would send if asked"
+    );
+    let mut frame = eframe::Frame::_new_kittest();
+    let mut run = |app: &mut TerminalApp, events: Vec<egui::Event>| {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1600.0, 960.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        finish_frame(
+            &egui_ctx,
+            egui_ctx.run_ui(input, |ui| app.ui(ui, &mut frame)),
+        );
+    };
+    for _ in 0..3 {
+        run(&mut app, Vec::new());
+    }
+    // Another launch forwards its commands; a hotkey runs one.
+    assert!(remote.send(vec!["SELL XLU US 5 MKT".into(), "BUY AEE US 1".into()]));
+    let f11 = egui::Event::Key {
+        key: egui::Key::F11,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    run(&mut app, vec![f11]);
+    // Let the account, prices and orders load, as they would for a user.
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !(app.account_loaded() && app.hub_settled()) {
+        assert!(Instant::now() < deadline, "the account never loaded");
+        std::thread::sleep(Duration::from_millis(50));
+        run(&mut app, Vec::new());
+    }
+    for _ in 0..3 {
+        run(&mut app, Vec::new());
+    }
+    let routes = app.workspace_mut().routes();
+    for want in [
+        "BUY XLU US",
+        "SELL XLU US 5",
+        "BUY AEE US 1",
+        "SELL XEL US 10",
+        "ORD",
+    ] {
+        assert!(
+            routes.iter().any(|r| r.to_string().starts_with(want)),
+            "{want} did not open: {routes:?}"
+        );
+    }
+    assert!(
+        transport.writes.lock().is_empty(),
+        "something was sent: {:?}",
+        transport.writes.lock()
+    );
+    assert!(app.desk().audit().recent().is_empty());
+    // And a restart drops the tickets rather than restoring them.
+    let mut ws = crate::workspace::Workspace::default_layout();
+    let registry = Registry::builtin();
+    ws.open(Route::new("BUY", ["XLU US", "10"]), &registry);
+    ws.close_codes(&["BUY", "SELL"]);
+    assert!(!ws.routes().iter().any(|r| r.code == "BUY"));
 }

@@ -23,7 +23,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Portfolio",
     category: Category::Account,
     usage: "PORT",
-    description: "The Alpaca paper account's positions: quantity, average cost, market value, the day's and unrealized P&L, kept live by the quote stream; cash, buying power and equity; options grouped by underlying with net delta.",
+    description: "The Alpaca paper account's positions: quantity, average cost, market value, the day's and unrealized P&L, kept live by the quote stream; cash, buying power and equity; options grouped by underlying with net delta. Right-click a position for a ticket to buy, sell or close it.",
     takes_node: false,
     takes_security: false,
     open,
@@ -155,6 +155,39 @@ impl Panel for Portfolio {
     }
 }
 
+/// A position's right-click menu: a ticket to buy, sell, or close it.
+fn trade_menu(ui: &mut Ui, security: &str, held: Decimal) -> Option<Route> {
+    let mut out = None;
+    if ui.button("Buy…").clicked() {
+        out = Some(Route::new("BUY", [security]));
+    }
+    if ui.button("Sell…").clicked() {
+        out = Some(Route::new("SELL", [security]));
+    }
+    let (code, verb) = if held.is_sign_negative() {
+        ("BUY", "Cover")
+    } else {
+        ("SELL", "Close")
+    };
+    let qty = portfolio::qty(held.abs());
+    if ui
+        .button(format!("{verb} the position ({qty} shares)…"))
+        .on_hover_text(
+            "Opens a ticket for the whole position; nothing is sent until you confirm it",
+        )
+        .clicked()
+    {
+        out = Some(Route::new(
+            code,
+            [security.to_owned(), qty.replace(',', "")],
+        ));
+    }
+    if out.is_some() {
+        ui.close();
+    }
+    out
+}
+
 fn tiles(ui: &mut Ui, cx: &mut PanelCx<'_>, a: &mt_core::account::Account, t: &Totals) {
     let skin = cx.skin;
     ui.horizontal_wrapped(|ui| {
@@ -274,12 +307,16 @@ impl Portfolio {
                             let (p, m) = (&l.position, &l.mark);
                             row.col(|ui| {
                                 let name = format!("{} US", p.symbol);
-                                if widgets::link(ui, skin, &name)
-                                    .on_hover_text("GP: chart")
-                                    .clicked()
-                                {
-                                    open = Some(Route::new("GP", [name]));
+                                let resp = widgets::link(ui, skin, &name)
+                                    .on_hover_text("GP: chart · right-click to trade");
+                                if resp.clicked() {
+                                    open = Some(Route::new("GP", [name.clone()]));
                                 }
+                                resp.context_menu(|ui| {
+                                    if let Some(r) = trade_menu(ui, &name, p.qty) {
+                                        open = Some(r);
+                                    }
+                                });
                                 if p.is_short() {
                                     ui.label(RichText::new("short").small().color(skin.warning));
                                 }

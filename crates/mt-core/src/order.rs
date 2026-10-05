@@ -237,10 +237,13 @@ impl OrderStatus {
         self.can_cancel() && !matches!(self, Self::PendingReplace | Self::PendingNew)
     }
 
-    /// `Partially filled`, `Done for day`.
+    /// `Partially filled`, `Done for day`, `Cancelled`.
     pub fn label(&self) -> String {
         let raw = match self {
             Self::Other(s) => s.clone(),
+            // Alpaca spells it the American way; the terminal does not.
+            Self::Canceled => "Cancelled".to_owned(),
+            Self::PendingCancel => "PendingCancellation".to_owned(),
             s => format!("{s:?}"),
         };
         // CamelCase or snake_case to words.
@@ -599,6 +602,7 @@ pub(crate) mod tests {
         assert!(!OrderStatus::parse("pending_cancel").can_cancel());
         assert_eq!(OrderStatus::parse("done_for_day").label(), "Done for day");
         assert_eq!(OrderStatus::PartiallyFilled.label(), "Partially filled");
+        assert_eq!(OrderStatus::parse("canceled").label(), "Cancelled");
         assert_eq!(OrderStatus::Other("weird_one".into()).label(), "Weird one");
     }
 

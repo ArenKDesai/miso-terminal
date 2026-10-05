@@ -358,6 +358,61 @@ fn activities() {
 }
 
 #[test]
+fn orders() {
+    if !has_account() {
+        return;
+    }
+    let orders =
+        mt_alpaca::orders::parse_orders(&read("paper-api.alpaca.markets/v2/orders.json")).unwrap();
+    for o in &orders {
+        assert!(!o.id.is_empty() && !o.symbol.is_empty(), "{o:?}");
+        assert!(o.created_at.is_some(), "{o:?}");
+        assert!(o.filled_qty <= o.qty.unwrap_or(o.filled_qty), "{o:?}");
+        if o.status == mt_core::order::OrderStatus::Filled {
+            assert!(o.filled_avg_price.is_some(), "{o:?}");
+        }
+    }
+    if sample() {
+        use mt_core::order::OrderStatus;
+        // Open sell orders hold shares: the positions say so.
+        let positions =
+            parse_positions(&read("paper-api.alpaca.markets/v2/positions.json")).unwrap();
+        let open: Vec<_> = orders.iter().filter(|o| o.status.is_open()).collect();
+        assert!(!open.is_empty());
+        for o in open {
+            let p = positions.iter().find(|p| p.symbol == o.symbol).unwrap();
+            assert_eq!(p.qty_available, Some(p.qty - o.remaining()), "{}", o.symbol);
+        }
+        assert!(orders.iter().any(|o| o.status == OrderStatus::Canceled));
+        // Every fill belongs to a listed order.
+        let acts =
+            parse_activities(&read("paper-api.alpaca.markets/v2/account/activities.json")).unwrap();
+        for a in acts
+            .iter()
+            .filter(|a| a.category() == ActivityCategory::Fill)
+        {
+            let id = a.order_id.as_deref().unwrap();
+            assert!(orders.iter().any(|o| o.id == id), "no order {id} for {a:?}");
+        }
+        // And the stream's order is the list's, as it ended.
+        let s = mt_alpaca::Alpaca::default().trade_stream();
+        let (state, _): (LiveTrades, bool) =
+            replay(&s, &root().join("paper-api.alpaca.markets/stream.jsonl"));
+        for (id, streamed) in &state.orders {
+            let listed = orders.iter().find(|o| &o.id == id).unwrap();
+            assert_eq!(
+                (
+                    &streamed.status,
+                    streamed.filled_qty,
+                    streamed.filled_avg_price
+                ),
+                (&listed.status, listed.filled_qty, listed.filled_avg_price)
+            );
+        }
+    }
+}
+
+#[test]
 fn order_events() {
     if !has_account() {
         return;

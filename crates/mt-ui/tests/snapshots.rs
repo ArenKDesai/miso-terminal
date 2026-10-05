@@ -65,6 +65,9 @@ fn the_terminal_looks_as_it_did() {
         ("pnl", &["PNL"][..]),
         ("pnl-year", &["PNL 1Y"][..]),
         ("act", &["ACT"][..]),
+        ("ticket", &["BUY XLU US 10 LMT 44.50 DAY"][..]),
+        ("ticket-blocked", &["SELL XLU US 200"][..]),
+        ("ord", &["ORD ALL"][..]),
     ] {
         scenes.push((
             format!("zoom-{name}"),

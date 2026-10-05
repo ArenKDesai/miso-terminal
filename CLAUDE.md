@@ -1,14 +1,14 @@
 # MISO Terminal: notes for coding agents
 
 A Bloomberg-style terminal for MISO market data. It is read-only for MISO;
-trading, when it comes, goes only through Alpaca, paper by default. It is a
+trading goes only through Alpaca, on the paper account, through confirmed tickets. It is a
 Rust workspace with an egui UI, and Windows is the primary platform. Read
 `docs/ARCHITECTURE.md` before structural changes and `docs/EXTENDING.md` for
 recipes. `docs/RELEASES.md` is the plan for releases (none made yet; ask before
 tagging, since a `v*` tag publishes one). `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
 data, trading and portfolio tracking: Phase 0 (foundations), Phase 1 (news),
-Phase 2 (market data) and Phase 3 (the paper account, read-only) are built,
-the README's roadmap tracks the rest.
+Phase 2 (market data), Phase 3 (the paper account) and Phase 4 (paper trading)
+are built, the README's roadmap tracks the rest.
 
 ## Commands
 
@@ -22,7 +22,7 @@ cargo run -p mt-nws --example capture_weather        # re-record weather fixture
 cargo run -p mt-eia --example capture_gas            # re-record the Henry Hub gas workbook
 cargo run -p mt-news --example capture_news          # re-record the news feeds (story text replaced by samples)
 cargo run -p mt-alpaca --example capture_alpaca      # re-record Alpaca (needs keys; prices made synthetic, stories sampled)
-uv run tools/sample_account.py         # rewrite the sample paper account (after re-recording Alpaca)
+uv run tools/sample_account.py         # rewrite the sample paper account and its orders (after re-recording Alpaca)
 cargo run -p mt-theme --example sync_everforge -- ..\everforge
 cargo run -p mt-ui --example render -- out.png --run "MAP MCC" --zoom   # offscreen PNG, fixtures, no window
 $env:UPDATE_SNAPSHOTS=force; cargo test -p mt-ui --test snapshots           # accept intended visual changes
@@ -91,6 +91,13 @@ asked to see.
   greeks), `mt-alpaca/src/trades.rs` (order events, binary frames),
   `mt-ui/src/portfolio.rs` (live marks, re-sync, the PAPER band) and the
   functions `port.rs`, `acct.rs`, `pnl.rs`, `act.rs`.
+- Paper trading: `mt-core/src/order.rs` (orders, requests, day value, day
+  trades), `mt-core/src/guard.rs` (every guardrail, and `Limits`, the
+  `[trading]` config), `mt-alpaca/src/orders.rs` (order JSON, the order list),
+  `mt-alpaca/src/desk.rs` (the order desk: send, look up, cancel, replace, kill
+  switch; a fake broker in its tests), `mt-alpaca/src/audit.rs` (the audit log),
+  `mt-ui/src/trading.rs` (what tickets and ORD share) and the functions
+  `ticket.rs` (BUY and SELL) and `ord.rs`.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.
@@ -159,9 +166,18 @@ asked to see.
   records fresh fixtures with the CI paper account and uploads them as an artifact.
   The account's fixtures are a made-up portfolio from `tools/sample_account.py`
   (never an account's own); rerun it after new Alpaca fixtures land.
-- The account is read-only until order tickets exist (Phase 4). The PAPER band
-  never shows a balance and ACCT masks the account number: keep account
-  figures out of anything that is always on screen.
+- Orders: only `mt_alpaca::OrderDesk` sends them, and only when a ticket's
+  *Confirm*, ORD's *Cancel*/*Confirm replace* or the kill switch is clicked.
+  Commands (typed, `--run`, forwarded, hotkeys) open tickets and never send;
+  nothing trades automatically (`commands_from_outside_the_window_only_open_tickets`
+  checks it). Every ticket runs `mt_core::guard::review` first; a new rule goes
+  there with a test. A ticket keeps one `client_order_id` until its order is
+  placed, so a resend after a lost answer cannot duplicate it. Tickets are not
+  restored after a restart. Order amounts are `Decimal`. The audit log never
+  holds keys (they are headers) and its path (which names the Windows user)
+  shows only on hover.
+- The PAPER band never shows a balance and ACCT masks the account number: keep
+  account figures out of anything that is always on screen.
 - The rolling five-minute feed can take most of a minute to download late in
   the day; today's store is saved to the disk cache and restored at launch.
 - News: headlines and summaries only, attributed and linked; never fetch or

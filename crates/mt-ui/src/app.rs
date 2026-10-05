@@ -23,6 +23,8 @@ use crate::widgets::{self, fmt};
 use crate::workspace::{Viewer, Workspace};
 
 const WORKSPACE_KEY: &str = "workspace";
+/// Order tickets: closed rather than restored at launch.
+const TICKET_CODES: &[&str] = &["BUY", "SELL"];
 const THEME_POLL: Duration = Duration::from_secs(2);
 const GC_EVERY: Duration = Duration::from_secs(60);
 const GC_IDLE: Duration = Duration::from_secs(15 * 60);
@@ -94,6 +96,10 @@ pub struct TerminalApp {
     alert_news: crate::news::Combined,
     /// The order-event stream's last token, for the early account re-sync.
     trade_sync: Option<(u64, u64)>,
+    /// Places, replaces and cancels orders (only from clicks in a ticket or ORD).
+    desk: mt_alpaca::OrderDesk,
+    /// The desk's generation last seen: when it moves, the account is re-read.
+    desk_seen: u64,
 }
 
 impl TerminalApp {
@@ -120,6 +126,14 @@ impl TerminalApp {
     fn build(ctx: &egui::Context, deps: Deps, saved: Option<Workspace>) -> Self {
         let themes = ThemeRegistry::load(Some(&deps.paths.themes_dir));
         let alpaca = mt_alpaca::Alpaca::new(&deps.config.markets, alpaca_ready(&deps.hub));
+        let desk = mt_alpaca::OrderDesk::new(
+            &alpaca,
+            deps.hub.ctx().clone(),
+            deps.hub.runtime().clone(),
+            mt_alpaca::AuditLog::to_dir(&deps.paths.audit_dir),
+        );
+        let repaint = ctx.clone();
+        desk.set_notify(move || repaint.request_repaint());
         let mut app = Self {
             miso: Miso::new(deps.config.endpoints.clone()),
             nws: mt_nws::Nws::default(),
@@ -132,7 +146,12 @@ impl TerminalApp {
             themes,
             fonts: FontLibrary::new(Some(deps.paths.fonts_dir.clone())),
             notices: deps.config_error.into_iter().collect(),
-            workspace: Workspace::restore(saved),
+            workspace: {
+                let mut ws = Workspace::restore(saved);
+                // A ticket from the last session must be typed again.
+                ws.close_codes(TICKET_CODES);
+                ws
+            },
             cmd: CommandLine {
                 focus: true,
                 ..Default::default()
@@ -153,6 +172,8 @@ impl TerminalApp {
             news_read: mt_news::ReadMarks::default(),
             alert_news: crate::news::Combined::default(),
             trade_sync: None,
+            desk,
+            desk_seen: 0,
             config: deps.config,
             paths: deps.paths,
         };
@@ -311,6 +332,28 @@ impl TerminalApp {
     #[cfg(test)]
     pub(crate) fn config(&self) -> &AppConfig {
         &self.config
+    }
+
+    #[cfg(test)]
+    pub(crate) fn desk(&self) -> &mt_alpaca::OrderDesk {
+        &self.desk
+    }
+
+    /// Whether everything asked for has loaded (or failed).
+    #[cfg(test)]
+    pub(crate) fn hub_settled(&self) -> bool {
+        self.hub.in_flight() == 0
+            && !self
+                .hub
+                .status()
+                .iter()
+                .any(|s| s.state == EntryState::Empty)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn account_loaded(&self) -> bool {
+        self.hub.peek(&self.alpaca.account()).data.is_some()
+            && self.hub.peek(&self.alpaca.orders()).data.is_some()
     }
 
     /// Re-read the themes folder now (after an install), not at the next poll.
@@ -562,6 +605,20 @@ impl TerminalApp {
                     self.alpaca =
                         mt_alpaca::Alpaca::new(&self.config.markets, alpaca_ready(&self.hub));
                 }
+                AppCommand::SetTradingEnabled(on) => {
+                    if self.config.trading.enabled != on {
+                        self.config.trading.enabled = on;
+                        self.save_config();
+                    }
+                    self.feedback(
+                        if on {
+                            "Trading is on: tickets can send orders again"
+                        } else {
+                            "Trading is off: tickets cannot send orders (ORD turns it back on)"
+                        },
+                        !on,
+                    );
+                }
                 AppCommand::ResetLayout => self.workspace = Workspace::default_layout(),
                 AppCommand::CloseTab => self.workspace.close_focused(),
                 AppCommand::CycleTab(forward) => self.workspace.cycle_focused(forward),
@@ -705,6 +762,12 @@ impl TerminalApp {
             self.hub.watch(&self.alpaca.assets());
             // After an order event or a reconnect, the account at once.
             crate::portfolio::resync(&self.hub, &self.alpaca, &mut self.trade_sync);
+            // And after the desk places, replaces or cancels something.
+            let generation = self.desk.generation();
+            if generation != self.desk_seen {
+                self.desk_seen = generation;
+                crate::portfolio::refresh_account(&self.hub, &self.alpaca);
+            }
         }
         if self.last_intraday_save.elapsed() >= INTRADAY_SAVE_EVERY {
             self.last_intraday_save = Instant::now();
@@ -1169,7 +1232,8 @@ impl eframe::App for TerminalApp {
                         .inner_margin(Margin::symmetric(10, 1)),
                 )
                 .show(ui, |ui| {
-                    if crate::portfolio::band(ui, &self.skin, mode, &account) {
+                    let trading_on = self.config.trading.enabled;
+                    if crate::portfolio::band(ui, &self.skin, mode, &account, trading_on) {
                         commands.push(AppCommand::Open(Route::code("ACCT")));
                     }
                 });
@@ -1182,6 +1246,7 @@ impl eframe::App for TerminalApp {
             nws: &self.nws,
             eia: &self.eia,
             alpaca: &self.alpaca,
+            desk: &self.desk,
             skin: &self.skin,
             config: &self.config,
             paths: &self.paths,

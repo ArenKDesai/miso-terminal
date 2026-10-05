@@ -112,6 +112,9 @@ pub struct Context<'a> {
     pub today_value: Decimal,
     /// Whether this order would be a day trade ([`crate::order::is_day_trade`]).
     pub day_trade: bool,
+    /// Shares of the position not held by open orders (the broker's
+    /// `qty_available`), when known.
+    pub available: Option<Decimal>,
 }
 
 /// Every rule's verdict, and the estimate the ticket shows.
@@ -231,13 +234,51 @@ pub fn review(req: &OrderRequest, cx: &Context<'_>, limits: &Limits) -> Review {
     // Position after the order, and how much of it opens or adds.
     let before = cx.position;
     let after = before + req.side.sign() * req.qty;
-    let crosses = !before.is_zero() && before.is_sign_negative() != after.is_sign_negative();
+    let crosses = !before.is_zero()
+        && !after.is_zero()
+        && before.is_sign_negative() != after.is_sign_negative();
     let opening = if crosses {
         after.abs()
     } else {
         (after.abs() - before.abs()).max(Decimal::ZERO)
     };
-    if after < Decimal::ZERO && opening > Decimal::ZERO {
+    if crosses {
+        // Alpaca refuses an order that turns a long into a short (or back).
+        let (now, then) = if before > Decimal::ZERO {
+            ("long", "short")
+        } else {
+            ("short", "long")
+        };
+        add(
+            Level::Block,
+            "flip",
+            format!(
+                "This would take the {} share {now} position {then} in one order. Close it first \
+                 ({} {}), then open the new one.",
+                fmt_qty(before.abs()),
+                if before > Decimal::ZERO {
+                    "sell"
+                } else {
+                    "buy"
+                },
+                fmt_qty(before.abs())
+            ),
+        );
+    } else if opening.is_zero()
+        && let Some(free) = cx.available.map(|a| a.abs())
+        && req.qty > free
+    {
+        add(
+            Level::Block,
+            "available",
+            format!(
+                "Only {} of the {} shares are free; the rest are held by open orders (cancel them in ORD first).",
+                fmt_qty(free),
+                fmt_qty(before.abs())
+            ),
+        );
+    }
+    if after < Decimal::ZERO && opening > Decimal::ZERO && !crosses {
         let shortable =
             cx.account.is_none_or(|a| a.shorting_enabled) && cx.asset.is_none_or(|a| a.shortable);
         if !shortable {
@@ -385,10 +426,12 @@ pub fn review(req: &OrderRequest, cx: &Context<'_>, limits: &Limits) -> Review {
             ),
             (Some(last), Some(c)) => {
                 let off = ((p - last) / last * Decimal::ONE_HUNDRED).round_dp(2);
-                let side = if off >= Decimal::ZERO {
-                    "above"
+                let place = if off.round_dp(1).is_zero() {
+                    "at".to_owned()
+                } else if off > Decimal::ZERO {
+                    format!("{} above", pct_text(off))
                 } else {
-                    "below"
+                    format!("{} below", pct_text(off.abs()))
                 };
                 add(
                     if off.abs() > c {
@@ -398,9 +441,8 @@ pub fn review(req: &OrderRequest, cx: &Context<'_>, limits: &Limits) -> Review {
                     },
                     "collar",
                     format!(
-                        "The {name} {} is {} {side} the last price {} (the collar is {}).",
+                        "The {name} {} is {place} the last price {} (the collar is {}).",
                         price_text(p),
-                        pct_text(off.abs()),
                         price_text(last),
                         pct_text(c)
                     ),
@@ -527,6 +569,7 @@ mod tests {
             session: Session::Regular,
             today_value: Decimal::ZERO,
             day_trade: false,
+            available: None,
         }
     }
 
@@ -745,25 +788,46 @@ mod tests {
             max_daily_value: 0,
             ..Limits::default()
         };
-        // Selling 30 with 20 held: 20 close, 10 open a short.
-        let held = Context {
-            position: d("20"),
-            ..cx(&a, &s)
-        };
-        let mut sell = request("30", OrderType::Limit, Some("82.40"));
+        // Selling 10 with none held opens a short.
+        let mut sell = request("10", OrderType::Limit, Some("82.40"));
         sell.side = OrderSide::Sell;
-        let r = review(&sell, &held, &lim);
+        let r = review(&sell, &cx(&a, &s), &lim);
         assert_eq!((r.position_after, r.opening), (d("-10"), d("10")));
-        assert!(r.has("short", Level::Warn));
+        assert!(r.has("short", Level::Warn) && !r.blocked());
         let hard = Asset {
             shortable: false,
             ..asset()
         };
-        let held_hard = Context {
-            asset: Some(&hard),
+        assert!(review(&sell, &cx(&a, &hard), &lim).has("short", Level::Block));
+        // Selling 30 with 20 held would go from long to short in one order,
+        // which Alpaca refuses.
+        let held = Context {
+            position: d("20"),
+            ..cx(&a, &s)
+        };
+        let mut flip = request("30", OrderType::Limit, Some("82.40"));
+        flip.side = OrderSide::Sell;
+        let r = review(&flip, &held, &lim);
+        assert!(
+            r.has("flip", Level::Block) && !r.has("short", Level::Warn),
+            "{:#?}",
+            r.checks
+        );
+        // Selling all 20 is fine, unless open orders hold some of them.
+        let mut close = request("20", OrderType::Limit, Some("82.40"));
+        close.side = OrderSide::Sell;
+        assert!(!review(&close, &held, &lim).blocked());
+        let held_back = Context {
+            available: Some(d("5")),
             ..held.clone()
         };
-        assert!(review(&sell, &held_hard, &lim).has("short", Level::Block));
+        let r = review(&close, &held_back, &lim);
+        assert!(r.has("available", Level::Block), "{:#?}", r.checks);
+        assert!(
+            r.checks
+                .iter()
+                .any(|c| c.message.contains("Only 5 of the 20"))
+        );
         // Buying power covers what opens.
         let poor = Account {
             buying_power: d("500"),

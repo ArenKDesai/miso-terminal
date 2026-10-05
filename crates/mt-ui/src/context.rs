@@ -34,6 +34,9 @@ pub enum AppCommand {
     RemoveFavorite(String),
     /// API keys were stored or removed (SET): check for them again.
     CredentialsChanged,
+    /// Let tickets send orders, or stop them (the kill switch). Saved to
+    /// `[trading] enabled`, so it holds across restarts.
+    SetTradingEnabled(bool),
     ResetLayout,
     /// Close the active tab in the focused pane.
     CloseTab,
@@ -90,6 +93,9 @@ pub struct PanelCx<'a> {
     pub eia: &'a mt_eia::Eia,
     /// Stocks and ETFs (Alpaca); `alpaca.is_ready()` once keys are stored.
     pub alpaca: &'a mt_alpaca::Alpaca,
+    /// Sends, replaces and cancels orders: only ever from a click in a
+    /// ticket or ORD.
+    pub desk: &'a mt_alpaca::OrderDesk,
     pub skin: &'a Skin,
     pub config: &'a AppConfig,
     pub paths: &'a AppPaths,

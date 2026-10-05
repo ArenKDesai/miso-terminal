@@ -4,7 +4,8 @@ A plan: headlines from the Financial Times, Bloomberg and the Washington Post;
 US stock, ETF and options data from Alpaca; paper trading through Alpaca, with
 live trading later; and account and portfolio tracking. Phase 0 (foundations),
 Phase 1 (news) and Phase 2 (market data) are built (2026-10-04), and Phase 3
-(account and portfolio) on 2026-10-05; the later phases are not yet.
+(account and portfolio) and Phase 4 (paper trading) on 2026-10-05; the later
+phases are not yet.
 Facts about the sources were checked on 2026-10-04. The README's roadmap tracks
 progress against the phases below.
 
@@ -248,29 +249,70 @@ phase can place an order.
   CI account's real answers with `capture_alpaca --verbatim` and runs the
   parsers on them; sample-copy recordings leave the account out.
 
-## Phase 4: Paper trading (stocks)
+## Phase 4: Paper trading (stocks) (built)
 
-- **A separate order desk**, never the data hub: no caching and no blind
-  retries. Every order gets a `client_order_id` generated before it is sent;
-  after a timeout it is looked up by that id before anything is resent, so an
-  order can never go in twice.
-- **Order states** come from the `trade_updates` stream
-  (`wss://paper-api.alpaca.markets/stream`), reconciled with the order list on
-  every reconnect.
-- **The ticket.** `BUY XLU US 10 LMT 82.50 DAY` opens a pre-filled ticket
-  showing the estimated cost, buying power afterwards and day-trade warnings.
-  Only its **Confirm** places the order. `ORD` is the blotter (open, filled,
-  cancelled; cancel and replace).
+Built on 2026-10-05, in two parts: the order desk and guardrails without UI,
+then the tickets, the blotter and the kill switch.
+
+| Request | Endpoint | When |
+|---|---|---|
+| Place | `POST /v2/orders` (amounts as strings, a `client_order_id` always) | a ticket's *Confirm* |
+| Look up | `GET /v2/orders:by_client_order_id` | after a lost answer, a `5xx` or a duplicate-id `422` |
+| Replace | `PATCH /v2/orders/{id}` (a new order with its own client id) | ORD's *Confirm replace* |
+| Cancel | `DELETE /v2/orders/{id}` | ORD's or a ticket's *Cancel* |
+| Kill switch | `DELETE /v2/orders`, then optionally `DELETE /v2/positions?cancel_orders=true` | ORD's kill switch |
+| Order list | `GET /v2/orders?status=all&limit=500` | a minute in any session, five when closed, and after every order event, reconnect or desk action |
+
+- **A separate order desk** (`mt_alpaca::OrderDesk`), never the data hub: it
+  sends through `FetchCtx::send` (the shared request budget and event log, no
+  caches) on the hub's runtime, with no timers and no blind retries. A ticket
+  makes its `client_order_id` when it opens and keeps it until the order is
+  placed. After a ten-second timeout, a dropped connection or a `5xx`, the desk
+  asks for the order by that id (three times over about ten seconds): found, it
+  was placed; not found, the ticket may send it again under the same id, which
+  Alpaca refuses to accept twice (and a duplicate-id `422` sends the desk to look
+  it up instead). While an order's fate is unknown the ticket cannot send.
+  Offline replays send nothing.
+- **Order states** come from the `trade_updates` stream: it now keeps each order
+  as its latest event left it, merged over the order list by last change, and
+  the list is re-read after every event and reconnect, as the account is.
+- **The ticket.** `BUY XLU US 10 LMT 82.50 DAY` (also `MKT`, `STP`, `STPLMT`,
+  `@price`, `GTC`, `IOC`, `FOK`, `OPG`, `CLS`, `EXT`) opens a filled-in ticket with
+  the latest prices, the cost or proceeds, buying power and the position
+  afterwards, the day-trade count, and every guardrail's verdict. Warnings must
+  be ticked off; blocks stop it. Only its **Confirm** places the order, and it
+  then follows the order's fills. A limit with no price starts at the last
+  trade. `SELL` is the same; PORT's right-click menu opens tickets to buy, sell
+  or close a position. Tickets are not restored after a restart.
+- **`ORD`** is the blotter: open, filled, cancelled (with expired, rejected and
+  replaced) or all orders, filtered by symbol, with *Cancel* and *Replace…*
+  (quantity and prices, through the same guardrails) on open ones.
 - **A fixed rule:** commands that arrive from outside the window (`--run`,
-  commands forwarded by a second launch, alerts) can only open a ticket, never
-  place an order. No automated trading.
-- **Guardrails**, all settings with tests: per-order and daily notional caps,
-  maximum position per symbol, a price collar (limit within a percentage of the
-  last price), no market orders outside regular hours, a fat-finger quantity
-  check, a **restricted list** of symbols that cannot be traded, and a **kill
-  switch** that cancels every open order and optionally flattens positions.
-- **Audit log:** every order request and response, appended to a file in local
-  app data.
+  commands forwarded by a second launch, hotkeys) can only open a ticket, never
+  place an order; a test runs them against fixtures posing as the live network
+  and checks that nothing but GETs goes out. Alerts run no commands. No
+  automated trading.
+- **Guardrails** (`mt_core::guard`), settings under `[trading]` and in SET, each
+  tested: per-order, daily (what filled today plus what is open) and
+  per-position caps in dollars, a price collar (limit and stop within a
+  percentage of the last trade), a fat-finger check (a warning above a share of
+  equity, a block above a number of shares), and a **restricted list**. Fixed:
+  no market orders outside the regular session (auction orders excepted),
+  buying power for what the order opens, no order that turns a long short (or a
+  short long) in one go, no selling shares held by open orders, shorts only
+  where the account and asset allow, and the pattern-day-trader count below
+  $25,000.
+- **The kill switch** (ORD) cancels every open order, optionally closes every
+  position at the market, and turns trading off (`[trading] enabled`, so it
+  holds across restarts) until it is turned back on in ORD or SET. The band
+  says when trading is off.
+- **Audit log:** every order request body and answer (or the lack of one),
+  appended to `orders-YYYY-MM.jsonl` in `%LOCALAPPDATA%\MISO Terminal\audit`.
+  Keys travel only in headers and are never written.
+- **Fixtures:** the sample account gains an order list (`v2/orders.json` from
+  `tools/sample_account.py`): every fill's order, the day's order the stream
+  replays, a cancelled order and an open GTC sell that holds 100 of the 200 XLU
+  shares (`qty_available`).
 
 ## Phase 5: Options
 

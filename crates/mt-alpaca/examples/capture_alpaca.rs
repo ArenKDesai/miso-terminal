@@ -19,7 +19,7 @@
 //! repository's `fixtures/`. `--verbatim` keeps everything, for the drift
 //! job, which parses a live recording and throws it away.
 //!
-//! The account (balances, positions, equity curve, activities, order events)
+//! The account (balances, positions, orders, equity curve, activities, order events)
 //! is only recorded with `--verbatim`: the repository's account fixtures are a
 //! made-up portfolio from `tools/sample_account.py`, never an account's own.
 
@@ -152,6 +152,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             run(&ctx, alpaca.portfolio_history(period)).await?;
         }
         run(&ctx, alpaca.activities()).await?;
+        let orders = run(&ctx, alpaca.orders()).await?;
+        println!("{} orders", orders.len());
         let options: Vec<String> = positions
             .iter()
             .filter(|p| p.is_option())

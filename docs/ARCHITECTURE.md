@@ -259,6 +259,16 @@ account is, and the trade stream keeps each order as its latest event left it
 (`LiveTrades::orders`), merged over the list by last change
 (`order::merge_orders`).
 
+In the UI, `mt_ui::trading` is what the tickets (`BUY`, `SELL`) and the
+blotter (`ORD`) share: the merged orders, verdicts and outcomes drawn alike. A
+ticket keeps its fields as text and builds an `OrderRequest` each frame; its
+*Confirm* is the only call to `OrderDesk::submit`, and the app holds the one
+desk (`PanelCx::desk`). The desk's generation counter moves when an operation
+finishes, and the app then re-reads the account, positions and orders. The
+kill switch also sets `[trading] enabled = false` through
+`AppCommand::SetTradingEnabled`, so trading stays off across restarts. Ticket
+tabs are closed rather than restored at launch.
+
 Securities never use MISO's market time: `mt_core::exchange` gives New York
 time, and charts of securities use `widgets::chart::exchange_plot`, whose grid
 follows New York midnights through the clock changes.
@@ -367,8 +377,8 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 | `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions within the plan's limit (trades before quotes, halving after a `405`), refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed; the account, positions, equity curves, activities, option greeks, orders and order events against the sample account (reconciled to the cent) or a live recording; the order desk against a fake broker: an order goes in once, a lost answer is looked up rather than resent, an order that never arrived goes again under the same id (and a late arrival is found, not duplicated), rejections, rate limits, unknown fates, cancels, replaces and the kill switch, with keys kept out of the audit log |
 | `mt-news` | RSS 2.0, RSS 1.0 and Atom (CDATA, escaped HTML, entities, dates, Atom links, no article bodies); every built-in feed against its recording (sample text in the feed's real structure; live in the drift job via `MT_FIXTURES`); identities, merging, combining, keyword rules, config overrides, read marks |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
-| `mt-ui` | Command parsing, completion and hints; alert engine (headline alerts included); series maths; the headline browser and archived headlines and read marks across a restart; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart |
-| visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen at their recording time, compared with committed images: every theme's layout and several zoomed panels (the account's four among them) |
+| `mt-ui` | Command parsing, completion and hints; alert engine (headline alerts included); series maths; the headline browser and archived headlines and read marks across a restart; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart; ticket commands parsed and round-tripped; commands from outside the window (`--run`, a forwarded launch, a hotkey) opening tickets against fixtures posing as the live network, with nothing but GETs sent |
+| visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen at their recording time, compared with committed images: every theme's layout and several zoomed panels (the account's four, two tickets and ORD among them) |
 
 The smoke test iterates the registry, so a new function gets coverage without
 writing a test. Separately, the weekly `drift.yml` workflow records live MISO
