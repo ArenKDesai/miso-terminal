@@ -26,7 +26,9 @@ pub struct MarketsConfig {
     /// bars and snapshots. The free plan allows 30 in all.
     pub stream_limit: usize,
     /// Lists for `Q`, as `[[markets.lists]]` (name, title, symbols). A
-    /// built-in list's name replaces it.
+    /// built-in list's name replaces it. Left out of the file when empty, so
+    /// a hand-written `[[markets.lists]]` never clashes with `lists = []`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lists: Vec<SecurityList>,
 }
 

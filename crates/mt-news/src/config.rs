@@ -403,11 +403,16 @@ pub struct NewsConfig {
     /// restarts. 0 keeps them all.
     pub keep_days: u32,
     /// Feeds to leave out, by id (`bloomberg-politics`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub disabled_feeds: Vec<String>,
     /// More feeds, as `[[news.feeds]]`. One with a built-in's id replaces it.
+    /// Left out of the file when empty, so a hand-written `[[news.feeds]]`
+    /// never clashes with a `feeds = []` the terminal wrote.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub feeds: Vec<FeedSpec>,
     /// More topics for NI, as `[[news.topics]]`. One with a built-in's name
-    /// replaces it.
+    /// replaces it. Left out of the file when empty, as `feeds` is.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub topics: Vec<Topic>,
 }
 

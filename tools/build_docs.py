@@ -8,7 +8,7 @@
     uv run tools/build_docs.py site --update-fixture   # after changing themes/gallery/
 
 The Markdown stays the single source: README.md (minus its TODO list, which
-becomes the roadmap page), docs/ARCHITECTURE.md, docs/EXTENDING.md,
+becomes the roadmap page), docs/TUTORIALS.md, docs/ARCHITECTURE.md, docs/EXTENDING.md,
 docs/MARKETS-PLAN.md, docs/RELEASES.md and themes/README.md, plus a card for every theme and the
 gallery's files to download. Links between them become links between pages;
 links to other files point at GitHub. The page is styled with the Everforge palette and fonts.
@@ -269,6 +269,7 @@ def main() -> None:
     readme, roadmap = split_readme((ROOT / "README.md").read_text(encoding="utf-8"))
     pages = [
         Page("index.html", "README.md", "Overview", readme),
+        Page("tutorials.html", "docs/TUTORIALS.md", "Tutorials"),
         Page("architecture.html", "docs/ARCHITECTURE.md", "Architecture"),
         Page("extending.html", "docs/EXTENDING.md", "Extending"),
         Page("themes.html", "themes/README.md", "Themes"),

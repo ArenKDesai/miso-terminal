@@ -23,7 +23,10 @@ pub struct AppConfig {
     /// Stocks and ETFs from Alpaca (Q, GP, DES, CN): the price feed, the
     /// stream's subscription limit and lists for Q (`[[markets.lists]]`).
     pub markets: mt_alpaca::MarketsConfig,
-    /// Alert rules (see the ALRT function), as `[[alerts]]` tables.
+    /// Alert rules (see the ALRT function), as `[[alerts]]` tables. Left out
+    /// of the file when empty, so a hand-written `[[alerts]]` never clashes
+    /// with an `alerts = []` the terminal wrote.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub alerts: Vec<crate::alerts::AlertRule>,
 }
 
@@ -160,6 +163,33 @@ impl AppConfig {
         let header = "# MISO Terminal configuration. Every key is optional; delete one to get its default.\n\n";
         std::fs::write(path, format!("{header}{body}"))
     }
+
+    /// Where [`AppConfig::back_up`] copies the file: `config.toml.bak`.
+    pub fn backup_path(path: &Path) -> PathBuf {
+        let mut name = path.file_name().unwrap_or_default().to_os_string();
+        name.push(".bak");
+        path.with_file_name(name)
+    }
+
+    /// Copy the config file to its backup (replacing an older one) before it
+    /// is reset. `None` when there is no file to keep.
+    pub fn back_up(path: &Path) -> std::io::Result<Option<PathBuf>> {
+        if !path.exists() {
+            return Ok(None);
+        }
+        let backup = Self::backup_path(path);
+        std::fs::copy(path, &backup)?;
+        Ok(Some(backup))
+    }
+
+    /// Replace the file with the defaults, keeping the old one as
+    /// `config.toml.bak` (`--reset-config`). API keys live in the credential
+    /// store and the layout in the window state, so neither is touched.
+    pub fn reset(path: &Path) -> std::io::Result<Option<PathBuf>> {
+        let backup = Self::back_up(path)?;
+        Self::default().save(path)?;
+        Ok(backup)
+    }
 }
 
 /// Where the app keeps things. Built by the binary (which decides between the
@@ -243,6 +273,67 @@ zoom = 1.0
         let (fallback, err) = AppConfig::load(&path);
         assert_eq!(fallback, AppConfig::default());
         assert!(err.is_some());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn hand_written_tables_append_to_a_saved_file() {
+        // The tutorials say to add [[alerts]], [[news.topics]] and
+        // [[markets.lists]] at the end of the file the terminal wrote.
+        let dir = std::env::temp_dir().join(format!("mt-config-append-{}", std::process::id()));
+        let path = dir.join("config.toml");
+        AppConfig::default().save(&path).unwrap();
+        let mut src = std::fs::read_to_string(&path).unwrap();
+        src.push_str(
+            r#"
+[[alerts]]
+kind = "price_above"
+node = "MINN.HUB"
+value = 100.0
+
+[[news.topics]]
+name = "DATACENTERS"
+keywords = ["data center*"]
+
+[[news.feeds]]
+id = "my-feed"
+source = "Energy News Network"
+section = "Midwest"
+url = "https://example.org/feed.xml"
+
+[[markets.lists]]
+name = "MINE"
+symbols = ["XEL", "WEC"]
+"#,
+        );
+        std::fs::write(&path, src).unwrap();
+        let (cfg, err) = AppConfig::load(&path);
+        assert!(err.is_none(), "{err:?}");
+        assert_eq!(cfg.alerts.len(), 1);
+        assert_eq!(cfg.news.topics[0].name, "DATACENTERS");
+        assert_eq!(cfg.news.feeds[0].id, "my-feed");
+        assert_eq!(cfg.markets.lists[0].name, "MINE");
+        // And they survive the terminal saving the file again.
+        cfg.save(&path).unwrap();
+        assert_eq!(AppConfig::load(&path).0, cfg);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn reset_keeps_a_backup() {
+        let dir = std::env::temp_dir().join(format!("mt-config-reset-{}", std::process::id()));
+        let path = dir.join("config.toml");
+        assert_eq!(AppConfig::reset(&path).unwrap(), None, "nothing to back up");
+        assert_eq!(AppConfig::load(&path).0, AppConfig::default());
+        let mine = AppConfig {
+            theme: "high-contrast".into(),
+            ..Default::default()
+        };
+        mine.save(&path).unwrap();
+        let backup = AppConfig::reset(&path).unwrap().expect("a backup");
+        assert_eq!(backup, dir.join("config.toml.bak"));
+        assert_eq!(AppConfig::load(&backup).0, mine);
+        assert_eq!(AppConfig::load(&path).0, AppConfig::default());
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

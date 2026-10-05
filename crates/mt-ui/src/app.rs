@@ -329,6 +329,30 @@ impl TerminalApp {
         self.save_config();
     }
 
+    /// Swap in a whole configuration, rebuild what depends on it, and save.
+    fn replace_config(&mut self, ctx: &egui::Context, config: AppConfig) {
+        let endpoints_changed = config.endpoints != self.config.endpoints;
+        let markets_changed = config.markets != self.config.markets;
+        let theme_changed = config.theme != self.config.theme
+            || config.ui.follow_system_theme != self.config.ui.follow_system_theme
+            || config.ui.light_theme != self.config.ui.light_theme
+            || config.ui.dark_theme != self.config.ui.dark_theme;
+        self.config = config;
+        if markets_changed {
+            // A new feed means new queries and a new stream.
+            self.alpaca = mt_alpaca::Alpaca::new(&self.config.markets, self.alpaca.is_ready());
+        }
+        ctx.set_zoom_factor(self.config.ui.zoom.clamp(0.5, 3.0));
+        if endpoints_changed {
+            // Cached values stay until their next refresh, which uses the new URLs.
+            self.miso = Miso::new(self.config.endpoints.clone());
+        }
+        if theme_changed {
+            self.apply_theme(ctx);
+        }
+        self.save_config();
+    }
+
     fn save_config(&mut self) {
         if let Err(e) = self.config.save(&self.paths.config_file) {
             self.notices.push(format!("Could not save config: {e}"));
@@ -567,22 +591,25 @@ impl TerminalApp {
                 }
                 AppCommand::MarkRead { ids, read } => self.mark_read(&ids, read),
                 AppCommand::ReplaceConfig(config) => {
-                    let endpoints_changed = config.endpoints != self.config.endpoints;
-                    let markets_changed = config.markets != self.config.markets;
-                    self.config = *config;
-                    if markets_changed {
-                        // A new feed means new queries and a new stream.
-                        self.alpaca =
-                            mt_alpaca::Alpaca::new(&self.config.markets, self.alpaca.is_ready());
-                    }
-                    ctx.set_zoom_factor(self.config.ui.zoom.clamp(0.5, 3.0));
-                    if endpoints_changed {
-                        // Cached values stay until their next refresh, which uses the new URLs.
-                        self.miso = Miso::new(self.config.endpoints.clone());
-                    }
-                    self.save_config();
+                    self.replace_config(ctx, *config);
                     self.feedback("Settings saved", false);
                 }
+                AppCommand::ResetConfig => match AppConfig::back_up(&self.paths.config_file) {
+                    Ok(backup) => {
+                        self.replace_config(ctx, AppConfig::default());
+                        let kept = backup.map_or_else(String::new, |b| {
+                            format!("; the old file is {}", b.display())
+                        });
+                        self.feedback(format!("Settings reset to defaults{kept}"), false);
+                    }
+                    Err(e) => {
+                        // Never discard someone's settings without a copy.
+                        let msg =
+                            format!("Settings not reset: could not back up config.toml ({e})");
+                        self.notices.push(msg.clone());
+                        self.feedback(msg, true);
+                    }
+                },
             }
         }
     }

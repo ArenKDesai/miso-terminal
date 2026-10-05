@@ -63,6 +63,9 @@ pub enum AppCommand {
     Capture(crate::capture::Request),
     /// Replace and save the whole configuration (the SET function).
     ReplaceConfig(Box<AppConfig>),
+    /// Back up config.toml to config.toml.bak, then replace it with the
+    /// defaults (SET's *Reset to defaults*). API keys and the layout stay.
+    ResetConfig,
     /// Open a folder in the system file manager.
     RevealPath(std::path::PathBuf),
     /// Open a headline's article in the default browser and mark it read.

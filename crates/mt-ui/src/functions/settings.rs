@@ -17,7 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Settings",
     category: Category::System,
     usage: "SET",
-    description: "Display, price highlighting, data, news feed, market data and endpoint settings (saved to config.toml), and API keys (kept in Windows Credential Manager).",
+    description: "Display, price highlighting, data, news feed, market data and endpoint settings (saved to config.toml, or reset to the defaults), and API keys (kept in Windows Credential Manager).",
     takes_node: false,
     takes_security: false,
     open,
@@ -27,6 +27,7 @@ fn open(_: &[String]) -> Result<Box<dyn Panel>, String> {
     Ok(Box::new(Settings {
         draft: None,
         keys: Keys::default(),
+        confirm_reset: false,
     }))
 }
 
@@ -34,6 +35,8 @@ struct Settings {
     /// Edits not yet applied; `None` means "showing the live config".
     draft: Option<AppConfig>,
     keys: Keys,
+    /// *Reset to defaults…* was pressed and awaits confirmation.
+    confirm_reset: bool,
 }
 
 /// An API key the terminal can use, by its name in the credential store.
@@ -251,7 +254,35 @@ impl Panel for Settings {
                         .to_path_buf();
                     cx.send(AppCommand::RevealPath(dir));
                 }
+                if !self.confirm_reset
+                    && ui
+                        .button("Reset to defaults…")
+                        .on_hover_text("Start again from the default config.toml")
+                        .clicked()
+                {
+                    self.confirm_reset = true;
+                }
             });
+            if self.confirm_reset {
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new(
+                        "Reset every setting to its default? This also clears your watchlist,                          alerts, function keys, theme choice, and your own news feeds, topics                          and Q lists. API keys and the layout are kept. The current file is                          saved as config.toml.bak first.",
+                    )
+                    .color(skin.warning),
+                );
+                ui.horizontal(|ui| {
+                    if ui.button("Reset to defaults").clicked() {
+                        cx.send(AppCommand::ResetConfig);
+                        // Unapplied edits go too; show the live config next frame.
+                        draft = live.clone();
+                        self.confirm_reset = false;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        self.confirm_reset = false;
+                    }
+                });
+            }
             ui.label(
                 RichText::new(format!(
                     "Saved to {}. Themes and alerts have their own functions (THEME, ALRT).",

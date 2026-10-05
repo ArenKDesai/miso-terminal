@@ -79,6 +79,7 @@ Useful flags:
 | `--home DIR` | Portable mode: keep everything in `DIR`. Also enabled by `MISO_TERMINAL_HOME`, or a file named `portable` next to the exe. |
 | `--run "CMD"` | Run a command at startup (repeatable), e.g. a desktop shortcut with `--run "GP ALTE.ALTE"`. If the terminal is already open, the command runs in that window instead. |
 | `--reset-layout` | Start from the default layout. |
+| `--reset-config` | Start from the default settings. `config.toml` is replaced and the old file kept as `config.toml.bak`; API keys and the layout stay. `SET` → *Reset to defaults…* does the same while the terminal runs. |
 | `--new-instance` | Open a second window anyway. Normally there is one live window per home, so MISO is polled once. |
 
 Files live in `%APPDATA%\MISO Terminal\config` (config, themes, fonts: these roam)
@@ -86,6 +87,9 @@ and `%LOCALAPPDATA%\MISO Terminal` (report cache, logs, window and layout state)
 The `LOG` function shows the exact paths and has buttons to open them.
 
 ## Functions
+
+New to the terminal? The [tutorials](docs/TUTORIALS.md) walk through the command
+line, the workspace, prices and spreads, alerts, the news, stocks and themes.
 
 | Code | Name | What it shows |
 |---|---|---|
@@ -120,7 +124,7 @@ The `LOG` function shows the exact paths and has buttons to open them.
 | `CN` | Company news | Stories about a stock or ETF (Benzinga's, through Alpaca), new ones as they are published, in the same browser as TOP and NEWS (`CN XLU US`; `CN` alone covers your watchlist's securities) |
 | `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast, ACE and headlines (`MISO, PJM, power prices`): add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, live streams and request budgets (when a source uses them), fetch activity, cache and file locations |
-| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits, news feeds, the stock price feed and MISO endpoints, saved to config.toml; API keys, kept in Windows Credential Manager, with a check that Alpaca accepts them |
+| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits, news feeds, the stock price feed and MISO endpoints, saved to config.toml; API keys, kept in Windows Credential Manager, with a check that Alpaca accepts them. *Reset to defaults…* starts over, keeping the old file as config.toml.bak |
 | `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
 | `HELP` | Help | Functions, keyboard shortcuts, data notes |
 
@@ -244,7 +248,7 @@ weather, gas, news and Alpaca sources) and runs the parsers against them. Pushin
 how releases will be made (none yet).
 
 The documentation site, <https://arenkdesai.github.io/miso-terminal/>, is built
-from this README, `docs/` and `themes/README.md` (`uv run tools/build_docs.py site`)
+from this README, `docs/` (user [tutorials](docs/TUTORIALS.md) included) and `themes/README.md` (`uv run tools/build_docs.py site`)
 and deployed by `docs.yml` on every push to main that touches them.
 
 ## TODO

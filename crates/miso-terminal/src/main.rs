@@ -30,6 +30,10 @@ OPTIONS:
                     Also set by MISO_TERMINAL_HOME, or a file named `portable`
                     next to the executable.
   --reset-layout    Start with the default layout.
+  --reset-config    Start with the default settings: config.toml is replaced
+                    with the defaults and the old file kept as config.toml.bak.
+                    API keys and the layout are kept. Ignored if the terminal
+                    is already open (use SET there instead).
   --run COMMAND     Run a command-line command at startup (repeatable),
                     e.g. --run \"GP ALTE.ALTE\" for a desktop shortcut. If the
                     terminal is already open, the command runs in that window.
@@ -43,6 +47,7 @@ struct Args {
     offline: Option<Option<PathBuf>>,
     home: Option<PathBuf>,
     reset_layout: bool,
+    reset_config: bool,
     run: Vec<String>,
     new_instance: bool,
 }
@@ -58,6 +63,7 @@ fn parse_args() -> Result<Option<Args>> {
             }
             "--home" => args.home = Some(it.next().context("--home needs a directory")?.into()),
             "--reset-layout" => args.reset_layout = true,
+            "--reset-config" => args.reset_config = true,
             "--new-instance" => args.new_instance = true,
             "--run" => args.run.push(it.next().context("--run needs a command")?),
             "--version" | "-V" => {
@@ -173,6 +179,10 @@ fn main() -> Result<()> {
         match instance::claim(&dir, &args.run) {
             Ok(instance::Claim::Forwarded) => {
                 tracing::info!("already running; handed over {:?}", args.run);
+                if args.reset_config {
+                    // The open window would save its settings over the reset.
+                    tracing::warn!("--reset-config ignored: the terminal is already open; use SET");
+                }
                 return Ok(());
             }
             Ok(instance::Claim::Primary(p)) => Some(p),
@@ -190,6 +200,17 @@ fn main() -> Result<()> {
         paths.config_file.display()
     );
 
+    if args.reset_config {
+        match AppConfig::reset(&paths.config_file) {
+            Ok(Some(backup)) => tracing::info!(
+                "config reset to defaults; the old file is {}",
+                backup.display()
+            ),
+            Ok(None) => tracing::info!("config reset to defaults"),
+            // Leave the file alone rather than lose it without a copy.
+            Err(e) => tracing::warn!("--reset-config failed, keeping the current config: {e}"),
+        }
+    }
     let (config, config_error) = AppConfig::load(&paths.config_file);
     if !paths.config_file.exists() {
         // Write the defaults so there is a file to find and edit.

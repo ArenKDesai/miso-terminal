@@ -489,6 +489,23 @@ fn app_shell_runs_frames_and_executes_commands() {
     );
     app.apply_commands(&ctx, vec![AppCommand::ResetLayout]);
     run(&mut app);
+
+    // SET's *Reset to defaults*: the old file is kept, the defaults are live
+    // and saved, and the shell keeps running.
+    app.apply_commands(&ctx, vec![AppCommand::SetNotifyAlerts(false)]);
+    app.apply_commands(&ctx, vec![AppCommand::ResetConfig]);
+    assert_eq!(app.config(), &AppConfig::default());
+    let backup = AppConfig::backup_path(&app.paths.config_file);
+    let (old, _) = AppConfig::load(&backup);
+    assert!(
+        !old.ui.notify_alerts && old.alerts.len() == 1,
+        "backup holds the old settings"
+    );
+    assert_eq!(
+        AppConfig::load(&app.paths.config_file).0,
+        AppConfig::default()
+    );
+    run(&mut app);
     let _ = std::fs::remove_dir_all(app.paths.config_file.parent().unwrap());
 }
 
