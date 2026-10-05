@@ -361,9 +361,10 @@ how changes land, versioning, the changelog, the checklist, verification and
 signing, and [the road to v0.2.0](docs/RELEASES.md#the-road-to-v020) orders the steps.
 - [x] A release workflow: a `v*` tag builds the Windows zip and attaches it to a
       GitHub release (never run so far).
-- [ ] **Pull requests for every change:** `CONTRIBUTING.md`, a pull request
-      template, `CHANGELOG.md` kept under *Unreleased* by each pull request,
-      squash merges, rulesets protecting `main` and `v*` tags, immutable releases.
+- [x] **Pull requests for every change:** squash merges, auto-merge, rulesets
+      protecting `main` and `v*` tags with no bypass, immutable releases.
+- [ ] `CONTRIBUTING.md`, a pull request template, and `CHANGELOG.md` kept under
+      *Unreleased* by each pull request.
 - [ ] CI to match: a required *Docs* check, `--locked` builds, Dependabot, and
       drift failures opening issues.
 - [ ] The release process: one workspace version shown in `--version`, HELP and
