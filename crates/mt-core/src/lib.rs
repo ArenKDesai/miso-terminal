@@ -9,8 +9,9 @@
 //! ([`exchange`]), are named `XLU US` ([`instrument`]), are quoted as trades,
 //! quotes and bars ([`equity`]) and are priced in exact decimals ([`money`])
 //! wherever an order is involved. A brokerage account's balances, positions,
-//! equity curve and activities are in [`account`]. News headlines and keyword
-//! topics are in [`news`].
+//! equity curve and activities are in [`account`]; orders are in [`order`], and
+//! the guardrails every order ticket passes in [`guard`]. News headlines and
+//! keyword topics are in [`news`].
 
 pub mod account;
 pub mod archive;
@@ -20,10 +21,12 @@ pub mod exchange;
 pub mod fuels;
 pub mod geo;
 pub mod grid;
+pub mod guard;
 pub mod instrument;
 pub mod money;
 pub mod news;
 pub mod num;
+pub mod order;
 pub mod prices;
 pub mod seams;
 pub mod time;
