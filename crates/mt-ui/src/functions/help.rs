@@ -66,7 +66,15 @@ impl Panel for Help {
     fn ui(&mut self, ui: &mut Ui, cx: &mut PanelCx<'_>) {
         let skin = cx.skin;
         ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-            widgets::title_bar(ui, skin, "MISO Terminal", |_| {});
+            // The version for bug reports: a release build is a windowed
+            // program, so `--version` at a prompt prints nothing unless piped.
+            widgets::title_bar(ui, skin, "MISO Terminal", |ui| {
+                ui.label(
+                    RichText::new(concat!("version ", env!("CARGO_PKG_VERSION")))
+                        .monospace()
+                        .color(skin.text_muted),
+                );
+            });
             ui.label(
                 "Type a function code on the command line and press Enter. Put a pricing node before or \
                  after a code (MINN.HUB GP), or type a bare node to graph it. Click any node or hub to drill in. \

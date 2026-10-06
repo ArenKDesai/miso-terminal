@@ -63,7 +63,7 @@ details):
 ## Reporting a problem
 
 Open an issue saying what you ran, what you expected and what happened, with
-the version (`miso-terminal --version`). The log file (in `LOG` under
+the version (beside the title in `HELP`). The log file (in `LOG` under
 *Files*, *Open* beside *Logs*) usually shows the cause; look through it
-before attaching it, since its paths name your Windows user. When a MISO feed changes format, the weekly
-drift job usually notices first.
+before attaching it, since its paths name your Windows user. When a MISO
+feed changes format, the weekly drift job usually notices first.

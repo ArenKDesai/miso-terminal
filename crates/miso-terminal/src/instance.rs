@@ -6,7 +6,9 @@
 //!
 //! The port, a random token and the owner's process id are written to
 //! `instance.port`. Only a client that can read that file (the same user) can
-//! send commands, and commands only open read-only panels.
+//! send commands, and commands only open panels: an order ticket opened this
+//! way sends nothing until its Confirm is clicked in the window (the test
+//! `commands_from_outside_the_window_only_open_tickets` holds that).
 
 use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io::{BufRead, BufReader, Read, Write};
