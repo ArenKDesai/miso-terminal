@@ -36,7 +36,8 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     aliases: &["COMBO", "OSTRAT"],
     name: "Spread ticket",
     category: Category::Account,
-    usage: "MLEG <+|->[ratio*]<option> … [units] [MKT | LMT <net> | CREDIT <net>] [DAY | GTC]",
+    // `±`, not `<+|->`: JetBrains Mono draws `|->` as an arrow ligature.
+    usage: "MLEG ±[ratio*]<option> … [units] [MKT | LMT <net> | CREDIT <net>] [DAY | GTC]",
     description: "An order ticket for an options strategy of two to four legs in the Alpaca paper account, sent as one order: MLEG +XLU261218C00045000 -XLU261218C00047000 2 LMT 0.85 (a negative limit, or CREDIT 0.40, is a credit). Each leg's quote, the net price, margin, buying power, what it pays at expiry with a chart, and every guardrail. OMON builds these from its chain. Only its Confirm button sends the order.",
     takes_node: false,
     takes_security: false,

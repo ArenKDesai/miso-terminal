@@ -70,25 +70,39 @@ impl Panel for Help {
             ui.label(
                 "Type a function code on the command line and press Enter. Put a pricing node before or \
                  after a code (MINN.HUB GP), or type a bare node to graph it. Click any node or hub to drill in. \
-                 Securities are a ticker and market code, XLU US: XLU US GP, DES XLU US, or XLU US alone.",
+                 Securities are a ticker and market code, XLU US: XLU US GP, DES XLU US, or XLU US alone. \
+                 Options are OCC symbols (XLU261218C00045000); one typed alone opens its chain in OMON.",
             );
+            // The code and its arguments on one line, the description wrapped
+            // under them. (A grid sized its columns to the longest usage and
+            // let descriptions run off the pane.)
             for cat in Category::ALL {
                 widgets::section(ui, skin, cat.label());
-                Grid::new(("help", cat.label())).num_columns(3).spacing([14.0, 4.0]).striped(true).show(ui, |ui| {
-                    for spec in cx.registry.specs().iter().filter(|s| s.category == cat) {
+                for spec in cx.registry.specs().iter().filter(|s| s.category == cat) {
+                    ui.horizontal_wrapped(|ui| {
                         if widgets::link(ui, skin, spec.code).clicked() {
                             cx.open(Route::code(spec.code));
                         }
-                        ui.label(RichText::new(spec.usage).monospace().color(skin.text_muted));
-                        ui.label(spec.description);
-                        ui.end_row();
-                    }
-                });
+                        let args = spec.usage.strip_prefix(spec.code).unwrap_or(spec.usage).trim();
+                        if !args.is_empty() {
+                            ui.label(RichText::new(args).monospace().color(skin.text_muted));
+                        }
+                    });
+                    ui.indent(spec.code, |ui| ui.label(spec.description));
+                    ui.add_space(2.0);
+                }
             }
 
             widgets::section(ui, skin, "Function keys");
             ui.horizontal_wrapped(|ui| {
-                for (key, command) in &cx.config.ui.hotkeys {
+                let config = cx.config;
+                let mut hotkeys: Vec<_> = config.ui.hotkeys.iter().collect();
+                // F2 before F10: by the key's number, not its spelling.
+                hotkeys.sort_by_key(|(key, _)| {
+                    let n = key.get(1..).and_then(|n| n.parse::<u32>().ok());
+                    (n.unwrap_or(u32::MAX), key.as_str())
+                });
+                for (key, command) in hotkeys {
                     if widgets::link(ui, skin, &format!("{key} {command}")).clicked() {
                         cx.send(crate::context::AppCommand::Run(command.clone()));
                     }
@@ -128,7 +142,16 @@ impl Panel for Help {
                 "Stock and ETF prices come from Alpaca, with your own account's keys (SET): on the \
                  free plan real time from IEX alone (thinly traded names can lag) or every exchange \
                  15 minutes late, and daily history from every exchange. Securities are shown in New \
-                 York time. Company news (CN) is Benzinga's, through Alpaca.",
+                 York time. Company news (CN) is Benzinga's, through Alpaca. Option chains come from \
+                 Alpaca's indicative feed on the free plan: quotes derived from OPRA's, trades 15 \
+                 minutes late.",
+            );
+            ui.label(
+                "Orders go only to the Alpaca paper account, and only when you click Confirm on a \
+                 ticket (BUY, SELL, MLEG): a typed command, --run or a hotkey opens a ticket and \
+                 never sends it. Every ticket checks the order against your limits ([trading] in \
+                 config.toml, or SET); ORD's kill switch cancels everything and turns trading off. \
+                 Every order request and answer goes to the audit log (ORD shows where).",
             );
             ui.label(
                 RichText::new("For information only. Not an official MISO product, and not for operational or settlement decisions.")

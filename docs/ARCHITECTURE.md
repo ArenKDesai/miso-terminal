@@ -62,8 +62,8 @@ TUI, a web view, a CLI exporter) could reuse them unchanged.
    `Transport`: `HttpTransport` (reqwest with native-tls, so SChannel and the
    Windows certificate store) or `FixtureTransport` (recorded files, used by
    `--offline` and the tests).
-5. The response is parsed by a pure function in `mt-miso::parse` into `mt-core`
-   types. On success the hub stores it and calls the notify hook, which the app
+5. The response is parsed by a pure function (`mt-miso::parse` for MISO; each
+   source crate has its own) into `mt-core` types. On success the hub stores it and calls the notify hook, which the app
    wires to `request_repaint()`. On failure the last good value is kept, the
    error is attached, and retries back off exponentially (5 s up to 5 min).
 6. Nothing refreshes unless something is watching it. Unwatched entries are
@@ -93,8 +93,8 @@ closes the budget for the server's `Retry-After`. Budgets are passed in
 
 `FetchCtx::send` is the raw path: any method, every HTTP status returned as a
 `Response` (an API's rejection message is in the body), with budgets, the
-concurrency cap and the log, but no caching and no retries. It is what an
-order desk will use. `get` and `get_immutable` turn statuses into errors:
+concurrency cap and the log, but no caching and no retries. The order desk
+sends with it. `get` and `get_immutable` turn statuses into errors:
 `404` is `NotFound`, `401`/`403` `Auth`, `429` `RateLimited`.
 
 ### Streams
@@ -272,19 +272,18 @@ desk is asked, a ticket runs `mt_core::guard::review` (for an option contract
 `mt_ui::trading::OptionMarket` builds from the account, positions, contract
 list and chain; for a spread `review_spread`, with each leg's quote, which
 also returns the net prices, Alpaca's margin and the payoff at expiry): pure
-rules
-over the request, the account, the position, the latest prices, the exchange
-session, today's order value (`order::day_value`) and whether it would be a
-day trade (`order::is_day_trade`), each a pass, a warning the user must
-acknowledge, or a block. `Limits` (`[trading]`) holds the caps, the collar,
+rules over the request, the account, the position, the latest prices, the
+exchange session, today's order value (`order::day_value`) and whether it
+would be a day trade (`order::is_day_trade`), each a pass, a warning the user
+must acknowledge, or a block. `Limits` (`[trading]`) holds the caps, the collar,
 the restricted list and the switch the kill switch turns off. The order list
 (`OrdersQuery`) is re-read after every order event and reconnect, as the
 account is, and the trade stream keeps each order as its latest event left it
 (`LiveTrades::orders`), merged over the list by last change
 (`order::merge_orders`).
 
-In the UI, `mt_ui::trading` is what the tickets (`BUY`, `SELL`) and the
-blotter (`ORD`) share: the merged orders, verdicts and outcomes drawn alike. A
+In the UI, `mt_ui::trading` is what the tickets (`BUY`, `SELL`, `MLEG`) and
+the blotter (`ORD`) share: the merged orders, verdicts and outcomes drawn alike. A
 ticket keeps its fields as text and builds an `OrderRequest` each frame; its
 *Confirm* is the only call to `OrderDesk::submit`, and the app holds the one
 desk (`PanelCx::desk`). The desk's generation counter moves when an operation
@@ -292,10 +291,6 @@ finishes, and the app then re-reads the account, positions and orders. The
 kill switch also sets `[trading] enabled = false` through
 `AppCommand::SetTradingEnabled`, so trading stays off across restarts. Ticket
 tabs are closed rather than restored at launch.
-
-Securities never use MISO's market time: `mt_core::exchange` gives New York
-time, and charts of securities use `widgets::chart::exchange_plot`, whose grid
-follows New York midnights through the clock changes.
 
 ### Feeds with memory
 
@@ -373,7 +368,8 @@ equities (`chrono-tz`'s America/New_York): exchange clocks, the spring and
 autumn clock changes, and the trading sessions (pre-market, regular, after
 hours) for a day's hours, which the exchange calendar supplies. It follows the
 same freezable clock. The two never mix: MISO data uses `time`, securities use
-`exchange`.
+`exchange`, and charts of securities use `widgets::chart::exchange_plot`,
+whose grid follows New York midnights through the clock changes.
 
 ## Instruments and money
 
@@ -403,10 +399,12 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 | `mt-news` | RSS 2.0, RSS 1.0 and Atom (CDATA, escaped HTML, entities, dates, Atom links, no article bodies); every built-in feed against its recording (sample text in the feed's real structure; live in the drift job via `MT_FIXTURES`); identities, merging, combining, keyword rules, config overrides, read marks |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
 | `mt-ui` | Command parsing, completion and hints; alert engine (headline alerts included); series maths; the headline browser and archived headlines and read marks across a restart; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart; ticket commands parsed and round-tripped; commands from outside the window (`--run`, a forwarded launch, a hotkey) opening tickets against fixtures posing as the live network, with nothing but GETs sent |
-| visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen at their recording time, compared with committed images: every theme's layout and several zoomed panels (the account's four, two tickets and ORD among them) |
+| visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen at their recording time, compared with committed images: every built-in theme's layout and zoomed panels across the app (the account's four, the stock and option tickets, ORD, OMON and MLEG among them) |
 
 The smoke test iterates the registry, so a new function gets coverage without
-writing a test. Separately, the weekly `drift.yml` workflow records live MISO
+writing a test. It also checks that every feed any panel requests loads from
+the fixtures without error, which is what makes `--offline` trustworthy.
+Separately, the weekly `drift.yml` workflow records live MISO
 responses (and the weather, gas, news and Alpaca sources, the last with a
 throwaway paper account's keys from the repository secrets) and runs the parser
 tests against them (`MT_FIXTURES`), so format changes surface in CI rather than
@@ -415,8 +413,7 @@ as a blank panel. Run by hand, it can also record a fresh set of Alpaca fixtures
 
 At runtime, each tab's `ui()` runs inside `catch_unwind`. A panicking panel is
 logged, its state is dropped, and the tab shows the error with a *Reload panel*
-button. The rest of the terminal keeps running. It also checks that every feed any panel requests loads from the
-fixtures without error, which is what makes `--offline` trustworthy.
+button. The rest of the terminal keeps running.
 
 ## Decisions
 

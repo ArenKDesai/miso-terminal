@@ -1,11 +1,11 @@
 # Markets plan: news, market data, trading and portfolio
 
-A plan: headlines from the Financial Times, Bloomberg and the Washington Post;
-US stock, ETF and options data from Alpaca; paper trading through Alpaca, with
-live trading later; and account and portfolio tracking. Phase 0 (foundations),
-Phase 1 (news) and Phase 2 (market data) are built (2026-10-04), and Phase 3
-(account and portfolio), Phase 4 (paper trading) and Phase 5 (options) on
-2026-10-05; Phase 6 (live trading) is not yet.
+The plan for headlines from the Financial Times, Bloomberg and the Washington
+Post; US stock, ETF and options data from Alpaca; paper trading through
+Alpaca, with live trading later; and account and portfolio tracking. Phase 0
+(foundations), Phase 1 (news) and Phase 2 (market data) were built on
+2026-10-04, and Phase 3 (account and portfolio), Phase 4 (paper trading) and
+Phase 5 (options) on 2026-10-05. Phase 6 (live trading) is still to come.
 Facts about the sources were checked on 2026-10-04 (options on 2026-10-05). The README's roadmap tracks
 progress against the phases below.
 
@@ -16,7 +16,7 @@ progress against the phases below.
 | News sources | Public RSS headline feeds from FT, Bloomberg and the Washington Post, plus Alpaca's ticker-tagged news (Benzinga) | None of the three offers an individual-subscriber API; their RSS feeds work today |
 | Subscriber articles | Open in the default browser, where the reader is signed in | The terminal never handles news passwords, and it stays within each publisher's terms |
 | Alpaca client | Our own direct HTTP and WebSocket client, a new `mt-alpaca` crate on `mt-data` | See below |
-| Data plan | Alpaca's free plan, with the feed (`iex`/`sip`) a setting | IEX real-time, consolidated SIP 15 minutes delayed, 200 requests a minute, 30 streamed symbols |
+| Data plan | Alpaca's free plan, with the feed (`iex`/`sip`) a setting | IEX real-time, consolidated SIP 15 minutes delayed, 200 requests a minute, 30 trade and quote subscriptions on the stream |
 | Assets | US stocks and ETFs, then options | Options are their own phase so they cannot delay stocks |
 | Live orders | Every order confirmed, with notional caps and a kill switch | Paper uses the same confirm flow, so habits carry over |
 | Instrument syntax | Ticker plus market code, Bloomberg-style: `XLU US` | Never confused with a MISO node such as `AECI` or `TVA` |
@@ -41,8 +41,8 @@ describe each piece and [EXTENDING](EXTENDING.md#add-a-streaming-source) the rec
 
 - **`mt-data` grows up.** `Request` carries a method, headers and a body;
   secret header values print as `***` in the event log. `Budget`s cap requests
-  per group of hosts (Alpaca's will be about 180 of 200 a minute, shared by
-  every panel), wait for a free slot rather than fail, and close for a `429`'s
+  per group of hosts (Alpaca's is 180 of the 200 a minute, shared by every
+  panel), wait for a free slot rather than fail, and close for a `429`'s
   `Retry-After`. GETs are conditional (ETag, If-Modified-Since) whenever the
   server sends validators. `FetchCtx::send` returns every status with its body,
   for the order desk. **Streams** (`mt_data::Stream`): WebSocket connections
@@ -175,7 +175,8 @@ as decided above). Paths and message formats were taken from Alpaca's own
 - **Completion.** The command line offers tickers and company names from the
   asset list for functions that take securities, `GP XLU US` for a bare ticker,
   and the functions that take a security after one (`XLU US D…`). A bare
-  security opens `GP`, as a bare node does; options are refused until `OMON`.
+  security opens `GP`, as a bare node does (and since Phase 5, a bare option
+  symbol opens its chain in `OMON`).
 - **The energy angle.** Built-in lists for `Q`: `POWER` (all of the below, the
   default), `UTILITIES` (AEE, XEL, LNT, WEC, DTE, CMS, ETR, CNP, MGEE, NI, OTTR),
   `GENERATORS` (VST, NRG, CEG, TLN), `ETFS` (XLU, XLE, UNG) and `GAS` (UNG, EQT, AR,
@@ -422,12 +423,15 @@ Only after paper trading has run cleanly for a few weeks.
   takes a typed confirmation phrase in SET and a restart.
 - One account trades per session, and the status band turns red.
 - Every guardrail stays on, and every order needs its confirm.
+- Signed releases first: the [release plan](RELEASES.md#signing) puts code
+  signing in place before live trading ships.
 - A security review of the order path before this ships.
 
 ## Testing
 
-- Fixtures for every endpoint (account numbers redacted) and recorded stream
-  sessions, so offline mode and the tests replay them.
+- Fixtures for every endpoint (a made-up account and option chains, synthetic
+  prices, sample stories) and recorded stream sessions, so offline mode and
+  the tests replay them.
 - A fake broker in the tests: duplicate prevention, reconnect reconciliation,
   partial fills and rejections, every guardrail.
 - The weekly drift job records live Alpaca responses with the CI paper
