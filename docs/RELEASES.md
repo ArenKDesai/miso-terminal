@@ -24,7 +24,10 @@ and the README's roadmap tracks them.
   [Versioning](#versioning)).
 - `CHANGELOG.md` and `CONTRIBUTING.md` exist; the changelog's *Unreleased*
   section lists what the first release will carry.
-- The workspace version is still `0.1.0`, and `--version` prints it.
+- The workspace version is still `0.1.0`. `--version` prints it and HELP
+  shows it beside its title (a release build is a windowed program, so
+  `--version` typed at a prompt shows nothing unless piped:
+  `miso-terminal --version | more`).
 - The zip is ready to share in one respect: its fixtures hold no keys, personal
   data or licensed content (news and Alpaca recordings are sample copies with
   synthetic prices).
