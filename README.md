@@ -72,7 +72,8 @@ Windows blocks unsigned programs outright until releases are signed.
 ## Build from source (Windows)
 
 ```powershell
-# Rust stable (https://rustup.rs) and the MSVC build tools are required.
+# Rust through rustup (https://rustup.rs) and the MSVC build tools are required;
+# rustup installs the compiler version rust-toolchain.toml names on first use.
 git clone https://github.com/ArenKDesai/miso-terminal
 cd miso-terminal
 cargo run --release
@@ -423,8 +424,9 @@ signing, and [the road to v0.2.0](docs/RELEASES.md#the-road-to-v020) orders the 
       protecting `main` and `v*` tags with no bypass, immutable releases.
 - [x] [`CONTRIBUTING.md`](CONTRIBUTING.md), and [`CHANGELOG.md`](CHANGELOG.md)
       kept under *Unreleased* by each pull request.
-- [ ] CI to match: a required *Docs* check, `--locked` builds, Dependabot, and
-      drift failures opening issues.
+- [x] CI to match: a required *Docs* check (the docs build checks its links),
+      `--locked` builds with a pinned toolchain, third-party notices checked on
+      every pull request, Dependabot, and drift failures opening issues.
 - [x] One workspace version shown in `--version`, HELP and LOG (with the commit
       outside releases), and a test that every release's `config.toml` still
       loads (`fixtures/compat/`).

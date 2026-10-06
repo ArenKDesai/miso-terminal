@@ -13,7 +13,8 @@ stays free and open.
 
 ## Getting started
 
-You need Rust stable and, on Windows, the MSVC build tools. Then:
+You need Rust through [rustup](https://rustup.rs), which installs the version
+`rust-toolchain.toml` names, and on Windows the MSVC build tools. Then:
 
 ```powershell
 cargo run -- --offline     # the app against recorded data, no network
@@ -39,7 +40,8 @@ details):
 - **The description** says why, and what to look at, in prose. Pull requests
   are merged by squash, and the title and description become the commit, so
   write them as a commit message.
-- **CI must pass:** *Windows (primary)* and *Linux (non-UI crates)*.
+- **CI must pass:** *Windows (primary)*, *Linux (non-UI crates)* and *Docs*.
+  Builds are `--locked`: a change to `Cargo.toml` commits its `Cargo.lock`.
 
 ## Checklist
 

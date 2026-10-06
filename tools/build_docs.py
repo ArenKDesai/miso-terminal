@@ -12,7 +12,9 @@ becomes the roadmap page), docs/TUTORIALS.md, docs/ARCHITECTURE.md, docs/EXTENDI
 docs/MARKETS-PLAN.md, docs/RELEASES.md and themes/README.md, plus a card for every theme and the
 gallery's files to download. Links between them become links between pages;
 links to other files point at GitHub. The page is styled with the Everforge palette and fonts.
-`.github/workflows/docs.yml` runs this and deploys the result.
+`.github/workflows/docs.yml` runs this and deploys the result. Every build checks
+its own links (pages, anchors, files, and the repository paths it links on GitHub) and
+fails on a broken one, which is what CI's Docs check relies on.
 """
 
 from __future__ import annotations
@@ -262,6 +264,31 @@ def gallery_index() -> str:
     return json.dumps({"version": 1, "themes": themes}, ensure_ascii=False, indent=1) + "\n"
 
 
+def check_links(out: Path) -> list[str]:
+    """Every local link and image in the built site, and every link to a file
+    in this repository on GitHub, must lead somewhere. External sites are not
+    fetched: their failures would be someone else's and come and go."""
+    ids = {f.name: set(re.findall(r'\bid="([^"]+)"', f.read_text(encoding="utf-8"))) for f in out.glob("*.html")}
+    problems = []
+    for f in sorted(out.glob("*.html")):
+        for attr, url in re.findall(r'\b(href|src)="([^"]*)"', f.read_text(encoding="utf-8")):
+            url = html.unescape(url)
+            if url.startswith((BLOB, TREE)):
+                path = url.removeprefix(BLOB).removeprefix(TREE).partition("#")[0]
+                if not (ROOT / path).exists():
+                    problems.append(f"{f.name}: {url} (no such file in the repository)")
+                continue
+            if re.match(r"^[a-z]+:", url) or url.startswith("//"):
+                continue
+            path, _, frag = url.partition("#")
+            target = path or f.name
+            if not (out / target).exists():
+                problems.append(f"{f.name}: {url} (no such page or file)")
+            elif frag and target.endswith(".html") and frag not in ids.get(target, set()):
+                problems.append(f"{f.name}: {url} (no such section)")
+    return problems
+
+
 def main() -> None:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     update_fixture = "--update-fixture" in sys.argv[1:]
@@ -327,6 +354,9 @@ def main() -> None:
     shutil.copy2(ROOT / "assets/icon/miso-terminal.png", out / "icon.png")
     shutil.copy2(Path(__file__).with_name("docs_style.css"), out / "style.css")
     print(f"{len(pages)} pages, {len(assets)} screenshots, {len(gallery_theme_files())} gallery themes -> {out}")
+    problems = check_links(out)
+    if problems:
+        sys.exit("broken links:\n  " + "\n  ".join(problems))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,31 @@
+# Weekly dependency updates, one grouped pull request per ecosystem.
+#
+# Cargo is lockfile-only: Dependabot moves Cargo.lock within the ranges
+# Cargo.toml allows (what `cargo update` does) and never edits Cargo.toml.
+# Most of the workspace's dependencies are below 1.0, where a minor version is
+# a breaking one, and some must move together (egui, eframe, egui_extras,
+# egui_plot, egui_dock; quick-xml with calamine's; windows-registry with
+# hyper-util's), so those upgrades stay deliberate: routine maintenance runs
+# `cargo update --dry-run --verbose`, which lists what is held back.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    versioning-strategy: lockfile-only
+    groups:
+      cargo:
+        patterns: ["*"]
+    open-pull-requests-limit: 2
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 2

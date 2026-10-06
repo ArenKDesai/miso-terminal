@@ -14,7 +14,10 @@ and the README's roadmap tracks them.
   releases are on, and the `v0.2.0` milestone exists. The docs site still
   deploys whatever `main` holds.
 - CI (`ci.yml`) runs on pull requests and on `main`: fmt, clippy, tests and a
-  release build on Windows, and the non-UI crates on Linux.
+  release build on Windows, the non-UI crates and the third-party notices on
+  Linux, and the docs site (*Docs*), every build `--locked` with the compiler
+  `rust-toolchain.toml` pins. Dependabot proposes updates weekly, and a drift
+  failure opens an issue.
 - `.github/workflows/release.yml` already exists: pushing a `v*` tag runs the
   tests, builds the release exe and attaches a zip to a GitHub release (the exe,
   `fixtures/` for `--offline`, README, LICENSE, `install.ps1` and the font
@@ -102,24 +105,34 @@ urgent fix still goes through a pull request; it takes as long as CI):
   at the same commit. Together with GitHub's *immutable releases* setting, a
   release's tag and files cannot change after publication.
 
-**Required checks.** *Windows (primary)* and *Linux (non-UI crates)* from
-`ci.yml`, plus a new *Docs* job there that builds the site, so a broken page
-or link fails the pull request. (`docs.yml` runs only when its paths change,
-and a check that may not run cannot be required.) CI also builds and tests
-with `--locked`, so a pull request that changes `Cargo.toml` must commit the
-matching `Cargo.lock`.
+**Required checks.** *Windows (primary)*, *Linux (non-UI crates)* and *Docs*
+from `ci.yml`. *Docs* builds the site, and the build checks its own links,
+so a broken page, link or anchor fails the pull request. (`docs.yml` runs
+only when its paths change and only deploys; a check that may not run cannot
+be required.) Every build is `--locked`, so a pull request that changes
+`Cargo.toml` must commit the matching `Cargo.lock`, and uses the compiler
+`rust-toolchain.toml` pins, so a new Rust release cannot turn CI red
+overnight; routine maintenance moves the pin forward. The Linux job also
+generates the release's third-party notices, so a dependency under a licence
+`packaging/about.toml` does not accept fails its own pull request.
 
 **Dependencies.** Dependabot opens one grouped pull request a week for Cargo
-minor and patch updates and one for GitHub Actions, replacing the manual
-`cargo update` round. Major versions arrive one at a time. `windows-registry`
-stays at 0.6 (it must match hyper-util's), so Dependabot ignores its major
-updates. The OSV audit of `Cargo.lock` stays a monthly manual check.
+and one for GitHub Actions. For Cargo it is lockfile-only: it moves
+`Cargo.lock` within the ranges `Cargo.toml` allows, replacing the manual
+`cargo update` round, and never edits `Cargo.toml`. Most dependencies are
+below 1.0, where a minor version breaks things, and some must move together
+(the egui family; quick-xml with calamine's; `windows-registry` at 0.6 with
+hyper-util's), so upgrades past those ranges stay deliberate, one at a time:
+routine maintenance runs `cargo update --dry-run --verbose`, which lists
+what is held back. The OSV audit of `Cargo.lock` stays a monthly manual
+check.
 
 **Issues and milestones.** Planned work and bugs are issues; a pull request
 that finishes one says `Closes #12`. Each release has a milestone (`v0.2.0`)
 holding what must be done first, so the release's state is one page. When
-the drift job fails it opens (or comments on) an issue labelled `source`, so a
-format change is tracked like any bug instead of waiting in the Actions tab.
+the drift job fails it opens an issue labelled `source` (or comments on the
+open one), so a format change is tracked like any bug instead of waiting in
+the Actions tab.
 
 **Claude.** Claude works the same way: a branch and a pull request for every
 change, never a push to `main`. Claude uses GitHub as the maintainer, so it
@@ -310,9 +323,11 @@ new rules), tracked as issues in the `v0.2.0` milestone.
    (the branch, pull request and checklist rules above), and `CHANGELOG.md`,
    whose *Unreleased* section starts from what was on `main` before the first
    release.
-2. **CI to match.** The *Docs* job in `ci.yml` (then made a required check),
-   `--locked` builds, Dependabot's configuration, and the drift job opening
-   issues when it fails.
+2. **CI to match.** Done: the *Docs* job in `ci.yml` (with link checking in
+   the docs build), made a required check once it was on `main`; `--locked`
+   builds with a pinned toolchain; the third-party notices checked on every
+   pull request; Dependabot's configuration; and the drift job opening issues
+   when it fails.
 3. **The version, visible.** Done: one workspace version in `--version`,
    HELP, LOG and the executable's properties, with the commit added outside
    releases; the compatibility fixtures and their test. (The zip's name comes
