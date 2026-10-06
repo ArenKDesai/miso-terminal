@@ -18,10 +18,11 @@ and the README's roadmap tracks them.
   Linux, and the docs site (*Docs*), every build `--locked` with the compiler
   `rust-toolchain.toml` pins. Dependabot proposes updates weekly, and a drift
   failure opens an issue.
-- `.github/workflows/release.yml` already exists: pushing a `v*` tag runs the
-  tests, builds the release exe and attaches a zip to a GitHub release (the exe,
-  `fixtures/` for `--offline`, README, LICENSE, `install.ps1` and the font
-  licences), with notes GitHub generates from the commits. It has never run.
+- `.github/workflows/release.yml` does everything [below](#the-release-workflow):
+  a `v*` tag matching the version builds the zip and publishes it with
+  checksums, a provenance attestation, third-party notices and notes from the
+  changelog. It has run only as a dry run (on the pull requests that change
+  it, and by hand); no tag has been pushed.
 - Markets phases 0 to 5 are built and on `main`, so all of them go into the
   first release; Phase 6 (live trading) comes after it (see
   [Versioning](#versioning)).
@@ -193,29 +194,48 @@ their own credential entries, so no release can mix them up with paper keys.
 - The release's notes are that section, plus the checksums and how to verify
   the download, instead of GitHub's generated list of commits.
 
-## Changes to the release workflow
+## The release workflow
 
-1. **Refuse a mismatch:** fail unless the tag equals the workspace version.
-2. **Pre-releases:** tags with `-rc` are published as pre-releases.
-3. **Checksums:** a `SHA256SUMS.txt` beside the zip.
+`.github/workflows/release.yml`, run by a `v*` tag:
+
+1. **Refuse a mismatch:** it fails unless the tag equals the workspace
+   version (`v0.2.0` for `0.2.0` in `Cargo.toml`).
+2. **Pre-releases:** a tag with a pre-release part (`v0.2.0-rc.1`) is
+   published as a pre-release.
+3. **Checksums:** a `SHA256SUMS.txt` beside the zip (`sha256sum`'s format),
+   and the digest in the notes with a PowerShell line that checks it.
 4. **Provenance:** a build attestation (`actions/attest-build-provenance`),
    so `gh attestation verify <zip> --repo ArenKDesai/miso-terminal` proves the
    zip came from this repository's workflow at that tag.
 5. **Third-party notices:** the Rust dependencies' licences (MIT, Apache and
    others require their notices to travel with binaries), generated with
-   `cargo-about` into `THIRD-PARTY-NOTICES.html` in the zip, beside the font
-   licences already there.
-6. **Source:** the notes link the tag's source archive. As the AGPL asks,
-   whoever has the binary can get the matching source.
-7. **Locked builds:** `cargo build --release --locked`, with the toolchain
-   pinned in `rust-toolchain.toml`, so a release builds from exactly the
-   committed `Cargo.lock`.
-8. **Notes from the changelog:** the workflow takes the tag's section from
-   `CHANGELOG.md` and fails if there is none.
+   `cargo-about` (`packaging/about.toml`) into `THIRD-PARTY-NOTICES.html` in
+   the zip, beside the font licences. `install.ps1` installs them with the
+   program.
+6. **Source:** the notes link the tag's source. As the AGPL asks, whoever has
+   the binary can get the matching source.
+7. **Locked builds:** `cargo build --release --locked` with the toolchain
+   `rust-toolchain.toml` pins, from scratch (no cache), with `MT_RELEASE=1`
+   so the version is the plain one.
+8. **Notes from the changelog:** `tools/release_notes.py` takes the
+   version's section from `CHANGELOG.md` (a release candidate uses its
+   version's: `0.2.0` for `0.2.0-rc.1`) and fails if there is none; then come
+   the download's checksum, the attestation, the SmartScreen note and the
+   source.
 9. **Draft, then publish:** with immutable releases on, files cannot be added
-   to a published release, so the workflow creates a draft, uploads the zip,
-   checksums and notes, and publishes only once all are attached. GitHub then
-   adds its own release attestation.
+   to a published release, so the workflow creates a draft, attaches the zip
+   and checksums, and publishes only once all are there. GitHub then adds its
+   own release attestation.
+
+The build runs in one job with read-only access (it runs the tests and the
+build scripts); a second job, for tags only, downloads what it built, attests
+it and publishes, and is the only one that can write. Pull requests that
+change the release's files (the workflow, the notes script, `packaging/`), and
+a run by hand (*Run workflow* on `main`), go through the whole build as a dry
+run: the zip, checksums and notes (from *Unreleased*) come out as an artifact
+and in the run's summary, and nothing is published. That replaced the plan to
+test on a fork: GitHub does not let an account fork its own repository, and a
+test tag here could never be deleted.
 
 ## Making a release
 
@@ -230,7 +250,9 @@ one (below).
 2. **Release pull request** (branch `prepare/v0.2.0-rc.1` → `main`; not
    `release/…`, which names protected maintenance branches): bump the version
    (`Cargo.toml`, `Cargo.lock`), turn *Unreleased* into the version's
-   changelog section, add the compatibility fixture (`default_config`, above),
+   changelog section (`## [0.2.0]`, which the candidates use too; the final
+   release's pull request adds the date), add the compatibility fixture
+   (`default_config`, above),
    update the README's install notes if they changed. Merge it like any other.
 3. **Tag the candidate** on that merge commit with an annotated tag
    (`git tag -a v0.2.0-rc.1 -m "v0.2.0-rc.1"`) and push the tag. The workflow publishes a pre-release.
@@ -332,12 +354,12 @@ new rules), tracked as issues in the `v0.2.0` milestone.
    HELP, LOG and the executable's properties, with the commit added outside
    releases; the compatibility fixtures and their test. (The zip's name comes
    with the release workflow.)
-4. **The release workflow.** The nine changes above, tried on a fork with
-   the same settings. Not with a test tag here: the tag rules and immutable
-   releases mean a test release could never be deleted.
-5. **Release notes material.** The README's install section and the
-   tutorials checked against the release zip; the notes' text on SmartScreen,
-   checksums and attestations.
+4. **The release workflow.** Done: the nine changes above, with a dry run in
+   place of a fork (see [the release workflow](#the-release-workflow)).
+5. **Release notes material.** Done: the notes' text on checksums,
+   attestations, SmartScreen and the source (`tools/release_notes.py`), and
+   the README's install section checked against a zip built the workflow's
+   way (`install.ps1` now installs the licences with the program).
 6. **`v0.2.0-rc.1`**, tested as above; `rc.2` and so on if needed.
 7. **`v0.2.0`.** Then: the docs site deploys from releases, the application to
    SignPath Foundation, and for `0.3.0` the update check (off by default) and

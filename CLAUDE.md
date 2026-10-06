@@ -35,6 +35,8 @@ uv run tools/build_map_asset.py        # rebuild assets/map/miso_map.json from .
 uv run tools/export_history.py         # long history from the EPJ DuckDB into the app's cache
 uv run tools/build_docs.py site        # the GitHub Pages docs site, from README.md, docs/ and themes/README.md
 cargo about generate --locked -c packaging/about.toml -o notices.html packaging/about.hbs   # third-party notices (cargo-about 0.9, --features cli)
+uv run tools/release_notes.py 0.2.0 --zip x.zip   # a release's notes from CHANGELOG.md (the release workflow runs it)
+gh workflow run release.yml            # the release workflow as a dry run on main: zip, checksums and notes as an artifact, nothing published
 ```
 
 `tests/snapshots.rs` compares renders with `crates/mt-ui/tests/snapshots/*.png`.

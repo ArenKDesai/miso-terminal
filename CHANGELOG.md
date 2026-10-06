@@ -64,6 +64,9 @@ first release will carry.
 - **Windows:** one window per user (a second launch hands its `--run`
   commands over), `--offline` replay of the recorded data, portable mode
   (`--home`), `--reset-layout`, `--reset-config` and a per-user install
-  script.
+  script, which installs the licences with the program.
+- **The download:** a zip with its SHA-256 checksum, a build provenance
+  attestation to verify it came from this repository, and the third-party
+  licence notices for the Rust crates inside.
 - **Documentation:** the [tutorials](docs/TUTORIALS.md) and the
   [docs site](https://arenkdesai.github.io/miso-terminal/).

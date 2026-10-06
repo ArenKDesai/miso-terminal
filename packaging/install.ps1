@@ -9,9 +9,10 @@
         powershell -ExecutionPolicy Bypass -File .\install.ps1 -Desktop   # plus a desktop shortcut
         powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall
 
-    The app goes to %LOCALAPPDATA%\Programs\MISO Terminal. Settings, themes, the
-    report cache and the window layout live in %APPDATA%\MISO Terminal and
-    %LOCALAPPDATA%\MISO Terminal; uninstalling keeps them.
+    The app goes to %LOCALAPPDATA%\Programs\MISO Terminal, with its licences.
+    Settings, themes, the report cache, the order audit log and the window
+    layout live in %APPDATA%\MISO Terminal and %LOCALAPPDATA%\MISO Terminal;
+    uninstalling keeps them. API keys stay in Windows Credential Manager.
 #>
 param(
     [switch]$Uninstall,
@@ -47,6 +48,19 @@ if (-not (Test-Path $exe)) { throw "miso-terminal.exe was not found next to inst
 
 New-Item -ItemType Directory -Force $Destination | Out-Null
 Copy-Item $exe $Destination -Force
+
+# The licences travel with the program (the AGPL's, the Rust crates' notices,
+# the fonts'), and the README and changelog with them.
+foreach ($doc in 'LICENSE', 'THIRD-PARTY-NOTICES.html', 'README.md', 'CHANGELOG.md') {
+    $path = Join-Path $PSScriptRoot $doc
+    if (Test-Path $path) { Copy-Item $path $Destination -Force }
+}
+$licenses = Join-Path $PSScriptRoot 'licenses'
+if (Test-Path $licenses) {
+    $target = Join-Path $Destination 'licenses'
+    if (Test-Path $target) { Remove-Item $target -Recurse -Force }
+    Copy-Item $licenses $target -Recurse
+}
 
 # Recorded responses for `--offline`; replaced wholesale so nothing goes stale.
 $fixtures = Join-Path $PSScriptRoot 'fixtures'
