@@ -2,10 +2,10 @@
 
 A Bloomberg-style information terminal for the Midcontinent ISO, written in Rust.
 It covers prices, load, generation, interchange, constraints, the seams, gas,
-weather, the news and the energy stocks beside them in one keyboard-driven, tiled
-workspace. It is read-only for MISO: it shows MISO's public data (plus EIA gas
-prices, NWS forecasts, publishers' headline feeds and Alpaca's stock and ETF
-prices) and never submits anything to MISO. Trading goes only through Alpaca, on
+weather, the news, and the energy stocks and options beside them in one
+keyboard-driven, tiled workspace. It is read-only for MISO: it shows MISO's
+public data (plus EIA gas prices, NWS forecasts, publishers' headline feeds and
+Alpaca's stock, ETF and option prices) and never submits anything to MISO. Trading goes only through Alpaca, on
 a paper account for now, and every order is checked against your limits and
 confirmed on a ticket (see the [markets plan](docs/MARKETS-PLAN.md)).
 
@@ -50,7 +50,8 @@ MISO Terminal is a community project, and these hold for every change:
 
 ## Install (Windows)
 
-Download `miso-terminal-<version>-windows-x64.zip` from the Releases page, unzip
+Download `miso-terminal-<version>-windows-x64.zip` from the
+[Releases page](https://github.com/ArenKDesai/miso-terminal/releases), unzip
 it, and run:
 
 ```powershell
@@ -62,6 +63,11 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall
 It installs for the current user only (no administrator rights needed) to
 `%LOCALAPPDATA%\Programs\MISO Terminal`. Or skip the script and run
 `miso-terminal.exe` straight from the folder; it is a single portable file.
+
+Releases are not code-signed yet ([signing](docs/RELEASES.md#signing) is
+planned), so on first launch Windows SmartScreen may say *Windows protected
+your PC*: choose *More info*, then *Run anyway*. Where Smart App Control is on,
+Windows blocks unsigned programs outright until releases are signed.
 
 ## Build from source (Windows)
 
@@ -266,13 +272,15 @@ The workspace is layered so that each part can change without touching the other
 
 ```
 crates/
-  mt-core       domain model: prices, load, fuel, constraints, market time (no I/O)
+  mt-core       domain model: prices, load, fuel, constraints, market time, securities,
+                money, accounts, orders, options and the guardrails (no I/O)
   mt-data       source-agnostic data hub: queries, cache, refresh, transports
   mt-miso       MISO endpoints, response parsers (fixture-tested), queries
   mt-nws        National Weather Service forecasts (the template for non-MISO sources)
   mt-eia        EIA Henry Hub gas spot prices
   mt-news       news headlines: RSS and Atom feeds, de-duplication, topics, a local archive
-  mt-alpaca     Alpaca: stock and ETF snapshots, bars, live streams, assets, clock, company news
+  mt-alpaca     Alpaca: stock, ETF and option data, live streams, company news, the
+                paper account and the order desk
   mt-theme      theme model, TOML loading, validation, built-ins (no UI toolkit)
   mt-ui         egui front end: shell, command line, workspace, functions
   miso-terminal the binary: paths, logging, runtime, window
@@ -280,11 +288,12 @@ crates/
 
 Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how data flows and why,
 and [`docs/EXTENDING.md`](docs/EXTENDING.md) for step-by-step recipes: adding a
-function, a dataset, a non-MISO source, or a theme. CI runs on Windows (fmt,
-clippy, tests, release build). A weekly job re-records MISO's feeds (and the
-weather, gas, news and Alpaca sources) and runs the parsers against them. Pushing a
-`v*` tag builds a Windows zip release; the [release plan](docs/RELEASES.md) says
-how releases will be made (none yet).
+function, a dataset, a non-MISO source, a guardrail, or a theme. Every change
+lands through a pull request, and CI runs on each one: fmt, clippy, tests and a
+release build on Windows, and the non-UI crates' tests on Linux. A weekly job
+re-records MISO's feeds (and the weather, gas, news and Alpaca sources) and runs
+the parsers against them. Pushing a `v*` tag builds a Windows zip release; the
+[release plan](docs/RELEASES.md) says how releases will be made (none yet).
 
 The documentation site, <https://arenkdesai.github.io/miso-terminal/>, is built
 from this README, `docs/` (user [tutorials](docs/TUTORIALS.md) included) and `themes/README.md` (`uv run tools/build_docs.py site`)
@@ -328,8 +337,8 @@ through Alpaca. See the
       symbol: covered calls, cash-secured puts, opening and closing) and multi-leg
       spreads (`MLEG`, built from OMON's chain, with payoff at expiry), with the
       option guardrails: levels, cover, expiry-day cutoffs, quote collars.
-- [ ] **Phase 6, live trading:** off by default, behind a typed confirmation and
-      a security review, after paper trading has run cleanly.
+- [ ] **Phase 6, live trading:** off by default, behind a typed confirmation,
+      signed releases and a security review, after paper trading has run cleanly.
 
 ### Data
 - [x] Yesterday's five-minute RT alongside today's in GP (MISO's `Previous` feed, on demand).
@@ -379,7 +388,8 @@ through Alpaca. See the
 - [x] `WL` watchlist of favourite nodes, editable in-app (☆ in GP) and saved to config.
 - [x] Pop a tab out into its own OS window for multi-monitor desks (saved with the
       layout, position included).
-- [x] Copy tables as CSV (LMP, WL, GP and SPRD history).
+- [x] Copy tables as CSV (LMP, WL, GP, SPRD, CMP, DAM, BCH, GAS, SEAM, Q, OMON and
+      the account's PORT, ORD, ACT and PNL).
 - [x] Copy a panel to the clipboard as an image, or save it as PNG (right-click its tab).
 - [x] `SET`: edit `config.toml` values in-app.
 - [x] Command line: usage hints, fuzzy matching, and configurable function keys.
@@ -441,8 +451,9 @@ signing, and [the road to v0.2.0](docs/RELEASES.md#the-road-to-v020) orders the 
 ### Engineering
 - [x] Offscreen rendering of the real app to PNG (`cargo run -p mt-ui --example render`),
       with egui_kittest and wgpu: no window, real input and rendering.
-- [x] Visual regression tests (`tests/snapshots.rs`): the layout in every theme plus
-      zoomed MAP, DAM, SEAM and GP, rendered with the clock frozen at the fixtures'
+- [x] Visual regression tests (`tests/snapshots.rs`): the layout in every built-in
+      theme plus zoomed MAP, DAM, SEAM, GP, the news, the securities, the account,
+      the tickets, OMON and MLEG, rendered with the clock frozen at the fixtures'
       recording time and compared with committed images.
 - [x] A weekly CI job (`drift.yml`) that records live responses and runs every
       parser against them, to catch MISO format changes early.

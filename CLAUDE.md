@@ -57,9 +57,8 @@ a pull request whose title and description become the squash commit (prose,
 ending with the `Co-Authored-By:` line), and a `CHANGELOG.md` line under
 *Unreleased* for a user-visible change once that file exists. Aren has given
 standing permission to merge routine pull requests: open them with auto-merge
-(`gh pr merge --auto --squash`) and report the result. Until auto-merge and
-the `main` ruleset are on, wait for CI (`gh pr checks --watch`), then
-`gh pr merge --squash`. Ask first, and leave the pull request open, for
+(`gh pr merge --auto --squash`), which GitHub carries out once the required
+checks pass, and report the result. Ask first, and leave the pull request open, for
 releases and tags (never push a tag), changes to workflows, rulesets or
 repository settings, anything touching secrets or keys, and anything Aren has
 asked to see.
@@ -119,8 +118,8 @@ asked to see.
 ## Conventions
 
 - Crate boundaries are load-bearing. `mt-core`, `mt-data`, `mt-miso`,
-  `mt-nws`, `mt-eia`, `mt-news` and `mt-theme` must not depend on egui; CI
-  tests them on Linux.
+  `mt-nws`, `mt-eia`, `mt-news`, `mt-alpaca` and `mt-theme` must not depend on
+  egui; CI tests them on Linux.
 - New panel = new file in `crates/mt-ui/src/functions/` + one line in
   `functions/mod.rs` + a README row (a test checks the README). Add any
   argument variants to `routes()` in `smoke_tests.rs`.
@@ -174,9 +173,12 @@ asked to see.
   watching anything, so a user without keys sees a prompt, not failing feeds.
   Every price shows its feed's label. Fixtures under `fixtures/*.alpaca.markets`
   hold synthetic prices and sample stories (`capture_alpaca` without
-  `--verbatim`); never commit a verbatim Alpaca recording. No keys exist on the
-  main dev machine: the drift workflow (run by hand with `alpaca_fixtures`)
-  records fresh fixtures with the CI paper account and uploads them as an artifact.
+  `--verbatim`); never commit a verbatim Alpaca recording. The drift workflow
+  (run by hand with `alpaca_fixtures`) records fresh fixtures with the CI paper
+  account and uploads them as an artifact. The main dev machine may hold the
+  maintainer's own paper keys (entered in SET): reading with them is fine, but
+  ask before anything that places or cancels orders (`check_paper_orders`,
+  `check_option_orders`), and never commit what that account returns.
   The account's fixtures are a made-up portfolio from `tools/sample_account.py`
   (never an account's own), and the option chains are priced around it by
   `tools/sample_options.py`; rerun both after new Alpaca fixtures land.

@@ -572,8 +572,9 @@ the restricted list takes its options with it.
 **Settings.** `SET` edits `config.toml` in place: zoom, the price levels that
 are highlighted (*Highlight prices at or above*, $100 by default) and flagged
 (*Flag prices at or above*, $500), the default history length for GP and SPRD,
-the cache cap, the five-minute archive, news feeds and the stock price feed.
-Press *Apply and save*; *Open config folder* opens the file itself.
+the cache cap, the five-minute archive, news feeds, the paper trading limits
+and the stock price feed. Press *Apply and save*; *Open config folder* opens
+the file itself.
 
 **Start over.** *Reset to defaults…* at the bottom of `SET` puts every setting
 back as it was on first launch, after asking you to confirm. That includes your
@@ -612,8 +613,8 @@ runs them on a click.
 
 ## Share what you see
 
-- **Tables.** *Copy CSV* (LMP, WL, GP, SPRD, CMP, DAM, BCH, GAS, Q) copies a
-  table for Excel.
+- **Tables.** *Copy CSV* copies a table for Excel: in LMP, WL, GP, SPRD, CMP,
+  DAM, BCH, GAS, SEAM, Q, OMON, and the account's PORT, ORD, ACT and PNL.
 - **Panels.** Right-click a tab title and choose *Copy panel as image* to paste
   it into chat or email, or *Save panel as PNG* to save it to
   `Pictures\MISO Terminal`.

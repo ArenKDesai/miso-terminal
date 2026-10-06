@@ -21,7 +21,9 @@ its own.
        category: Category::Grid,
        usage: "RDT",
        description: "North-South regional directional transfer against its limits.",
-       takes_node: false,
+       takes_node: false,      // true: the first argument is a pricing node (completion)
+       takes_security: false,  // true: arguments may be securities (`XLU US`)
+       takes_option: false,    // true: arguments may be option contracts (OCC symbols)
        open,
    };
 
@@ -47,6 +49,12 @@ its own.
 
 2. Add `mod <name>;` and `<name>::SPEC` to `functions/mod.rs`.
 3. Add a row to the functions table in `README.md`. A test fails if you forget.
+4. If it takes arguments, add a route for each variant (`Route::new("RDT",
+   ["7"])`) to `routes()` in `crates/mt-ui/src/smoke_tests.rs`, so the smoke
+   test renders every view and checks it reopens from a saved layout.
+5. If it changes what users see or type, update the tutorial that covers it
+   (`docs/TUTORIALS.md`), and add a visual snapshot in
+   `crates/mt-ui/tests/snapshots.rs` for a panel worth guarding.
 
 Rules of thumb:
 - Colours come from `cx.skin` slots (`skin.positive`, `skin.series(i)`,
@@ -62,6 +70,10 @@ Rules of thumb:
 - Node history, spreads and component maths live in `crate::series`. Node
   search is `widgets::node_picker::NodePicker`, and CSV export is
   `widgets::csv::copy_button`. Reuse them.
+- A function on securities checks `market::needs_keys` before watching
+  anything, so a user without Alpaca keys sees how to add them, and labels
+  every price with its feed. Exchange times come from `mt_core::exchange`
+  (New York), never `mt_core::time` (MISO's EST).
 
 ## Add a MISO dataset
 
@@ -136,7 +148,36 @@ symbols = ["XEL", "AEE US", "WEC"]
 ```
 
 For everyone: add it to `builtin_lists()` in `crates/mt-alpaca/src/config.rs`.
-Keep the default list within the free plan's 30 streamed symbols.
+The free plan streams 30 trade and quote subscriptions in all (every symbol's
+trades first, then quotes while room remains), so keep the default list to 30
+symbols or fewer, or some will wait for the minute's snapshot.
+
+## Add a guardrail
+
+Every rule an order passes before its *Confirm* is enabled lives in
+`mt_core::guard`: `review` for stocks and ETFs, `review_option`
+(`guard/options.rs`) for one option contract, and `review_spread`
+(`guard/spread.rs`) for a spread. A rule is a few lines in the right one that
+add a `Check`: a `Level` (`Warn` needs the user to tick that they have read it,
+`Block` stops the order), a short rule name (`collar`, `daily_cap`; tests and
+the audit log use it) and a message in plain words.
+
+1. **What it needs.** Rules are pure: everything comes in through the context
+   (`Context`, `OptionContext` or `SpreadContext`: the account, the position,
+   the latest prices, the session, today's orders). For something new, add a
+   field and fill it where the context is built: the stock ticket
+   (`functions/ticket.rs`), ORD's *Replace…* (`functions/ord.rs`), option
+   tickets (`trading::OptionMarket`) and MLEG (`functions/mleg.rs`).
+2. **A setting.** A limit the user can change goes in `Limits` (`[trading]` in
+   config.toml), with its default in `Default for Limits` (the struct is
+   `#[serde(default)]`, so older files keep loading), a control in SET's
+   *Trading (paper)* section, and a line in the tutorials' `[trading]` example.
+   Make 0 mean off for a cap, as the others do.
+3. **Test it** beside the module's other tests: an order that passes and one
+   that warns or blocks (`review.has("my_rule", Level::Block)`).
+
+Nothing here may fetch or send: a check that needs the broker's answer belongs
+to the order desk (`mt_alpaca::OrderDesk`).
 
 ## Add a news feed or topic
 
@@ -164,8 +205,9 @@ story's words (title, summary, byline, the words in its URL) with sample text
 and keeps the feed's structure, so the repository never republishes a
 publisher's headlines; the drift job records with `--verbatim` and keeps
 nothing. Fixture files are named by the feed's URL path (a path without an
-extension gets `.json`, whatever the content). Feeds must be headlines and summaries only: the parser never keeps
-article bodies, and articles open in the reader's browser.
+extension gets `.json`, whatever the content). Feeds must be headlines and
+summaries only: the parser never keeps article bodies, and articles open in
+the reader's browser.
 
 ## Add a streaming source
 

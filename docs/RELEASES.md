@@ -122,9 +122,6 @@ request open, for:
 - anything touching secrets or API keys;
 - anything the maintainer has asked to see first.
 
-Until auto-merge and the `main` ruleset are on, Claude waits for CI to pass
-(`gh pr checks --watch`) and then merges.
-
 ## Versioning
 
 - Semantic versioning, staying below 1.0 while formats and functions settle:
@@ -230,8 +227,9 @@ patch: the goal is a fixed release within days.
 So that `main` stays releasable, a markets phase lands in pieces that each
 leave the app working: a function is registered (and listed in HELP and the
 README) only in the pull request that makes it usable. Trading functions
-(phases 4 to 6) stay unregistered until their phase is finished, so a release
-never carries half an order ticket.
+stayed unregistered until their phase was finished (phases 4 and 5 are), and
+live trading (Phase 6) stays out of the app and out of SET until it is
+finished, so a release never carries half an order path.
 
 ## The docs site and releases
 
