@@ -425,9 +425,11 @@ signing, and [the road to v0.2.0](docs/RELEASES.md#the-road-to-v020) orders the 
       kept under *Unreleased* by each pull request.
 - [ ] CI to match: a required *Docs* check, `--locked` builds, Dependabot, and
       drift failures opening issues.
-- [ ] The release process: one workspace version shown in `--version`, HELP and
-      LOG (with the commit outside releases); release candidates as pre-releases;
-      a compatibility test against each release's `config.toml`; the checklist.
+- [x] One workspace version shown in `--version`, HELP and LOG (with the commit
+      outside releases), and a test that every release's `config.toml` still
+      loads (`fixtures/compat/`).
+- [ ] The release process: release candidates as pre-releases, and the
+      checklist run for each.
 - [ ] Release workflow hardening: tag must match the version, `--locked` builds,
       `SHA256SUMS.txt`, a build provenance attestation, third-party licence
       notices (`cargo-about`), notes from the changelog with a link to the source,

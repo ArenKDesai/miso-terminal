@@ -70,7 +70,7 @@ impl Panel for Help {
             // program, so `--version` at a prompt prints nothing unless piped.
             widgets::title_bar(ui, skin, "MISO Terminal", |ui| {
                 ui.label(
-                    RichText::new(concat!("version ", env!("CARGO_PKG_VERSION")))
+                    RichText::new(format!("version {}", crate::version()))
                         .monospace()
                         .color(skin.text_muted),
                 );

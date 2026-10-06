@@ -67,7 +67,7 @@ fn parse_args() -> Result<Option<Args>> {
             "--new-instance" => args.new_instance = true,
             "--run" => args.run.push(it.next().context("--run needs a command")?),
             "--version" | "-V" => {
-                println!("miso-terminal {}", env!("CARGO_PKG_VERSION"));
+                println!("miso-terminal {}", env!("MT_VERSION"));
                 return Ok(None);
             }
             "--help" | "-h" => {
@@ -160,6 +160,8 @@ fn default_fixtures() -> PathBuf {
 }
 
 fn main() -> Result<()> {
+    // `0.2.0`, or `0.2.0+3f2a1c9` outside releases (build.rs).
+    mt_ui::set_version(env!("MT_VERSION"));
     let Some(args) = parse_args()? else {
         return Ok(());
     };
@@ -197,7 +199,7 @@ fn main() -> Result<()> {
     };
     tracing::info!(
         "MISO Terminal {} starting; config {}",
-        env!("CARGO_PKG_VERSION"),
+        env!("MT_VERSION"),
         paths.config_file.display()
     );
 

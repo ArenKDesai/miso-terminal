@@ -55,7 +55,8 @@ first release will carry.
   tabbed panes that zoom and pop out onto other monitors; configurable
   function keys; tables as CSV and panels as images; `SET` for settings and
   API keys (kept in Windows Credential Manager), `LOG` for feeds and files,
-  and `HELP` (with the version beside its title).
+  and `HELP`; both show the version, with the commit in builds that are not
+  releases.
 - **Themes:** Default (the trading-desk look), Default Light and High
   Contrast built in; a gallery (Catppuccin Mocha, Everforge Dark and Light,
   Gruvbox Dark, Monokai, Rosé Pine, Tokyo Night) to install from `THEME`; your

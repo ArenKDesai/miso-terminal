@@ -202,6 +202,14 @@ keys, and anything Aren has asked to see.
   store article text, and never commit publishers' text (news fixtures are
   sample copies from `capture_news`; snapshots render those). Articles open through `AppCommand::OpenHeadline`, which
   only accepts http(s) links. Check a feed's robots.txt before adding it.
+- `config.toml` keys may be added, never renamed or retyped in a way older
+  files cannot load: `fixtures/compat/` holds the files earlier versions
+  wrote, and `configs_from_earlier_versions_load` parses each strictly. Never
+  edit those files; a release adds its own (`default_config` example).
+- The version the app shows is `mt_ui::version()`: the binary's build script
+  sets `MT_VERSION` (the commit added unless `MT_RELEASE=1`), and `main`
+  passes it on. Tests and examples see the plain crate version, so renders
+  stay stable.
 - Python helpers run through `uv` (inline script metadata), never global pip.
 - Disk on the main dev machine is tight; `cargo clean` reclaims stale
   artifacts after profile changes.

@@ -24,10 +24,13 @@ and the README's roadmap tracks them.
   [Versioning](#versioning)).
 - `CHANGELOG.md` and `CONTRIBUTING.md` exist; the changelog's *Unreleased*
   section lists what the first release will carry.
-- The workspace version is still `0.1.0`. `--version` prints it and HELP
-  shows it beside its title (a release build is a windowed program, so
-  `--version` typed at a prompt shows nothing unless piped:
-  `miso-terminal --version | more`).
+- The workspace version is still `0.1.0`. `--version` prints it, HELP shows
+  it beside its title and LOG at its top, with the commit added outside
+  releases (`0.1.0+eb8e74e`). A release build is a windowed program, so
+  `--version` typed at a prompt shows nothing unless piped
+  (`miso-terminal --version | more`).
+- `fixtures/compat/` holds the `config.toml` files development builds wrote
+  before the first release, and a test loads each one strictly.
 - The zip is ready to share in one respect: its fixtures hold no keys, personal
   data or licensed content (news and Alpaca recordings are sample copies with
   synthetic prices).
@@ -139,9 +142,11 @@ request open, for:
   1.0 comes once the markets phases are done and the config, layout and cache
   formats have held steady across a few releases.
 - One version for the whole workspace (`[workspace.package] version`), shown
-  by `--version`, in HELP and LOG, and in the zip's name. Builds that are not
-  releases add the commit (`0.2.0+3f2a1c9`), so a bug report from a CI build
-  or a source checkout says exactly what was running.
+  by `--version`, in HELP and LOG, in the executable's properties, and in the
+  zip's name. Builds that are not releases add the commit (`0.2.0+3f2a1c9`),
+  so a bug report from a CI build or a source checkout says exactly what was
+  running: the binary's build script asks git, unless the release workflow
+  sets `MT_RELEASE=1`.
 - **The first release is `v0.2.0`**: the MISO functions, themes, news,
   Alpaca stock, ETF and option data, the paper account, and paper trading in
   stocks, ETFs and options (markets phases 0 to 5), and the tutorials. Phases 3
@@ -156,8 +161,10 @@ request open, for:
 **Compatibility.** Settings already carry across versions in both directions:
 every `config.toml` key is optional and unknown keys are ignored, so an older
 version reads a newer file. Each release adds the `config.toml` it writes by
-default to `fixtures/compat/`, and a test loads every file there without
-error, so a later change cannot quietly break an older user's settings. The
+default to `fixtures/compat/` (`cargo run -p mt-ui --example default_config
+-- fixtures/compat/0.2.0.toml`), and a test loads every file there strictly
+and checks it survives a save, so a later change cannot quietly break an
+older user's settings. The
 layout has `LAYOUT_VERSION`; data the app keeps in its cache (`local://`
 stores) must stay readable or be discarded cleanly when its format changes,
 and the changelog says so when it happens. Live trading keys (Phase 6) stay in
@@ -210,8 +217,8 @@ one (below).
 2. **Release pull request** (branch `prepare/v0.2.0-rc.1` → `main`; not
    `release/…`, which names protected maintenance branches): bump the version
    (`Cargo.toml`, `Cargo.lock`), turn *Unreleased* into the version's
-   changelog section, add the compatibility fixture, update the README's
-   install notes if they changed. Merge it like any other.
+   changelog section, add the compatibility fixture (`default_config`, above),
+   update the README's install notes if they changed. Merge it like any other.
 3. **Tag the candidate** on that merge commit with an annotated tag
    (`git tag -a v0.2.0-rc.1 -m "v0.2.0-rc.1"`) and push the tag. The workflow publishes a pre-release.
 4. **Test it** on a clean Windows user account: unzip and run it portable, run
@@ -306,9 +313,10 @@ new rules), tracked as issues in the `v0.2.0` milestone.
 2. **CI to match.** The *Docs* job in `ci.yml` (then made a required check),
    `--locked` builds, Dependabot's configuration, and the drift job opening
    issues when it fails.
-3. **The version, visible.** One workspace version in `--version`, HELP, LOG
-   and the zip's name, with the commit added outside releases; the
-   compatibility fixture and its test.
+3. **The version, visible.** Done: one workspace version in `--version`,
+   HELP, LOG and the executable's properties, with the commit added outside
+   releases; the compatibility fixtures and their test. (The zip's name comes
+   with the release workflow.)
 4. **The release workflow.** The nine changes above, tried on a fork with
    the same settings. Not with a test tag here: the tag rules and immutable
    releases mean a test release could never be deleted.
