@@ -10,7 +10,7 @@ use egui_extras::{Column, TableBuilder};
 use mt_alpaca::desk::KILL as KILL_KEY;
 use mt_alpaca::{ActionState, OrderDesk, Outcome, Replacement};
 use mt_core::account::OrderSide;
-use mt_core::guard::{self, Level, Review};
+use mt_core::guard::{self, Level, Loaded, Review};
 use mt_core::instrument::OptionContract;
 use mt_core::money::{Decimal, parse_decimal};
 use mt_core::order::{Order, OrderRequest, OrderType, day_value, price_text};
@@ -641,6 +641,7 @@ impl Blotter {
                         req,
                         &guard::Context {
                             account: account.data(),
+                            loaded: trading::loaded(&positions, book),
                             position: before,
                             asset: market::assets(cx).get(&req.symbol),
                             last,
@@ -730,6 +731,10 @@ fn option_replace_review(
             req,
             &guard::OptionContext {
                 account: None,
+                loaded: Loaded {
+                    positions: false,
+                    orders: book.loaded(),
+                },
                 positions: &[],
                 info: None,
                 bid: None,
@@ -763,6 +768,7 @@ fn option_replace_review(
     positions.retain(|p| !p.qty.is_zero());
     let mut context = m.context(
         &req.symbol,
+        book,
         market::status(cx.hub, cx.alpaca).session,
         today_value.max(Decimal::ZERO),
         false,

@@ -14,7 +14,7 @@ use mt_alpaca::{LiveTrades, OptionChain, Outcome, TRADE_UPDATES};
 use mt_core::account::{Account, Position, from_f64};
 use mt_core::equity::OptionSnapshot;
 use mt_core::exchange::Session;
-use mt_core::guard::{Check, Level, OptionContext};
+use mt_core::guard::{Check, Level, Loaded, OptionContext};
 use mt_core::instrument::OptionContract;
 use mt_core::money::Decimal;
 use mt_core::options::{ContractInfo, ContractList};
@@ -58,6 +58,20 @@ impl OrderBook {
 
     pub fn open(&self) -> impl Iterator<Item = &Order> {
         self.orders.iter().filter(|o| o.status.is_open())
+    }
+
+    /// Whether the order list has loaded (the stream alone is not the day's
+    /// orders, so the daily cap cannot be counted from it).
+    pub fn loaded(&self) -> bool {
+        self.list.data().is_some()
+    }
+}
+
+/// What the guardrails need loaded, given the position list.
+pub fn loaded<T>(positions: &Snapshot<T>, book: &OrderBook) -> Loaded {
+    Loaded {
+        positions: positions.data().is_some(),
+        orders: book.loaded(),
     }
 }
 
@@ -145,6 +159,7 @@ impl OptionMarket {
     pub fn context(
         &self,
         symbol: &str,
+        book: &OrderBook,
         session: Session,
         today_value: Decimal,
         day_trade: bool,
@@ -152,6 +167,7 @@ impl OptionMarket {
         let (bid, ask, last) = self.quote(symbol);
         OptionContext {
             account: self.account.data(),
+            loaded: loaded(&self.positions, book),
             positions: self.positions(),
             info: self.info(symbol),
             bid,

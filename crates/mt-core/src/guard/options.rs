@@ -11,7 +11,7 @@
 
 use chrono::{DateTime, Utc};
 
-use super::{Check, Level, Limits, Review, dollars, pct, pct_text, positive};
+use super::{Check, Level, Limits, Loaded, Review, check_loaded, dollars, pct, pct_text, positive};
 use crate::account::{Account, OrderSide, PDT_DAY_TRADES, Position};
 use crate::exchange::Session;
 use crate::instrument::{OptionContract, OptionRight};
@@ -23,6 +23,8 @@ use crate::order::{OrderRequest, OrderType, price_text};
 #[derive(Clone, Debug)]
 pub struct OptionContext<'a> {
     pub account: Option<&'a Account>,
+    /// Whether the position and order lists have loaded.
+    pub loaded: Loaded,
     /// Every position, stocks and options: what the order opens or closes,
     /// and the shares that cover a call.
     pub positions: &'a [Position],
@@ -128,6 +130,7 @@ pub fn review_option(req: &OrderRequest, cx: &OptionContext<'_>, limits: &Limits
         ),
         Some(_) => {}
     }
+    check_loaded(cx.loaded, &mut add);
 
     // The contract.
     if let Some(info) = cx.info {
@@ -748,6 +751,7 @@ mod tests {
     ) -> OptionContext<'a> {
         OptionContext {
             account: Some(a),
+            loaded: Loaded::ALL,
             positions,
             info: Some(info),
             bid: Some(d("1.55")),
@@ -810,6 +814,22 @@ mod tests {
                 &restricted
             )
             .has("restricted", Level::Block)
+        );
+        // The positions and orders must have loaded: the caps count them.
+        let waiting = OptionContext {
+            loaded: Loaded {
+                positions: true,
+                orders: false,
+            },
+            ..cx(&a, &[], &i)
+        };
+        assert!(
+            review_option(
+                &order(CALL, OrderSide::Buy, "2", "1.60"),
+                &waiting,
+                &Limits::default()
+            )
+            .has("loaded", Level::Block)
         );
         // Not enough options buying power.
         let poor = Account {

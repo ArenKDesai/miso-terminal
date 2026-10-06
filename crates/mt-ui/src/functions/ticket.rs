@@ -601,6 +601,7 @@ impl Ticket {
         let today = trading::today();
         let context = guard::Context {
             account: account.data(),
+            loaded: trading::loaded(&positions, &book),
             position: held.map_or(Decimal::ZERO, |p| p.qty),
             asset: assets.get(symbol),
             last,
@@ -1011,6 +1012,7 @@ impl Ticket {
         let today = trading::today();
         let context = m.context(
             &occ,
+            &book,
             session,
             day_value(&book.orders, today, |s| {
                 (s == occ).then_some(mark).flatten()

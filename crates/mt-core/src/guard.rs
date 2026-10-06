@@ -6,7 +6,8 @@
 //!
 //! The rules: trading switched on (the kill switch turns it off); the
 //! restricted list; what the broker would refuse anyway (prices off the
-//! tick, missing prices); the account's standing; the asset is tradable (and
+//! tick, missing prices); the account's standing; the position and order
+//! lists loaded (the caps count them); the asset is tradable (and
 //! shortable, for a short); no market orders outside the regular session;
 //! per-order, daily and per-position caps in dollars; a collar on limit and
 //! stop prices around the last trade; a fat-finger check on size; buying
@@ -106,10 +107,51 @@ pub struct Check {
     pub message: String,
 }
 
+/// Which of the lists the checks count have arrived. A list that has not
+/// loaded (or failed to) reads as empty: no position, no orders today.
+/// Reviewing against that would understate the position cap and skip the
+/// daily cap and the day-trade count, so every review blocks until both
+/// are in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Loaded {
+    pub positions: bool,
+    pub orders: bool,
+}
+
+impl Loaded {
+    /// Both lists are in.
+    pub const ALL: Self = Self {
+        positions: true,
+        orders: true,
+    };
+
+    /// The block for whatever is missing.
+    fn missing(self) -> Option<String> {
+        let what = match (self.positions, self.orders) {
+            (true, true) => return None,
+            (false, true) => "the positions",
+            (true, false) => "today's orders",
+            (false, false) => "the positions and today's orders",
+        };
+        Some(format!(
+            "Waiting for {what} to load: the caps and checks count them."
+        ))
+    }
+}
+
+/// The `loaded` check every review starts with.
+fn check_loaded(loaded: Loaded, add: &mut impl FnMut(Level, &'static str, String)) {
+    if let Some(m) = loaded.missing() {
+        add(Level::Block, "loaded", m);
+    }
+}
+
 /// What the ticket knows besides the request.
 #[derive(Clone, Debug)]
 pub struct Context<'a> {
     pub account: Option<&'a Account>,
+    /// Whether the position and order lists have loaded.
+    pub loaded: Loaded,
     /// Shares held now (negative when short).
     pub position: Decimal,
     /// The asset record, when the asset list has loaded.
@@ -225,6 +267,7 @@ pub fn review(req: &OrderRequest, cx: &Context<'_>, limits: &Limits) -> Review {
         ),
         Some(_) => {}
     }
+    check_loaded(cx.loaded, &mut add);
     if let Some(asset) = cx.asset {
         if !asset.tradable {
             add(
@@ -572,6 +615,7 @@ mod tests {
     fn cx<'a>(a: &'a Account, asset: &'a Asset) -> Context<'a> {
         Context {
             account: Some(a),
+            loaded: Loaded::ALL,
             position: Decimal::ZERO,
             asset: Some(asset),
             last: Some(d("82.41")),
@@ -633,6 +677,24 @@ mod tests {
             ..cx(&a, &s)
         };
         assert!(review(&req, &none, &Limits::default()).has("account", Level::Block));
+        // Lists not yet loaded read as empty, which would skip the caps.
+        for loaded in [
+            Loaded {
+                positions: false,
+                orders: true,
+            },
+            Loaded {
+                positions: true,
+                orders: false,
+            },
+        ] {
+            let waiting = Context {
+                loaded,
+                ..cx(&a, &s)
+            };
+            assert!(review(&req, &waiting, &Limits::default()).has("loaded", Level::Block));
+        }
+        assert!(!review(&req, &cx(&a, &s), &Limits::default()).has("loaded", Level::Block));
         let halted = Asset {
             tradable: false,
             ..asset()
