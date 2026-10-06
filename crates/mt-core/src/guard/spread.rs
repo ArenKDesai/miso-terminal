@@ -12,7 +12,9 @@
 
 use chrono::{DateTime, Utc};
 
-use super::{Check, Level, Limits, Review, dollars, options::expiry, pct, pct_text};
+use super::{
+    Check, Level, Limits, Loaded, Review, check_loaded, dollars, options::expiry, pct, pct_text,
+};
 use crate::account::{Account, PDT_DAY_TRADES, Position, from_f64};
 use crate::exchange::Session;
 use crate::money::{Decimal, fmt_qty, fmt_usd};
@@ -33,6 +35,8 @@ pub struct LegMarket<'a> {
 #[derive(Clone, Debug)]
 pub struct SpreadContext<'a> {
     pub account: Option<&'a Account>,
+    /// Whether the position and order lists have loaded.
+    pub loaded: Loaded,
     /// Every position: what each leg opens or closes.
     pub positions: &'a [Position],
     /// Each leg's listing and quote, in the request's order.
@@ -116,6 +120,7 @@ pub fn review_spread(req: &OrderRequest, cx: &SpreadContext<'_>, limits: &Limits
         ),
         Some(_) => {}
     }
+    check_loaded(cx.loaded, &mut add);
 
     // Each leg: its contract, and what it does to the position.
     let mut intents = Vec::new();
@@ -532,6 +537,7 @@ mod tests {
         ];
         SpreadContext {
             account: Some(a),
+            loaded: Loaded::ALL,
             positions,
             legs: quotes[..n]
                 .iter()
@@ -715,6 +721,19 @@ mod tests {
             review_spread(&req, &cx(&a, &[], 2), &restricted)
                 .review
                 .has("restricted", Level::Block)
+        );
+        // The positions and orders must have loaded: the caps count them.
+        let waiting = SpreadContext {
+            loaded: Loaded {
+                positions: false,
+                orders: true,
+            },
+            ..cx(&a, &[], 2)
+        };
+        assert!(
+            review_spread(&req, &waiting, &Limits::default())
+                .review
+                .has("loaded", Level::Block)
         );
     }
 }

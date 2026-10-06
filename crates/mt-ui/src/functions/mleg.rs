@@ -522,6 +522,7 @@ impl Spread {
             .collect();
         let context = SpreadContext {
             account: m.account.data(),
+            loaded: trading::loaded(&m.positions, &book),
             positions: m.positions(),
             legs,
             session,
