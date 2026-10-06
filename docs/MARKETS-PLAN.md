@@ -407,6 +407,10 @@ paper orders, then multi-leg spreads.
   contract and one two-leg spread that cannot fill, checks Alpaca accepts both
   as the desk sends them, that the answers and the order list parse (the spread
   with its legs), and that each is found by its client id, then cancels both.
+  Run on 2026-10-05 against a paper account (after hours): Alpaca accepted the
+  single contract with its `position_intent` and the spread as one `mleg`
+  order, both read back with their legs, in the order list too, and both
+  cancelled.
 - In-the-money contracts are exercised automatically at expiry: PORT and the
   ticket warn about contracts expiring today.
 
