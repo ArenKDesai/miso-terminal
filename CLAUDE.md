@@ -55,13 +55,13 @@ Never push to `main`. Every change goes through a pull request
 (`docs/RELEASES.md`, "How changes land"): a branch from the latest `main`,
 a pull request whose title and description become the squash commit (prose,
 ending with the `Co-Authored-By:` line), and a `CHANGELOG.md` line under
-*Unreleased* for a user-visible change once that file exists. Aren has given
-standing permission to merge routine pull requests: open them with auto-merge
-(`gh pr merge --auto --squash`), which GitHub carries out once the required
-checks pass, and report the result. Ask first, and leave the pull request open, for
-releases and tags (never push a tag), changes to workflows, rulesets or
-repository settings, anything touching secrets or keys, and anything Aren has
-asked to see.
+*Unreleased* for a user-visible change (`CONTRIBUTING.md` has the checklist).
+Aren has given standing permission to merge routine pull requests: open them
+with auto-merge (`gh pr merge --auto --squash`), which GitHub carries out once
+the required checks pass, and report the result. Ask first, and leave the
+pull request open, for releases and tags (never push a tag), changes to
+workflows, rulesets or repository settings, anything touching secrets or
+keys, and anything Aren has asked to see.
 
 ## Where things live
 

@@ -19,6 +19,11 @@ and the README's roadmap tracks them.
   tests, builds the release exe and attaches a zip to a GitHub release (the exe,
   `fixtures/` for `--offline`, README, LICENSE, `install.ps1` and the font
   licences), with notes GitHub generates from the commits. It has never run.
+- Markets phases 0 to 5 are built and on `main`, so all of them go into the
+  first release; Phase 6 (live trading) comes after it (see
+  [Versioning](#versioning)).
+- `CHANGELOG.md` and `CONTRIBUTING.md` exist; the changelog's *Unreleased*
+  section lists what the first release will carry.
 - The workspace version is still `0.1.0`, and `--version` prints it.
 - The zip is ready to share in one respect: its fixtures hold no keys, personal
   data or licensed content (news and Alpaca recordings are sample copies with
@@ -57,7 +62,9 @@ request into `main`:
 - The description says why, and what to look at. It becomes the commit
   message, so it is written as one: prose, not a list of every file touched.
   Work done with Claude ends with its `Co-Authored-By:` line.
-- A template (`.github/pull_request_template.md`) carries the checklist below.
+- [`CONTRIBUTING.md`](../CONTRIBUTING.md) carries the checklist below. There
+  is no pull request template: the description becomes the squash commit's
+  message, so a template's checklist would end up in every commit.
 - Merged by **squash**, so each pull request is one commit on `main` and the
   history reads as a list of changes. The repository allows squash merges only,
   takes the default squash message from the pull request's title and
@@ -133,12 +140,12 @@ request open, for:
   releases add the commit (`0.2.0+3f2a1c9`), so a bug report from a CI build
   or a source checkout says exactly what was running.
 - **The first release is `v0.2.0`**: the MISO functions, themes, news,
-  Alpaca stock and ETF data, and the paper account, read-only (markets phases
-  0 to 3; Phase 3 was finished before the release and folded in, on
-  2026-10-05), and the tutorials. After that, a minor release closes each
-  markets phase (Phase 4, paper trading, is `0.3.0`; Phase 5, options,
-  `0.4.0`), with patch releases as
-  needed in between. No fixed calendar.
+  Alpaca stock, ETF and option data, the paper account, and paper trading in
+  stocks, ETFs and options (markets phases 0 to 5), and the tutorials. Phases 3
+  to 5 were finished before the release and folded in (decided on 2026-10-05).
+  After it, a minor release closes each step: Phase 6, live trading, is
+  `0.3.0`, and ships only once releases are signed ([Signing](#signing)).
+  Patch releases come as needed in between. No fixed calendar.
 - Release candidates are tagged `v0.2.0-rc.1`, carry that version in
   `Cargo.toml` (so `--version` says so), and are published as GitHub
   pre-releases.
@@ -286,13 +293,13 @@ In order. Each stage is one or more pull requests (the first ones under the
 new rules), tracked as issues in the `v0.2.0` milestone.
 
 1. **Working agreement.** Done: this plan, merged as the first pull request,
-   `CLAUDE.md` updated to match, and the repository's settings (squash merges
+   `CLAUDE.md` updated to match, the repository's settings (squash merges
    only, the default squash message from the pull request, branches deleted on
    merge, auto-merge allowed, immutable releases on, the `main` and tag
-   rulesets with no bypass, and the `v0.2.0` milestone). Still to do:
-   `CONTRIBUTING.md` (the branch, pull request and checklist rules above, short
-   enough to read), the pull request template, and `CHANGELOG.md` with an
-   *Unreleased* section that starts from what is on `main` today.
+   rulesets with no bypass, and the `v0.2.0` milestone), `CONTRIBUTING.md`
+   (the branch, pull request and checklist rules above), and `CHANGELOG.md`,
+   whose *Unreleased* section starts from what was on `main` before the first
+   release.
 2. **CI to match.** The *Docs* job in `ci.yml` (then made a required check),
    `--locked` builds, Dependabot's configuration, and the drift job opening
    issues when it fails.
@@ -307,4 +314,5 @@ new rules), tracked as issues in the `v0.2.0` milestone.
    checksums and attestations.
 6. **`v0.2.0-rc.1`**, tested as above; `rc.2` and so on if needed.
 7. **`v0.2.0`.** Then: the docs site deploys from releases, the application to
-   SignPath Foundation, and the update check (off by default) for `0.3.0`.
+   SignPath Foundation, and for `0.3.0` the update check (off by default) and
+   live trading (Phase 6), once releases are signed.
