@@ -23,12 +23,15 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 jobs:
   drift:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - name: Record live responses
         run: cargo run -p mt-miso --example capture_fixtures -- "$RUNNER_TEMP/live"
@@ -65,6 +68,33 @@ jobs:
             !${{ runner.temp }}/live/stream.data.alpaca.markets
           retention-days: 14
 
+  # A failure becomes an issue labelled `source` (or a comment on the open
+  # one), so a format change is tracked like any bug instead of waiting in the
+  # Actions tab.
+  report:
+    needs: drift
+    if: failure() && needs.drift.result == 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the drift issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: "Format drift: a live source failed its parser check"
+        run: |
+          gh label create source --color d93f0b --description "A data source changed format or stopped answering" --force
+          open=$(gh issue list --label source --state open --json number,title --jq 'map(select(.title == $ENV.TITLE))[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "Failed again: $RUN_URL"
+          else
+            gh issue create --title "$TITLE" --label source --body "The weekly drift job failed: $RUN_URL
+
+          A live response no longer parses, or a source did not answer. The run's \`live-recording\` artifact (kept 14 days) holds what was recorded. Re-run the job to tell a transient from a real change; if it fails again, re-record with the source's capture example and see which parser test fails (docs/EXTENDING.md, \"When MISO changes a format\"). The fix ships as a patch release. Close this issue once it is fixed; the next failure opens a new one."
+          fi
+
   # Run by hand: fixtures for the repository, recorded with the CI account's
   # keys and rewritten as sample copies (no licensed prices, no stories' text).
   # Download the artifact and copy its folders into fixtures/.
@@ -76,7 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - name: Record sample-copy fixtures
         env:
@@ -102,7 +132,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - name: Place, find, replace and cancel a paper order
         env:

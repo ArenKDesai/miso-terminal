@@ -34,6 +34,7 @@ uv run tools/screenshot.py out.png --home some\dir --offline   # with a prepared
 uv run tools/build_map_asset.py        # rebuild assets/map/miso_map.json from ../3D-MISO-Map
 uv run tools/export_history.py         # long history from the EPJ DuckDB into the app's cache
 uv run tools/build_docs.py site        # the GitHub Pages docs site, from README.md, docs/ and themes/README.md
+cargo about generate --locked -c packaging/about.toml -o notices.html packaging/about.hbs   # third-party notices (cargo-about 0.9, --features cli)
 ```
 
 `tests/snapshots.rs` compares renders with `crates/mt-ui/tests/snapshots/*.png`.
@@ -139,7 +140,9 @@ keys, and anything Aren has asked to see.
   debug). Split lines at gaps instead (see `widgets::chart::step_runs`).
 - The docs site is generated from the Markdown (`tools/build_docs.py`, styles in
   `tools/docs_style.css`): edit the Markdown, never the HTML. README's `## TODO`
-  section becomes the site's roadmap page.
+  section becomes the site's roadmap page. The build fails on a broken link,
+  anchor or repository path (CI's required *Docs* check), so run it after
+  renaming a heading or a file.
 - `docs/TUTORIALS.md` walks users through the features, naming buttons by their
   labels. When a panel's controls, a command's arguments or a config key change,
   update the tutorial that mentions them. Its screenshots
@@ -211,5 +214,14 @@ keys, and anything Aren has asked to see.
   passes it on. Tests and examples see the plain crate version, so renders
   stay stable.
 - Python helpers run through `uv` (inline script metadata), never global pip.
+- `rust-toolchain.toml` pins the compiler for local builds, CI and releases;
+  every CI build is `--locked`. Routine maintenance moves the pin to the
+  latest stable (in its own pull request: new lints show up there), merges
+  Dependabot's weekly pull requests (lockfile-only for Cargo), and checks
+  `cargo update --dry-run --verbose` for upgrades held back past
+  `Cargo.toml`'s ranges.
+- Third-party notices for the release zip come from cargo-about
+  (`packaging/about.toml`, `packaging/about.hbs`); CI generates them on every
+  pull request, so a dependency under an unaccepted licence fails there.
 - Disk on the main dev machine is tight; `cargo clean` reclaims stale
   artifacts after profile changes.

@@ -1,7 +1,8 @@
 name: Docs
 
 # Builds the documentation site from the repository's Markdown
-# (tools/build_docs.py) and deploys it to GitHub Pages from main.
+# (tools/build_docs.py) and deploys it to GitHub Pages from main. Pull
+# requests build it too, in ci.yml's Docs job (a required check).
 on:
   push:
     branches: [main]
@@ -14,13 +15,6 @@ on:
       - assets/fonts/**
       - assets/icon/**
       - .github/workflows/docs.yml
-  pull_request:
-    paths:
-      - README.md
-      - docs/**
-      - themes/**
-      - tools/build_docs.py
-      - tools/docs_style.css
   workflow_dispatch:
 
 permissions:
