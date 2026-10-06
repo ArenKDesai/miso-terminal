@@ -51,8 +51,10 @@ MISO Terminal is a community project, and these hold for every change:
 ## Install (Windows)
 
 Download `miso-terminal-<version>-windows-x64.zip` from the
-[Releases page](https://github.com/ArenKDesai/miso-terminal/releases), unzip
-it, and run:
+[Releases page](https://github.com/ArenKDesai/miso-terminal/releases). Each
+release's notes give the zip's SHA-256 and a one-line PowerShell check, and
+how to verify, with the GitHub CLI, that this repository's workflow built it.
+Unzip it, and in the folder it makes, run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1           # Start Menu shortcut
@@ -61,8 +63,10 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall
 ```
 
 It installs for the current user only (no administrator rights needed) to
-`%LOCALAPPDATA%\Programs\MISO Terminal`. Or skip the script and run
-`miso-terminal.exe` straight from the folder; it is a single portable file.
+`%LOCALAPPDATA%\Programs\MISO Terminal`, with the licences. Uninstalling keeps
+your settings, cache and order audit log. Or skip the script and run
+`miso-terminal.exe` straight from the folder; put an empty file named
+`portable` beside it to keep its settings and data in a `data` folder there.
 
 Releases are not code-signed yet ([signing](docs/RELEASES.md#signing) is
 planned), so on first launch Windows SmartScreen may say *Windows protected
@@ -430,12 +434,11 @@ signing, and [the road to v0.2.0](docs/RELEASES.md#the-road-to-v020) orders the 
 - [x] One workspace version shown in `--version`, HELP and LOG (with the commit
       outside releases), and a test that every release's `config.toml` still
       loads (`fixtures/compat/`).
-- [ ] The release process: release candidates as pre-releases, and the
-      checklist run for each.
-- [ ] Release workflow hardening: tag must match the version, `--locked` builds,
-      `SHA256SUMS.txt`, a build provenance attestation, third-party licence
-      notices (`cargo-about`), notes from the changelog with a link to the source,
-      draft-then-publish for immutable releases.
+- [x] Release workflow hardening: tag must match the version, release
+      candidates as pre-releases, `--locked` builds, `SHA256SUMS.txt`, a build
+      provenance attestation, third-party licence notices (`cargo-about`), notes
+      from the changelog with a link to the source, draft-then-publish for
+      immutable releases, and a dry run on the pull requests that change it.
 - [ ] The docs site deploys from published releases, not from `main`.
 - [ ] **The first release, v0.2.0:** MISO functions, themes, news, Alpaca
       market data, the paper account and paper trading in stocks and options
