@@ -289,7 +289,8 @@ crates/
 Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how data flows and why,
 and [`docs/EXTENDING.md`](docs/EXTENDING.md) for step-by-step recipes: adding a
 function, a dataset, a non-MISO source, a guardrail, or a theme. Every change
-lands through a pull request, and CI runs on each one: fmt, clippy, tests and a
+lands through a pull request ([`CONTRIBUTING.md`](CONTRIBUTING.md) says how),
+and CI runs on each one: fmt, clippy, tests and a
 release build on Windows, and the non-UI crates' tests on Linux. A weekly job
 re-records MISO's feeds (and the weather, gas, news and Alpaca sources) and runs
 the parsers against them. Pushing a `v*` tag builds a Windows zip release; the
@@ -420,8 +421,8 @@ signing, and [the road to v0.2.0](docs/RELEASES.md#the-road-to-v020) orders the 
       GitHub release (never run so far).
 - [x] **Pull requests for every change:** squash merges, auto-merge, rulesets
       protecting `main` and `v*` tags with no bypass, immutable releases.
-- [ ] `CONTRIBUTING.md`, a pull request template, and `CHANGELOG.md` kept under
-      *Unreleased* by each pull request.
+- [x] [`CONTRIBUTING.md`](CONTRIBUTING.md), and [`CHANGELOG.md`](CHANGELOG.md)
+      kept under *Unreleased* by each pull request.
 - [ ] CI to match: a required *Docs* check, `--locked` builds, Dependabot, and
       drift failures opening issues.
 - [ ] The release process: one workspace version shown in `--version`, HELP and
@@ -432,9 +433,10 @@ signing, and [the road to v0.2.0](docs/RELEASES.md#the-road-to-v020) orders the 
       notices (`cargo-about`), notes from the changelog with a link to the source,
       draft-then-publish for immutable releases.
 - [ ] The docs site deploys from published releases, not from `main`.
-- [ ] **The first release, v0.2.0** (MISO functions, themes, news, Alpaca
-      market data and the paper account), then a minor release closing each
-      markets phase.
+- [ ] **The first release, v0.2.0:** MISO functions, themes, news, Alpaca
+      market data, the paper account and paper trading in stocks and options
+      (markets phases 0 to 5). Live trading (Phase 6) follows in 0.3.0, once
+      releases are signed.
 - [ ] **Code signing** (SignPath Foundation, free for open source, applied for
       after the first release). Unsigned executables trip SmartScreen and Smart
       App Control; signing is required before live trading.
