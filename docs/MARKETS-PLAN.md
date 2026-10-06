@@ -425,7 +425,8 @@ Only after paper trading has run cleanly for a few weeks.
 - Every guardrail stays on, and every order needs its confirm.
 - Signed releases first: the [release plan](RELEASES.md#signing) puts code
   signing in place before live trading ships.
-- A security review of the order path before this ships.
+- A security review of the order path before this ships: the first pass,
+  with what is still open, is in [SECURITY-REVIEW.md](SECURITY-REVIEW.md).
 
 ## Testing
 
