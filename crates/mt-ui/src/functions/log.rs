@@ -46,6 +46,12 @@ impl Panel for Log {
         ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
+                    RichText::new(format!("MISO Terminal {}", crate::version()))
+                        .monospace()
+                        .color(skin.text_muted),
+                );
+                ui.separator();
+                ui.label(
                     RichText::new(format!("Source: {}", hub.ctx().transport_description()))
                         .color(skin.text_muted),
                 );

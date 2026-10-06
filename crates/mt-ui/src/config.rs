@@ -351,4 +351,26 @@ symbols = ["XEL", "WEC"]
         assert_eq!(AppConfig::load(&path).0, AppConfig::default());
         std::fs::remove_dir_all(dir).unwrap();
     }
+
+    /// Every `config.toml` an earlier version wrote (`fixtures/compat/`, one
+    /// per release) still loads, strictly: `load` would fall back to the
+    /// defaults and hide the break. What it holds survives a save, too.
+    #[test]
+    fn configs_from_earlier_versions_load() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/compat");
+        let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.extension().is_some_and(|x| x == "toml"))
+            .collect();
+        files.sort();
+        assert!(files.len() >= 2, "{}", dir.display());
+        for path in files {
+            let src = std::fs::read_to_string(&path).unwrap();
+            let cfg: AppConfig = toml::from_str(&src)
+                .unwrap_or_else(|e| panic!("{} no longer loads: {e}", path.display()));
+            let again: AppConfig = toml::from_str(&toml::to_string_pretty(&cfg).unwrap()).unwrap();
+            assert_eq!(again, cfg, "{}", path.display());
+        }
+    }
 }

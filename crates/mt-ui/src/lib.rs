@@ -37,5 +37,19 @@ pub mod workspace;
 pub use app::{Deps, TerminalApp};
 pub use config::{AppConfig, AppPaths};
 
+static VERSION: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+
+/// The version HELP and LOG show: the binary's (`0.2.0`, or `0.2.0+3f2a1c9`
+/// outside releases, from its build script), set once at startup with
+/// [`set_version`]. Tests and examples see this crate's version.
+pub fn version() -> &'static str {
+    VERSION.get().copied().unwrap_or(env!("CARGO_PKG_VERSION"))
+}
+
+/// Set the version [`version`] reports. Only the first call counts.
+pub fn set_version(version: &'static str) {
+    let _ = VERSION.set(version);
+}
+
 #[cfg(test)]
 mod smoke_tests;
