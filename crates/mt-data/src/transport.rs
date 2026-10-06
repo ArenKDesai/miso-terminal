@@ -49,24 +49,52 @@ pub trait Transport: Send + Sync + 'static {
 
 /// The real network: reqwest for requests, tungstenite for streams, both on
 /// native TLS (SChannel on Windows, so the system's certificate store).
+///
+/// Requests that carry keys ([`Request::secret_header`]) go only over TLS
+/// (or to this machine, for tests) and never follow a redirect: reqwest
+/// drops `Authorization` when a redirect leaves the host, but keeps custom
+/// headers such as `APCA-API-KEY-ID`. A redirect comes back as its 3xx.
 pub struct HttpTransport {
     client: reqwest::Client,
+    keyed: reqwest::Client,
     user_agent: String,
 }
 
 impl HttpTransport {
     pub fn new(user_agent: &str) -> Result<Self, FetchError> {
-        let client = reqwest::Client::builder()
-            .user_agent(user_agent)
-            .connect_timeout(Duration::from_secs(10))
-            // The rolling five-minute feed is ~7 MB gzipped; give it room.
-            .timeout(Duration::from_secs(180))
-            .build()
-            .map_err(|e| FetchError::Other(format!("could not build HTTP client: {e}")))?;
+        let build = |redirect: reqwest::redirect::Policy| {
+            reqwest::Client::builder()
+                .user_agent(user_agent)
+                .connect_timeout(Duration::from_secs(10))
+                // The rolling five-minute feed is ~7 MB gzipped; give it room.
+                .timeout(Duration::from_secs(180))
+                .redirect(redirect)
+                .build()
+                .map_err(|e| FetchError::Other(format!("could not build HTTP client: {e}")))
+        };
         Ok(Self {
-            client,
+            client: build(reqwest::redirect::Policy::default())?,
+            keyed: build(reqwest::redirect::Policy::none())?,
             user_agent: user_agent.to_owned(),
         })
+    }
+}
+
+/// Refuse to send keys in the clear: secret headers go over `https`/`wss`,
+/// or to this machine.
+fn keys_travel_safely(req: &Request) -> Result<(), FetchError> {
+    if !req.headers.iter().any(|(_, v)| v.is_secret()) {
+        return Ok(());
+    }
+    let scheme = req.url.split_once("://").map_or("", |(s, _)| s);
+    let local = matches!(req.host(), "localhost" | "127.0.0.1");
+    if scheme.eq_ignore_ascii_case("https") || scheme.eq_ignore_ascii_case("wss") || local {
+        Ok(())
+    } else {
+        Err(FetchError::Other(format!(
+            "refused to send keys to {} without TLS",
+            req.host()
+        )))
     }
 }
 
@@ -94,7 +122,13 @@ fn header_value(
 impl Transport for HttpTransport {
     fn send<'a>(&'a self, req: &'a Request) -> BoxFuture<'a, Result<Response, FetchError>> {
         Box::pin(async move {
-            let mut rb = self.client.request(reqwest_method(req.method), &req.url);
+            keys_travel_safely(req)?;
+            let client = if req.headers.iter().any(|(_, v)| v.is_secret()) {
+                &self.keyed
+            } else {
+                &self.client
+            };
+            let mut rb = client.request(reqwest_method(req.method), &req.url);
             for (name, value) in &req.headers {
                 rb = rb.header(name.as_str(), header_value(name, value)?);
             }
@@ -130,6 +164,7 @@ impl Transport for HttpTransport {
         Box::pin(async move {
             use tungstenite::client::IntoClientRequest;
             use tungstenite::http::HeaderName;
+            keys_travel_safely(req)?;
             let mut ws_req = req
                 .url
                 .as_str()
@@ -433,6 +468,8 @@ impl StreamConn for ReplayConn {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn fixture_paths() {
@@ -512,6 +549,66 @@ mod tests {
             .unwrap();
         assert_eq!(missing.status, 404);
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    /// A server on this machine that answers every request with `answer`
+    /// and counts them.
+    async fn serve(answer: String) -> (u16, Arc<AtomicUsize>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let hits = Arc::new(AtomicUsize::new(0));
+        let counted = hits.clone();
+        tokio::spawn(async move {
+            while let Ok((mut tcp, _)) = listener.accept().await {
+                let mut seen = Vec::new();
+                let mut buf = [0u8; 1024];
+                while !seen.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match tcp.read(&mut buf).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => seen.extend_from_slice(&buf[..n]),
+                    }
+                }
+                counted.fetch_add(1, Ordering::SeqCst);
+                let _ = tcp.write_all(answer.as_bytes()).await;
+            }
+        });
+        (port, hits)
+    }
+
+    /// Keys never follow a redirect to another host, and never go out in the
+    /// clear; requests without keys still follow redirects.
+    #[tokio::test]
+    async fn keyed_requests_never_follow_redirects() {
+        let (landing, hits) =
+            serve("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".into())
+                .await;
+        let (start, _) = serve(format!(
+            "HTTP/1.1 302 Found\r\nLocation: http://localhost:{landing}/landing\r\n\
+             Content-Length: 0\r\nConnection: close\r\n\r\n"
+        ))
+        .await;
+        let t = HttpTransport::new("mt-test").unwrap();
+        let url = format!("http://127.0.0.1:{start}/v2/orders");
+
+        let keyed = Request::get(&url).secret_header("APCA-API-KEY-ID", crate::Secret::new("k1"));
+        let resp = t.send(&keyed).await.unwrap();
+        assert_eq!(resp.status, 302, "the redirect comes back as it is");
+        assert_eq!(hits.load(Ordering::SeqCst), 0, "the key never left");
+
+        let plain = t.send(&Request::get(&url)).await.unwrap();
+        assert_eq!((plain.status, plain.body.as_ref()), (200, &b"ok"[..]));
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
+
+        let clear = Request::get("http://example.invalid/v2/orders")
+            .secret_header("APCA-API-KEY-ID", crate::Secret::new("k1"));
+        assert!(matches!(t.send(&clear).await, Err(FetchError::Other(_))));
+        let clear_ws = Request::get("ws://example.invalid/stream")
+            .secret_header("APCA-API-KEY-ID", crate::Secret::new("k1"));
+        assert!(matches!(
+            t.connect(&clear_ws).await.err(),
+            Some(FetchError::Other(_))
+        ));
     }
 
     /// The real WebSocket client against a local server: handshake headers
