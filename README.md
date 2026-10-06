@@ -446,7 +446,7 @@ signing, and [the road to v0.2.0](docs/RELEASES.md#the-road-to-v020) orders the 
       from the changelog with a link to the source, draft-then-publish for
       immutable releases, and a dry run on the pull requests that change it.
 - [ ] The docs site deploys from published releases, not from `main`.
-- [ ] **The first release, v0.2.0:** MISO functions, themes, news, Alpaca
+- [x] **The first release, v0.2.0:** MISO functions, themes, news, Alpaca
       market data, the paper account and paper trading in stocks and options
       (markets phases 0 to 5). Live trading (Phase 6) follows in 0.3.0, once
       releases are signed.

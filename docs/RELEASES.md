@@ -21,20 +21,24 @@ and the README's roadmap tracks them.
 - `.github/workflows/release.yml` does everything [below](#the-release-workflow):
   a `v*` tag matching the version builds the zip and publishes it with
   checksums, a provenance attestation, third-party notices and notes from the
-  changelog. It has run only as a dry run (on the pull requests that change
-  it, and by hand); no tag has been pushed.
-- Markets phases 0 to 5 are built and on `main`, so all of them go into the
-  first release; Phase 6 (live trading) comes after it (see
-  [Versioning](#versioning)).
-- `CHANGELOG.md` and `CONTRIBUTING.md` exist; the changelog's *Unreleased*
-  section lists what the first release will carry.
-- The workspace version is still `0.1.0`. `--version` prints it, HELP shows
-  it beside its title and LOG at its top, with the commit added outside
-  releases (`0.1.0+eb8e74e`). A release build is a windowed program, so
+  changelog. It published `v0.2.0-rc.1` as a pre-release on 2026-10-06.
+- `v0.2.0-rc.1` was tested on a clean Windows account (step 4 below). All
+  went well except `install.ps1`, which a machine that runs only signed
+  scripts refuses unless it is started with `-ExecutionPolicy Bypass`; the
+  release notes now give that command
+  ([#22](https://github.com/ArenKDesai/miso-terminal/pull/22)). The first
+  release, `v0.2.0`, carries markets phases 0 to 5; Phase 6 (live trading)
+  comes after it (see [Versioning](#versioning)).
+- `CHANGELOG.md` and `CONTRIBUTING.md` exist; the changelog's `0.2.0` section
+  lists what the first release carries.
+- The workspace version is `0.2.0`. `--version` prints it, HELP shows it
+  beside its title and LOG at its top, with the commit added outside
+  releases (`0.2.0+e4f6f67`). A release build is a windowed program, so
   `--version` typed at a prompt shows nothing unless piped
   (`miso-terminal --version | more`).
 - `fixtures/compat/` holds the `config.toml` files development builds wrote
-  before the first release, and a test loads each one strictly.
+  before the first release and the one `0.2.0` writes, and a test loads each
+  one strictly.
 - The zip is ready to share in one respect: its fixtures hold no keys, personal
   data or licensed content (news and Alpaca recordings are sample copies with
   synthetic prices).
@@ -360,7 +364,8 @@ new rules), tracked as issues in the `v0.2.0` milestone.
    attestations, SmartScreen and the source (`tools/release_notes.py`), and
    the README's install section checked against a zip built the workflow's
    way (`install.ps1` now installs the licences with the program).
-6. **`v0.2.0-rc.1`**, tested as above; `rc.2` and so on if needed.
+6. **`v0.2.0-rc.1`**, tested as above. Done: the one problem it showed, the
+   install command, was a matter for the notes, so no `rc.2` was needed.
 7. **`v0.2.0`.** Then: the docs site deploys from releases, the application to
    SignPath Foundation, and for `0.3.0` the update check (off by default) and
    live trading (Phase 6), once releases are signed.

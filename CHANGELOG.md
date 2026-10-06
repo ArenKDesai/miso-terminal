@@ -12,7 +12,7 @@ notes are that section.
 
 ## [Unreleased]
 
-## [0.2.0]
+## [0.2.0] - 2026-10-06
 
 The first release: everything built before it, with markets phases 0 to 5.
 
