@@ -12,7 +12,8 @@ section from the changelog (for a release candidate such as 0.2.0-rc.1, the
 none, so nothing is released without its notes. Then come the download's
 SHA-256, the attestation to verify, what Windows says about an unsigned
 program, and where the source is, as the AGPL asks. `--section` names
-another section: the workflow's dry run uses Unreleased.
+another section: the workflow's dry run uses Unreleased, or the version's
+section while Unreleased is empty (just after a release pull request).
 """
 
 from __future__ import annotations
@@ -98,7 +99,9 @@ def main() -> None:
     args = ap.parse_args()
 
     changelog = args.changelog.read_text(encoding="utf-8")
-    names = [args.section] if args.section else [args.version, args.version.split("-")[0]]
+    names = [args.version, args.version.split("-")[0]]
+    if args.section:
+        names.insert(0, args.section)
     body = next((b for n in dict.fromkeys(names) if (b := section(changelog, n))), None)
     if body is None:
         sys.exit(

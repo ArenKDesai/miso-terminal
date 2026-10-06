@@ -1,0 +1,63 @@
+# MISO Terminal configuration. Every key is optional; delete one to get its default.
+
+theme = "default"
+
+[ui]
+zoom = 1.0
+price_alert = 100.0
+price_extreme = 500.0
+favorite_nodes = [
+    "ARKANSAS.HUB",
+    "ILLINOIS.HUB",
+    "INDIANA.HUB",
+    "LOUISIANA.HUB",
+    "MICHIGAN.HUB",
+    "MINN.HUB",
+    "MS.HUB",
+    "TEXAS.HUB",
+]
+favorite_securities = []
+follow_system_theme = false
+light_theme = "default-light"
+dark_theme = "default"
+notify_alerts = true
+show_local_clock = true
+
+[ui.hotkeys]
+F10 = "LOG"
+F2 = "HOME"
+F3 = "LMP"
+F4 = "MAP"
+F6 = "WL"
+F7 = "HUBS"
+F8 = "WX"
+F9 = "ALRT"
+
+[data]
+max_concurrent_requests = 4
+polite_interval_secs = 55
+history_days = 7
+cache_max_mb = 2048
+archive_days = 90
+
+[endpoints]
+public_api = "https://public-api.misoenergy.org/api"
+market_reports = "https://docs.misoenergy.org/marketreports"
+
+[news]
+keep_days = 21
+
+[markets]
+feed = "iex"
+stream_limit = 30
+
+[trading]
+enabled = true
+max_order_value = 10000
+max_daily_value = 50000
+max_position_value = 25000
+collar_pct = 5.0
+fat_finger_pct = 10.0
+max_shares = 5000
+max_contracts = 50
+restricted = []
