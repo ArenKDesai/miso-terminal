@@ -2556,7 +2556,7 @@ dependencies = [
 
 [[package]]
 name = "miso-terminal"
-version = "0.1.0"
+version = "0.2.0-rc.1"
 dependencies = [
  "anyhow",
  "directories",
@@ -2588,7 +2588,7 @@ dependencies = [
 
 [[package]]
 name = "mt-alpaca"
-version = "0.1.0"
+version = "0.2.0-rc.1"
 dependencies = [
  "chrono",
  "mt-core",
@@ -2601,7 +2601,7 @@ dependencies = [
 
 [[package]]
 name = "mt-core"
-version = "0.1.0"
+version = "0.2.0-rc.1"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -2613,7 +2613,7 @@ dependencies = [
 
 [[package]]
 name = "mt-data"
-version = "0.1.0"
+version = "0.2.0-rc.1"
 dependencies = [
  "bytes",
  "chrono",
@@ -2634,7 +2634,7 @@ dependencies = [
 
 [[package]]
 name = "mt-eia"
-version = "0.1.0"
+version = "0.2.0-rc.1"
 dependencies = [
  "calamine",
  "chrono",
@@ -2645,7 +2645,7 @@ dependencies = [
 
 [[package]]
 name = "mt-miso"
-version = "0.1.0"
+version = "0.2.0-rc.1"
 dependencies = [
  "calamine",
  "chrono",
@@ -2661,7 +2661,7 @@ dependencies = [
 
 [[package]]
 name = "mt-news"
-version = "0.1.0"
+version = "0.2.0-rc.1"
 dependencies = [
  "chrono",
  "mt-core",
@@ -2675,7 +2675,7 @@ dependencies = [
 
 [[package]]
 name = "mt-nws"
-version = "0.1.0"
+version = "0.2.0-rc.1"
 dependencies = [
  "chrono",
  "mt-core",
@@ -2687,7 +2687,7 @@ dependencies = [
 
 [[package]]
 name = "mt-theme"
-version = "0.1.0"
+version = "0.2.0-rc.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -2697,7 +2697,7 @@ dependencies = [
 
 [[package]]
 name = "mt-ui"
-version = "0.1.0"
+version = "0.2.0-rc.1"
 dependencies = [
  "anyhow",
  "chrono",

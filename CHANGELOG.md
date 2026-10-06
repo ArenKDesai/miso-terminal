@@ -12,8 +12,9 @@ notes are that section.
 
 ## [Unreleased]
 
-Nothing has been released yet, so this is everything on `main`: what the
-first release will carry.
+## [0.2.0]
+
+The first release: everything built before it, with markets phases 0 to 5.
 
 ### Added
 
