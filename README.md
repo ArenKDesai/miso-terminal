@@ -62,6 +62,12 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Desktop  # plus a deskto
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall
 ```
 
+(In File Explorer, right-click inside the folder and choose *Open in
+Terminal*.) Run it this way rather than double-clicking it, choosing *Run with
+PowerShell* or typing `.\install.ps1` alone: the script is not signed yet, so
+wherever PowerShell runs only signed scripts those stop with *is not digitally
+signed*. `-ExecutionPolicy Bypass` lifts that for this one run only.
+
 It installs for the current user only (no administrator rights needed) to
 `%LOCALAPPDATA%\Programs\MISO Terminal`, with the licences. Uninstalling keeps
 your settings, cache and order audit log. Or skip the script and run

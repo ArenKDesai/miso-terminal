@@ -10,7 +10,7 @@ The release workflow publishes what this prints. It takes the version's
 section from the changelog (for a release candidate such as 0.2.0-rc.1, the
 0.2.0 section, which the release pull request writes), and fails if there is
 none, so nothing is released without its notes. Then come the download's
-SHA-256, the attestation to verify, what Windows says about an unsigned
+SHA-256, the attestation to verify, the install commands, what Windows says about an unsigned
 program, and where the source is, as the AGPL asks. `--section` names
 another section: the workflow's dry run uses Unreleased, or the version's
 section while Unreleased is empty (just after a release pull request).
@@ -58,9 +58,9 @@ def notes(version: str, body: str, zip_path: Path) -> str:
 ## Download and check it
 
 `{zip_name}` holds the program, `install.ps1` (a per-user install, no
-administrator rights; see the README), the recorded data for `--offline`,
-and the licences: `LICENSE`, the bundled fonts' and `THIRD-PARTY-NOTICES.html`
-for the Rust crates inside.
+administrator rights), the recorded data for `--offline`, and the licences:
+`LICENSE`, the bundled fonts' and `THIRD-PARTY-NOTICES.html` for the Rust
+crates inside.
 
 Its SHA-256 is `{digest}` (also in `SHA256SUMS.txt`). In PowerShell, in the
 folder you downloaded it to, this prints `True` for a good copy:
@@ -75,6 +75,20 @@ tag `{tag}`. With the [GitHub CLI](https://cli.github.com):
 ```powershell
 gh attestation verify {zip_name} --repo {REPO}
 ```
+
+To install, unzip it, open PowerShell in the folder it makes (in File
+Explorer, right-click inside the folder and choose *Open in Terminal*) and run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\\install.ps1           # Start Menu shortcut
+powershell -ExecutionPolicy Bypass -File .\\install.ps1 -Desktop  # plus a desktop shortcut
+powershell -ExecutionPolicy Bypass -File .\\install.ps1 -Uninstall
+```
+
+The script is not signed yet, so double-clicking it, *Run with PowerShell*
+or `.\\install.ps1` alone stop with *is not digitally signed* wherever
+PowerShell runs only signed scripts; `-ExecutionPolicy Bypass` lifts that for
+this one run. Or skip the script and run `miso-terminal.exe` from the folder.
 
 **Windows SmartScreen.** Releases are not code-signed yet, so on first launch
 Windows may say *Windows protected your PC*: choose *More info*, then *Run
