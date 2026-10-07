@@ -687,8 +687,10 @@ impl Blotter {
                     ))
                     .fill(if ready { skin.accent } else { skin.surface_alt });
                     if ui.add_enabled(ready, go).clicked()
-                        && let Ok((_, rep)) = &parsed
-                        && let Err(e) = cx.desk.replace(&edit.order.id, rep.clone())
+                        && let (Ok((_, rep)), Some(r)) = (&parsed, &review)
+                        && let Err(e) = r
+                            .approve(edit.acknowledged)
+                            .and_then(|a| cx.desk.replace(&edit.order.id, rep.clone(), &a))
                     {
                         ui.label(RichText::new(e).color(skin.warning));
                     }

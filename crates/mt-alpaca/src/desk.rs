@@ -12,12 +12,19 @@
 //! The desk only acts when asked by a ticket's Confirm, the blotter's Cancel
 //! and Replace, or the kill switch; nothing from outside the window reaches
 //! it. Every request and answer goes to the [`AuditLog`].
+//!
+//! The desk enforces the guardrails itself rather than trusting its callers:
+//! it sends only a [`guard::Approved`] order, which only a passing review
+//! makes, and while trading is off ([`OrderDesk::set_enabled`], cleared by
+//! the kill switch) it sends nothing new. Cancels and the kill switch always
+//! work: they only take risk off.
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use mt_core::guard;
 use mt_core::order::{Order, OrderRequest};
 use mt_data::{FetchCtx, FetchError, Method, Request, Response};
 use parking_lot::Mutex;
@@ -120,6 +127,8 @@ struct Inner {
     audit: AuditLog,
     timeout: Duration,
     lookup_delays: Vec<Duration>,
+    /// `[trading] enabled`, as the app last set it. Off until then.
+    enabled: AtomicBool,
     state: Mutex<State>,
     notify: Mutex<Option<Notify>>,
 }
@@ -151,6 +160,7 @@ impl OrderDesk {
                 audit,
                 timeout: ORDER_TIMEOUT,
                 lookup_delays: LOOKUP_DELAYS.to_vec(),
+                enabled: AtomicBool::new(false),
                 state: Mutex::default(),
                 notify: Mutex::default(),
             }),
@@ -181,6 +191,16 @@ impl OrderDesk {
 
     pub fn audit(&self) -> &AuditLog {
         &self.inner.audit
+    }
+
+    /// Whether new orders and replacements may be sent: the app keeps this
+    /// equal to `[trading] enabled`, and the kill switch clears it at once.
+    pub fn set_enabled(&self, on: bool) {
+        self.inner.enabled.store(on, Ordering::SeqCst);
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.inner.enabled.load(Ordering::SeqCst)
     }
 
     /// Whether orders can be sent at all: not from an offline replay.
@@ -238,14 +258,36 @@ impl OrderDesk {
         }
     }
 
-    /// Send a new order. The outcome is reported under its
-    /// `client_order_id`; sending the same id again is refused unless it is
-    /// certain the first was not placed.
-    pub fn submit(&self, req: OrderRequest) -> Result<(), String> {
+    /// Refuse new orders while trading is off.
+    fn check_enabled(&self) -> Result<(), String> {
+        if self.is_enabled() {
+            Ok(())
+        } else {
+            Err("Trading is off (the kill switch was used): nothing was sent.".into())
+        }
+    }
+
+    /// Record the approval an order goes out under.
+    fn record_approval(&self, action: &str, approved: &guard::Approved) {
+        self.inner.audit.record(json!({
+            "account": self.inner.mode.key(),
+            "action": action,
+            "client_order_id": approved.request().client_order_id,
+            "approved": {"acknowledged": approved.acknowledged()},
+        }));
+    }
+
+    /// Send a new order that passed its review. The outcome is reported under
+    /// its `client_order_id`; sending the same id again is refused unless it
+    /// is certain the first was not placed.
+    pub fn submit(&self, approved: guard::Approved) -> Result<(), String> {
+        self.check_enabled()?;
+        let req = approved.request().clone();
         if let Some(p) = req.problems().into_iter().next() {
             return Err(p);
         }
         self.claim(&req.client_order_id)?;
+        self.record_approval("place", &approved);
         self.inner.notify();
         let inner = self.inner.clone();
         self.inner.runtime.spawn(async move {
@@ -258,15 +300,32 @@ impl OrderDesk {
 
     /// Replace an open order's quantity, prices or time in force. The
     /// replacement is a new order (Alpaca's rule) and is reported under the
-    /// replacement's own `client_order_id`.
-    pub fn replace(&self, order_id: &str, r: Replacement) -> Result<(), String> {
+    /// replacement's own `client_order_id`. `approved` is the order as it
+    /// would stand after the change, reviewed; every change must match it.
+    pub fn replace(
+        &self,
+        order_id: &str,
+        r: Replacement,
+        approved: &guard::Approved,
+    ) -> Result<(), String> {
+        self.check_enabled()?;
         if !is_safe_id(order_id) {
             return Err(format!("Not a usable order id: {order_id:?}."));
         }
         if r.qty.is_none() && r.limit_price.is_none() && r.stop_price.is_none() && r.tif.is_none() {
             return Err("Nothing to change.".into());
         }
+        let a = approved.request();
+        let matches = a.client_order_id == r.client_order_id
+            && r.qty.is_none_or(|q| q == a.qty)
+            && r.limit_price.is_none_or(|p| Some(p) == a.limit_price)
+            && r.stop_price.is_none_or(|p| Some(p) == a.stop_price)
+            && r.tif.is_none_or(|t| t == a.tif);
+        if !matches {
+            return Err("The replacement is not the order that was reviewed.".into());
+        }
         self.claim(&r.client_order_id)?;
+        self.record_approval("replace", approved);
         self.inner.notify();
         let (inner, order_id) = (self.inner.clone(), order_id.to_owned());
         self.inner.runtime.spawn(async move {
@@ -324,6 +383,8 @@ impl OrderDesk {
     /// every position at the market (outside the regular session the closing
     /// orders wait for the open). Reported under [`KILL`].
     pub fn kill(&self, flatten: bool) {
+        // Before anything else, so no order can follow the cancels out.
+        self.set_enabled(false);
         match self.start_action(KILL, true) {
             Ok(true) => {}
             Ok(false) => return,
@@ -942,6 +1003,7 @@ mod tests {
             Duration::from_millis(100),
             vec![Duration::from_millis(5); 3],
         );
+        desk.set_enabled(true);
         Setup {
             _rt: rt,
             broker,
@@ -967,6 +1029,11 @@ mod tests {
             position_intent: None,
             legs: Vec::new(),
         }
+    }
+
+    /// The guardrails are tested in mt-core; these tests are about the desk.
+    fn ok(req: OrderRequest) -> guard::Approved {
+        guard::Approved::unreviewed(req)
     }
 
     fn settle(desk: &OrderDesk, id: &str) -> Outcome {
@@ -997,7 +1064,7 @@ mod tests {
     fn an_order_goes_in_once_and_is_audited_without_keys() {
         let s = setup();
         let generation = s.desk.generation();
-        s.desk.submit(ticket("mt-a")).unwrap();
+        s.desk.submit(ok(ticket("mt-a"))).unwrap();
         let Outcome::Accepted(o) = settle(&s.desk, "mt-a") else {
             panic!("{:?}", s.desk.outcome("mt-a"));
         };
@@ -1009,7 +1076,7 @@ mod tests {
         // Sending the same ticket again is refused here, before Alpaca.
         assert!(
             s.desk
-                .submit(ticket("mt-a"))
+                .submit(ok(ticket("mt-a")))
                 .unwrap_err()
                 .contains("placed already")
         );
@@ -1039,7 +1106,7 @@ mod tests {
             ],
             ..ticket("mt-spread")
         };
-        s.desk.submit(spread).unwrap();
+        s.desk.submit(ok(spread)).unwrap();
         let Outcome::Accepted(o) = settle(&s.desk, "mt-spread") else {
             panic!("{:?}", s.desk.outcome("mt-spread"));
         };
@@ -1053,7 +1120,7 @@ mod tests {
             legs: vec![Leg::new("XLU261218C00045000", OrderSide::Buy, 1)],
             ..ticket("mt-spread-2")
         };
-        assert!(s.desk.submit(lopsided).unwrap_err().contains("two to"));
+        assert!(s.desk.submit(ok(lopsided)).unwrap_err().contains("two to"));
         assert_eq!(s.broker.posts_made(), 1);
     }
 
@@ -1061,7 +1128,7 @@ mod tests {
     fn a_lost_answer_is_looked_up_not_resent() {
         let s = setup();
         s.broker.posts.lock().push_back(Post::Lost);
-        s.desk.submit(ticket("mt-lost")).unwrap();
+        s.desk.submit(ok(ticket("mt-lost"))).unwrap();
         let Outcome::Accepted(o) = settle(&s.desk, "mt-lost") else {
             panic!("{:?}", s.desk.outcome("mt-lost"));
         };
@@ -1075,24 +1142,24 @@ mod tests {
     fn an_order_that_never_arrived_can_be_sent_again_with_the_same_id() {
         let s = setup();
         s.broker.posts.lock().push_back(Post::Vanish);
-        s.desk.submit(ticket("mt-v")).unwrap();
+        s.desk.submit(ok(ticket("mt-v"))).unwrap();
         assert!(matches!(settle(&s.desk, "mt-v"), Outcome::NotPlaced { .. }));
         assert_eq!(s.broker.order_count(), 0);
-        s.desk.submit(ticket("mt-v")).unwrap();
+        s.desk.submit(ok(ticket("mt-v"))).unwrap();
         assert!(matches!(settle(&s.desk, "mt-v"), Outcome::Accepted(_)));
         assert_eq!(s.broker.order_count(), 1);
 
         // The first send turns up late, after the lookups said "not placed":
         // the resend is refused by Alpaca as a duplicate and found instead.
         s.broker.posts.lock().push_back(Post::BadGateway);
-        s.desk.submit(ticket("mt-late")).unwrap();
+        s.desk.submit(ok(ticket("mt-late"))).unwrap();
         assert!(matches!(
             settle(&s.desk, "mt-late"),
             Outcome::NotPlaced { .. }
         ));
         s.broker
             .store(&crate::orders::order_body(&ticket("mt-late")));
-        s.desk.submit(ticket("mt-late")).unwrap();
+        s.desk.submit(ok(ticket("mt-late"))).unwrap();
         assert!(matches!(settle(&s.desk, "mt-late"), Outcome::Accepted(_)));
         assert_eq!(s.broker.order_count(), 2, "mt-v and mt-late, once each");
     }
@@ -1104,7 +1171,7 @@ mod tests {
             Post::Reject(403, "insufficient buying power"),
             Post::Reject(429, "too many"),
         ]);
-        s.desk.submit(ticket("mt-r")).unwrap();
+        s.desk.submit(ok(ticket("mt-r"))).unwrap();
         assert_eq!(
             settle(&s.desk, "mt-r"),
             Outcome::Rejected {
@@ -1112,18 +1179,18 @@ mod tests {
                 message: "insufficient buying power".into()
             }
         );
-        s.desk.submit(ticket("mt-429")).unwrap();
+        s.desk.submit(ok(ticket("mt-429"))).unwrap();
         assert!(matches!(settle(&s.desk, "mt-429"), Outcome::NotSent(_)));
         assert_eq!(s.broker.order_count(), 0);
 
         // The order arrived but nobody can say so: unknown, and blocked until checked.
         s.broker.posts.lock().push_back(Post::Lost);
         *s.broker.failing_lookups.lock() = 3;
-        s.desk.submit(ticket("mt-u")).unwrap();
+        s.desk.submit(ok(ticket("mt-u"))).unwrap();
         assert!(matches!(settle(&s.desk, "mt-u"), Outcome::Unknown { .. }));
         assert!(
             s.desk
-                .submit(ticket("mt-u"))
+                .submit(ok(ticket("mt-u")))
                 .unwrap_err()
                 .contains("check again")
         );
@@ -1134,15 +1201,15 @@ mod tests {
         // Bad tickets and ids never leave.
         let mut bad = ticket("mt-bad");
         bad.limit_price = None;
-        assert!(s.desk.submit(bad).is_err());
-        assert!(s.desk.submit(ticket("mt bad/../x")).is_err());
+        assert!(s.desk.submit(ok(bad)).is_err());
+        assert!(s.desk.submit(ok(ticket("mt bad/../x"))).is_err());
         assert_eq!(s.broker.posts_made(), 3);
     }
 
     #[test]
     fn cancels_replaces_and_the_kill_switch() {
         let s = setup();
-        s.desk.submit(ticket("mt-1")).unwrap();
+        s.desk.submit(ok(ticket("mt-1"))).unwrap();
         let Outcome::Accepted(first) = settle(&s.desk, "mt-1") else {
             panic!()
         };
@@ -1154,6 +1221,10 @@ mod tests {
                     limit_price: Some(d("82.40")),
                     ..Replacement::default()
                 },
+                &ok(OrderRequest {
+                    limit_price: Some(d("82.40")),
+                    ..ticket("mt-1r")
+                }),
             )
             .unwrap();
         let Outcome::Accepted(second) = settle(&s.desk, "mt-1r") else {
@@ -1168,7 +1239,8 @@ mod tests {
                     Replacement {
                         client_order_id: "mt-x".into(),
                         ..Replacement::default()
-                    }
+                    },
+                    &ok(ticket("mt-x")),
                 )
                 .is_err()
         );
@@ -1184,7 +1256,7 @@ mod tests {
             ActionState::Failed(m) if m.contains("not cancelable")
         ));
 
-        s.desk.submit(ticket("mt-2")).unwrap();
+        s.desk.submit(ok(ticket("mt-2"))).unwrap();
         settle(&s.desk, "mt-2");
         s.desk.kill(true);
         let ActionState::Done(said) = settle_action(&s.desk, KILL) else {
@@ -1204,6 +1276,83 @@ mod tests {
     }
 
     #[test]
+    fn nothing_new_goes_out_while_trading_is_off() {
+        let s = setup();
+        s.desk.submit(ok(ticket("mt-open"))).unwrap();
+        let Outcome::Accepted(open) = settle(&s.desk, "mt-open") else {
+            panic!("{:?}", s.desk.outcome("mt-open"));
+        };
+        let posts = s.broker.posts_made();
+
+        // The kill switch turns the desk off itself, before its cancels go out.
+        s.desk.kill(false);
+        assert!(!s.desk.is_enabled());
+        settle_action(&s.desk, KILL);
+        let off = |r: Result<(), String>| r.unwrap_err().contains("Trading is off");
+        assert!(off(s.desk.submit(ok(ticket("mt-after")))));
+        let raise = Replacement {
+            client_order_id: "mt-open-r".into(),
+            qty: Some(d("20")),
+            ..Replacement::default()
+        };
+        let raised = ok(OrderRequest {
+            qty: d("20"),
+            ..ticket("mt-open-r")
+        });
+        assert!(off(s.desk.replace(&open.id, raise, &raised)));
+        assert_eq!(s.broker.posts_made(), posts, "no order left the desk");
+        assert_eq!(s.desk.outcome("mt-after"), None);
+
+        // A new desk starts off, until the app says otherwise.
+        let fresh = setup();
+        fresh.desk.set_enabled(false);
+        assert!(off(fresh.desk.submit(ok(ticket("mt-fresh")))));
+        fresh.desk.set_enabled(true);
+        fresh.desk.submit(ok(ticket("mt-fresh"))).unwrap();
+        assert!(matches!(
+            settle(&fresh.desk, "mt-fresh"),
+            Outcome::Accepted(_)
+        ));
+    }
+
+    #[test]
+    fn a_replacement_must_be_the_order_that_was_reviewed() {
+        let s = setup();
+        s.desk.submit(ok(ticket("mt-1"))).unwrap();
+        let Outcome::Accepted(first) = settle(&s.desk, "mt-1") else {
+            panic!()
+        };
+        let rep = Replacement {
+            client_order_id: "mt-1r".into(),
+            qty: Some(d("500")),
+            ..Replacement::default()
+        };
+        // Reviewed at 10 shares, sent at 500: refused.
+        let err = s
+            .desk
+            .replace(&first.id, rep.clone(), &ok(ticket("mt-1r")))
+            .unwrap_err();
+        assert!(err.contains("not the order that was reviewed"), "{err}");
+        // Another ticket's approval: refused.
+        let other = ok(OrderRequest {
+            qty: d("500"),
+            ..ticket("mt-other")
+        });
+        assert!(s.desk.replace(&first.id, rep.clone(), &other).is_err());
+        assert_eq!(s.broker.posts_made(), 1);
+        assert_eq!(s.desk.outcome("mt-1r"), None, "nothing was claimed");
+        // The approval of exactly this change goes through, and is audited.
+        let reviewed = ok(OrderRequest {
+            qty: d("500"),
+            ..ticket("mt-1r")
+        });
+        s.desk.replace(&first.id, rep, &reviewed).unwrap();
+        assert!(matches!(settle(&s.desk, "mt-1r"), Outcome::Accepted(_)));
+        let audit = s.desk.audit().recent().join("\n");
+        assert!(audit.contains("\"approved\""), "{audit}");
+    }
+
+    #[test]
     fn a_replay_sends_nothing() {
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
@@ -1220,8 +1369,9 @@ mod tests {
             rt.handle().clone(),
             AuditLog::in_memory(),
         );
+        desk.set_enabled(true);
         assert!(
-            desk.submit(ticket("mt-off"))
+            desk.submit(ok(ticket("mt-off")))
                 .unwrap_err()
                 .contains("Offline replay")
         );

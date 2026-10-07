@@ -27,6 +27,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
 fn open(_: &[String]) -> Result<Box<dyn Panel>, String> {
     Ok(Box::new(Settings {
         draft: None,
+        enabled_seen: false,
         keys: Keys::default(),
         confirm_reset: false,
         restricted: String::new(),
@@ -36,6 +37,10 @@ fn open(_: &[String]) -> Result<Box<dyn Panel>, String> {
 struct Settings {
     /// Edits not yet applied; `None` means "showing the live config".
     draft: Option<AppConfig>,
+    /// `[trading] enabled` as last shown. The kill switch can turn trading
+    /// off under an open draft; the draft follows it, so saving other edits
+    /// never turns trading back on.
+    enabled_seen: bool,
     keys: Keys,
     /// *Reset to defaults…* was pressed and awaits confirmation.
     confirm_reset: bool,
@@ -97,6 +102,7 @@ impl Panel for Settings {
         let skin = cx.skin;
         let live = cx.config;
         let mut draft = self.draft.take().unwrap_or_else(|| live.clone());
+        follow_switch(&mut self.enabled_seen, &mut draft, live);
 
         ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             widgets::title_bar(ui, skin, "Settings", |_| {});
@@ -642,5 +648,44 @@ fn credentials(ui: &mut Ui, cx: &mut PanelCx<'_>, keys: &mut Keys) {
                 cx.hub.refresh(&cx.alpaca.clock());
             }
         });
+    }
+}
+
+/// Carry a change of `[trading] enabled` made elsewhere (the kill switch, or
+/// ORD turning trading back on) into the draft, so saving the draft's other
+/// edits never undoes it. A change made in the draft itself stands.
+fn follow_switch(seen: &mut bool, draft: &mut AppConfig, live: &AppConfig) {
+    if *seen != live.trading.enabled {
+        draft.trading.enabled = live.trading.enabled;
+        *seen = live.trading.enabled;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_draft_follows_the_kill_switch() {
+        let mut live = AppConfig::default();
+        let mut seen = false;
+        let mut draft = live.clone();
+        follow_switch(&mut seen, &mut draft, &live);
+        assert!(seen && draft.trading.enabled);
+
+        // An edit is pending when the kill switch is used.
+        draft.ui.zoom = 1.5;
+        live.trading.enabled = false;
+        follow_switch(&mut seen, &mut draft, &live);
+        assert!(
+            !draft.trading.enabled,
+            "saving the zoom must not turn trading on"
+        );
+        assert_eq!(draft.ui.zoom, 1.5, "the edit stays");
+
+        // Turning trading back on in the draft itself stands.
+        draft.trading.enabled = true;
+        follow_switch(&mut seen, &mut draft, &live);
+        assert!(draft.trading.enabled);
     }
 }

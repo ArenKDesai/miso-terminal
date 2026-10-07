@@ -12,6 +12,14 @@ notes are that section.
 
 ## [Unreleased]
 
+### Fixed
+
+- After the kill switch, saving other changes in SET no longer turns trading
+  back on.
+- The order desk itself refuses orders that did not pass their checks, and
+  refuses new orders and replacements while trading is off, rather than
+  relying on the order tickets.
+
 ## [0.2.0] - 2026-10-06
 
 The first release: everything built before it, with markets phases 0 to 5.

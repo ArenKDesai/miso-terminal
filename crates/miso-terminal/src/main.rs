@@ -17,6 +17,14 @@ use mt_ui::{AppConfig, AppPaths, Deps, TerminalApp};
 mod instance;
 mod toast;
 
+// Orders without a review exist only for the order desk's tests; a release
+// that could make one does not build.
+#[cfg(not(debug_assertions))]
+const _: () = assert!(
+    !mt_core::guard::UNREVIEWED_ORDERS,
+    "mt-core's unreviewed-orders feature must never reach a release build"
+);
+
 const APP_NAME: &str = "MISO Terminal";
 const USAGE: &str = "\
 MISO Terminal - a Bloomberg-style information terminal for MISO

@@ -276,7 +276,19 @@ rules over the request, the account, the position, the latest prices, the
 exchange session, today's order value (`order::day_value`) and whether it
 would be a day trade (`order::is_day_trade`), each a pass, a warning the user
 must acknowledge, or a block. `Limits` (`[trading]`) holds the caps, the collar,
-the restricted list and the switch the kill switch turns off. The order list
+the restricted list and the switch the kill switch turns off.
+
+The desk does not take the tickets' word for any of this. `submit` and
+`replace` take a `guard::Approved`, which only `Review::approve` makes (a
+review with no block, its warnings acknowledged) and which carries the very
+request that was reviewed; a replacement must match its approval change for
+change. The desk also holds its own copy of the switch
+(`OrderDesk::set_enabled`, kept equal to `[trading] enabled` by the app and
+cleared by `kill` before its cancels go out), and sends nothing new while it
+is off; cancels always go. `Approved::unreviewed` exists only with
+`mt-core`'s `unreviewed-orders` feature, which `mt-alpaca` enables as a
+dev-dependency for the desk's tests and the live checks in its examples; the
+binary refuses to compile a release build that has it. The order list
 (`OrdersQuery`) is re-read after every order event and reconnect, as the
 account is, and the trade stream keeps each order as its latest event left it
 (`LiveTrades::orders`), merged over the list by last change
@@ -395,7 +407,7 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; streams against a scripted server (shared connections, subscription unions, reconnect and resubscribe, refused logins, lingering topics, pause); a real WebSocket round trip on localhost; conditional GETs, status mapping, budgets and `429`s; secrets kept out of the log; the Windows Credential Manager round trip; transports; disk cache |
 | `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
-| `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions within the plan's limit (trades before quotes, halving after a `405`), refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed; option contract lists and chains against the sample chains (live in the drift job); the account, positions, equity curves, activities, option greeks, orders and order events against the sample account (reconciled to the cent) or a live recording; the order desk against a fake broker: an order (and a spread, as one `mleg` order) goes in once, a lost answer is looked up rather than resent, an order that never arrived goes again under the same id (and a late arrival is found, not duplicated), rejections, rate limits, unknown fates, cancels, replaces and the kill switch, with keys kept out of the audit log |
+| `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions within the plan's limit (trades before quotes, halving after a `405`), refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed; option contract lists and chains against the sample chains (live in the drift job); the account, positions, equity curves, activities, option greeks, orders and order events against the sample account (reconciled to the cent) or a live recording; the order desk against a fake broker: an order (and a spread, as one `mleg` order) goes in once, a lost answer is looked up rather than resent, an order that never arrived goes again under the same id (and a late arrival is found, not duplicated), rejections, rate limits, unknown fates, cancels, replaces and the kill switch, nothing new sent while trading is off, replacements held to their approval, with keys kept out of the audit log |
 | `mt-news` | RSS 2.0, RSS 1.0 and Atom (CDATA, escaped HTML, entities, dates, Atom links, no article bodies); every built-in feed against its recording (sample text in the feed's real structure; live in the drift job via `MT_FIXTURES`); identities, merging, combining, keyword rules, config overrides, read marks |
 | `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
 | `mt-ui` | Command parsing, completion and hints; every earlier version's `config.toml` (`fixtures/compat/`) loading strictly; alert engine (headline alerts included); series maths; the headline browser and archived headlines and read marks across a restart; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart; ticket commands parsed and round-tripped; commands from outside the window (`--run`, a forwarded launch, a hotkey) opening tickets against fixtures posing as the live network, with nothing but GETs sent |
