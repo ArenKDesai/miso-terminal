@@ -181,9 +181,69 @@ pub struct Review {
     /// Shares that open or add to a position (the rest reduce one).
     pub opening: Decimal,
     pub buying_power_after: Option<Decimal>,
+    /// The request these verdicts are for. Private, so a `Review` comes only
+    /// from the review functions here, and [`Review::approve`] can hand on
+    /// nothing but the order that was checked.
+    reviewed: OrderRequest,
+}
+
+/// Whether [`Approved::unreviewed`] exists in this build. The application
+/// refuses to compile a release with it.
+pub const UNREVIEWED_ORDERS: bool = cfg!(feature = "unreviewed-orders");
+
+/// An order that passed its review, any warnings acknowledged. Only
+/// [`Review::approve`] makes one, and the order desk sends nothing else, so
+/// no code path can reach Alpaca without the guardrails.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Approved {
+    request: OrderRequest,
+    /// The warnings the user acknowledged, by rule, for the audit log.
+    acknowledged: Vec<&'static str>,
+}
+
+impl Approved {
+    pub fn request(&self) -> &OrderRequest {
+        &self.request
+    }
+
+    pub fn acknowledged(&self) -> &[&'static str] {
+        &self.acknowledged
+    }
+
+    /// An approval with no review, for the desk's own tests and the live
+    /// checks in `mt-alpaca/examples`. The feature is enabled only as a
+    /// dev-dependency, which never reaches the application's build.
+    #[cfg(feature = "unreviewed-orders")]
+    pub fn unreviewed(request: OrderRequest) -> Self {
+        Self {
+            request,
+            acknowledged: Vec::new(),
+        }
+    }
 }
 
 impl Review {
+    /// The approval the order desk needs, when nothing blocks and any
+    /// warnings were acknowledged; otherwise why not.
+    pub fn approve(&self, acknowledged: bool) -> Result<Approved, String> {
+        if let Some(b) = self.checks.iter().find(|c| c.level == Level::Block) {
+            return Err(format!("Blocked: {}", b.message));
+        }
+        let warned: Vec<_> = self.warnings().map(|c| c.rule).collect();
+        if !warned.is_empty() && !acknowledged {
+            return Err("The warnings have not been acknowledged.".into());
+        }
+        Ok(Approved {
+            request: self.reviewed.clone(),
+            acknowledged: warned,
+        })
+    }
+
+    /// The request these verdicts are for.
+    pub fn request(&self) -> &OrderRequest {
+        &self.reviewed
+    }
+
     pub fn blocked(&self) -> bool {
         self.checks.iter().any(|c| c.level == Level::Block)
     }
@@ -582,6 +642,7 @@ pub fn review(req: &OrderRequest, cx: &Context<'_>, limits: &Limits) -> Review {
         position_after: after,
         opening,
         buying_power_after,
+        reviewed: req.clone(),
     }
 }
 
@@ -650,6 +711,37 @@ mod tests {
         );
         assert_eq!(m.price, Some(d("82.43")));
         assert!(m.can_confirm(false), "{:#?}", m.checks);
+    }
+
+    #[test]
+    fn only_a_passing_review_approves_and_only_its_own_order() {
+        let (a, s) = (account(), asset());
+        let req = request("10", OrderType::Limit, Some("82.50"));
+        let approved = review(&req, &cx(&a, &s), &Limits::default())
+            .approve(false)
+            .unwrap();
+        assert_eq!(approved.request(), &req, "the order that was checked");
+        assert!(approved.acknowledged().is_empty());
+
+        let off = Limits {
+            enabled: false,
+            ..Limits::default()
+        };
+        let err = review(&req, &cx(&a, &s), &off).approve(true).unwrap_err();
+        assert!(err.starts_with("Blocked: Trading is off"), "{err}");
+
+        // A warning needs its acknowledgement, which the approval records.
+        let big = request("200", OrderType::Limit, Some("82.50"));
+        let no_order_cap = Limits {
+            max_order_value: 0,
+            ..Limits::default()
+        };
+        let r = review(&big, &cx(&a, &s), &no_order_cap);
+        assert!(r.has("fat_finger", Level::Warn), "{:#?}", r.checks);
+        assert!(r.approve(false).unwrap_err().contains("acknowledged"));
+        let approved = r.approve(true).unwrap();
+        assert_eq!(approved.request(), &big);
+        assert_eq!(approved.acknowledged(), ["fat_finger"]);
     }
 
     #[test]

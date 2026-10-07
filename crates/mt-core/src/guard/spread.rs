@@ -475,6 +475,7 @@ pub fn review_spread(req: &OrderRequest, cx: &SpreadContext<'_>, limits: &Limits
                 units
             },
             buying_power_after,
+            reviewed: req.clone(),
         },
         intents,
         net,

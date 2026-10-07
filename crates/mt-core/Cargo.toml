@@ -7,6 +7,11 @@ rust-version.workspace = true
 publish.workspace = true
 license.workspace = true
 
+[features]
+# `guard::Approved::unreviewed`, for the order desk's tests and live checks
+# only: enabled as a dev-dependency, never in the application's build.
+unreviewed-orders = []
+
 [dependencies]
 chrono.workspace = true
 chrono-tz.workspace = true

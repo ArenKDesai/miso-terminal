@@ -24,6 +24,7 @@ use mt_alpaca::{
     new_client_order_id,
 };
 use mt_core::account::OrderSide;
+use mt_core::guard::Approved;
 use mt_core::money::{Decimal, RoundingStrategy, round_to_tick};
 use mt_core::order::{OrderRequest, OrderType, PENNY, TimeInForce};
 use mt_data::{
@@ -123,6 +124,9 @@ fn main() -> Result<(), Error> {
         rt.handle().clone(),
         AuditLog::in_memory(),
     );
+    // These checks exercise the desk, not the guardrails: their orders are
+    // sent unreviewed (a feature only examples and tests enable).
+    desk.set_enabled(true);
 
     let account = rt.block_on(alpaca.account().fetch(ctx.clone(), None))?;
     println!(
@@ -190,7 +194,7 @@ fn run(
         position_intent: None,
         legs: Vec::new(),
     };
-    desk.submit(req.clone())?;
+    desk.submit(Approved::unreviewed(req.clone()))?;
     let order = match settle(desk, &req.client_order_id) {
         Outcome::Accepted(o) => *o,
         other => return Err(format!("placing: {other:?}").into()),
@@ -199,7 +203,7 @@ fn run(
     println!("placed {} ({})", order.id, order.status.label());
 
     // 2. The desk refuses to send the same ticket again…
-    if desk.submit(req.clone()).is_ok() {
+    if desk.submit(Approved::unreviewed(req.clone())).is_ok() {
         return Err("the desk sent a placed ticket again".into());
     }
     // …and so does Alpaca, which is what makes a resend after a lost answer safe.
@@ -245,7 +249,12 @@ fn run(
         limit_price: Some(limit + PENNY),
         ..Replacement::default()
     };
-    desk.replace(&order.id, rep.clone())?;
+    let replaced = OrderRequest {
+        client_order_id: rep.client_order_id.clone(),
+        limit_price: rep.limit_price,
+        ..req.clone()
+    };
+    desk.replace(&order.id, rep.clone(), &Approved::unreviewed(replaced))?;
     match settle(desk, &rep.client_order_id) {
         Outcome::Accepted(new) => {
             // The original is finished ("replaced"); only the new one is open.

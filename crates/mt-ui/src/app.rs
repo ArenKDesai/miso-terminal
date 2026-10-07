@@ -132,6 +132,8 @@ impl TerminalApp {
             deps.hub.runtime().clone(),
             mt_alpaca::AuditLog::to_dir(&deps.paths.audit_dir),
         );
+        // The desk enforces the switch itself; it stays equal to the config.
+        desk.set_enabled(deps.config.trading.enabled);
         let repaint = ctx.clone();
         desk.set_notify(move || repaint.request_repaint());
         let mut app = Self {
@@ -384,6 +386,7 @@ impl TerminalApp {
             || config.ui.light_theme != self.config.ui.light_theme
             || config.ui.dark_theme != self.config.ui.dark_theme;
         self.config = config;
+        self.desk.set_enabled(self.config.trading.enabled);
         if markets_changed {
             // A new feed means new queries and a new stream.
             self.alpaca = mt_alpaca::Alpaca::new(&self.config.markets, self.alpaca.is_ready());
@@ -618,6 +621,7 @@ impl TerminalApp {
                         mt_alpaca::Alpaca::new(&self.config.markets, alpaca_ready(&self.hub));
                 }
                 AppCommand::SetTradingEnabled(on) => {
+                    self.desk.set_enabled(on);
                     if self.config.trading.enabled != on {
                         self.config.trading.enabled = on;
                         self.save_config();

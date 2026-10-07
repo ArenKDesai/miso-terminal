@@ -24,6 +24,7 @@ use mt_alpaca::{
     ActionState, Alpaca, AuditLog, KEY_ID, OrderDesk, Outcome, SECRET_KEY, new_client_order_id,
 };
 use mt_core::account::{OrderSide, to_f64};
+use mt_core::guard::Approved;
 use mt_core::money::Decimal;
 use mt_core::options::{Leg, PositionIntent, chain_rows, is_monthly};
 use mt_core::order::{Order, OrderRequest, OrderType, TimeInForce};
@@ -144,6 +145,9 @@ fn main() -> Result<(), Error> {
         rt.handle().clone(),
         AuditLog::in_memory(),
     );
+    // These checks exercise the desk, not the guardrails: their orders are
+    // sent unreviewed (a feature only examples and tests enable).
+    desk.set_enabled(true);
 
     let account = rt.block_on(alpaca.account().fetch(ctx.clone(), None))?;
     let level = account
@@ -257,7 +261,7 @@ fn run(
         Vec::new(),
         Some(PositionIntent::BuyToOpen),
     );
-    desk.submit(single.clone())?;
+    desk.submit(Approved::unreviewed(single.clone()))?;
     let order = match settle(desk, &single.client_order_id) {
         Outcome::Accepted(o) => *o,
         other => return Err(format!("placing one contract: {other:?}").into()),
@@ -297,7 +301,7 @@ fn run(
             ],
             None,
         );
-        desk.submit(spread.clone())?;
+        desk.submit(Approved::unreviewed(spread.clone()))?;
         let order = match settle(desk, &spread.client_order_id) {
             Outcome::Accepted(o) => *o,
             other => return Err(format!("placing the spread: {other:?}").into()),

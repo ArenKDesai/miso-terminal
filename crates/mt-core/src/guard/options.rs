@@ -92,6 +92,7 @@ pub fn review_option(req: &OrderRequest, cx: &OptionContext<'_>, limits: &Limits
             position_after: Decimal::ZERO,
             opening: Decimal::ZERO,
             buying_power_after: None,
+            reviewed: req.clone(),
         };
     };
     let underlying = contract.underlying.clone();
@@ -523,6 +524,7 @@ pub fn review_option(req: &OrderRequest, cx: &OptionContext<'_>, limits: &Limits
         position_after: after,
         opening,
         buying_power_after,
+        reviewed: req.clone(),
     }
 }
 

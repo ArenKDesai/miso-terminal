@@ -17,5 +17,9 @@ serde_json.workspace = true
 # The order desk's timeouts and lookups run on the hub's runtime.
 tokio.workspace = true
 
+[dev-dependencies]
+# Unreviewed approvals for the desk's tests and the live checks in examples/.
+mt-core = { workspace = true, features = ["unreviewed-orders"] }
+
 [lints]
 workspace = true

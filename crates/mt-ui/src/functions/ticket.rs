@@ -784,7 +784,11 @@ pub(crate) fn confirm(
         .on_hover_text("Sends the order to Alpaca. Nothing else does.")
         .clicked();
     if clicked {
-        sending.message = cx.desk.submit(request.clone()).err();
+        // The desk takes only the order the review approved.
+        sending.message = review
+            .approve(ack)
+            .and_then(|approved| cx.desk.submit(approved))
+            .err();
     }
     if !locked && !ready {
         let why = if let Err(e) = &can_send {
