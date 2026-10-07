@@ -25,8 +25,10 @@ releases are signed ([release plan](RELEASES.md#versioning)).
   the alerts, and the assistant has no tool that writes anything.
 - **Local first.** History, studies and forecasts are computed on the user's
   machine from data the terminal already fetches. The assistant is the one
-  part that sends data to a third party (Anthropic), so it is off until the
-  user turns it on, enters their own key and asks a question.
+  part whose data reaches a third party (Anthropic): through the user's own
+  Claude app and subscription via the terminal's MCP server, or from the
+  terminal with the user's API key, which stays silent until they set a
+  spending cap above $0.
 - **Pure crates for the maths.** Studies go in `mt-core`; forecasting is a new
   crate, `mt-forecast`; the Claude client and its tools are a new crate,
   `mt-ai`. None of them depends on egui, so CI tests them on Linux like the
@@ -60,8 +62,8 @@ wait.
   220 KB a day per market, about 600 MB for both markets since 2023; a binary
   store should be no larger.
 - **Backfill on request.** A *Price history* section in SET: how far back to
-  keep (from a month to MISO's first day, 2023-01-01), the disk it will take,
-  and *Download now*. The backfill runs on the hub at a polite pace (a
+  keep (three months by default, about 40 MB; up to MISO's first day,
+  2023-01-01, about 600 MB), the disk it will take, and *Download now*. The backfill runs on the hub at a polite pace (a
   `Budget` on `docs.misoenergy.org`; at one report every two seconds the whole
   span takes about an hour and a half), shows its progress in LOG and the
   status bar, can be paused, resumes where it stopped, and replaces a
@@ -165,12 +167,12 @@ with a benchmark.
 - **Excess returns** over a risk-free rate if a clean public source for daily
   Treasury bill rates passes the usual checks (terms, robots.txt); until then
   alpha is over zero, and the panel says so.
-- **The industry benchmark:** one of three, shown with the choice made: a
-  benchmark set in `config.toml` (`[markets.benchmarks]`, `VST US = "XLU US"`);
-  an equal-weighted basket of a list (`BETA VST US GENERATORS`, built from the
-  bars already fetched for the list's members); or an industry ETF chosen from
-  the company's SIC code in SEC EDGAR, through a small table of SIC ranges to
-  ETFs. The built-in lists come with their benchmarks set.
+- **The industry benchmark:** a benchmark set in `config.toml`
+  (`[markets.benchmarks]`, `VST US = "XLU US"`), or an equal-weighted basket
+  of a list (`BETA VST US GENERATORS`, built from the bars already fetched for
+  the list's members). The built-in lists come with their benchmarks set, and
+  a security with neither shows the S&P 500 alone, with a hint to set one. No
+  industry lookup service (SEC EDGAR was considered and left out).
 - `BETA XLU US XLE US` names a benchmark directly. DES gains a beta tile that
   opens BETA.
 
@@ -240,8 +242,30 @@ prices at INDIANA.HUB, 2026-10-06"), its figures come from those lookups, and
 it links the panels that show them (`GP INDIANA.HUB 2 5MIN`, `BCH
 2026-10-06`) for the user to click.
 
-**Claude, over the Messages API.** There is no official Anthropic SDK for
-Rust, so `mt-ai` speaks HTTP through `mt-data` like every other source:
+**Two ways in, one set of tools.** Anthropic allows a Claude subscription
+(Free, Pro, Max, Team, Enterprise) to be used only in Claude Code and
+Anthropic's own apps; any other product, this one included, must use an API
+key ([Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance)).
+The terminal cannot sign in with a subscription, so it offers both routes:
+
+- **Through your subscription: the terminal as an MCP server.** `miso-terminal
+  --mcp` serves the same read-only tools over the Model Context Protocol
+  (stdio), so Claude Desktop or Claude Code, signed in with your plan, can use
+  them, within the plan's own limits (per five hours and per week) at no
+  extra cost. SET shows the configuration snippet to paste into Claude
+  Desktop or Claude Code (the terminal does not edit another app's files).
+  The server answers from the running terminal when one is open (over the
+  single-instance loopback channel, with its token), so the two never fetch
+  the same data twice, and from a headless hub over the same cache when not.
+  This is the route the defaults point to.
+- **Inside the terminal: ASK with an API key.** The panel above, paid per use
+  through an Anthropic API key. The monthly spending cap defaults to **$0**,
+  so ASK sends nothing until the user enters a key and raises the cap; until
+  then the panel explains both routes and links the MCP setup.
+
+**Claude, over the Messages API** (the in-terminal route). There is no
+official Anthropic SDK for Rust, so `mt-ai` speaks HTTP through `mt-data`
+like every other source:
 
 - **The loop:** send the question with the tool definitions; while Claude
   answers with tool calls, run them (in parallel where independent) and send
@@ -252,7 +276,8 @@ Rust, so `mt-ai` speaks HTTP through `mt-data` like every other source:
   the answer's text appearing as it comes.
 - **Model:** Claude Opus 5.5 (`claude-opus-5-5`) by default, with Claude
   Sonnet 5.5 and Claude Haiku 4.5 offered in SET as cheaper choices, and an
-  effort setting (Opus 5.5 always thinks; effort sets how hard). Model ids
+  effort setting, **low** by default (Opus 5.5 always thinks; effort sets how
+  hard, and low keeps answers quick and cheap). Model ids
   and prices change, so they are configuration with defaults, not constants,
   and SET can list the models the key can use.
 - **Details the API asks for:** tools defined strictly (`strict: true`) and
@@ -330,8 +355,14 @@ search tool, off by default and cited when on.
   the tools' results (public market data) and, only with its own switch, the
   paper account. Never keys, never the audit log, never files.
 - Each answer shows its tokens and cost, LOG lists each request, and SET holds
-  a monthly spending cap the panel enforces from the usage the API reports.
+  a monthly spending cap (default $0, so nothing is spent until the user
+  chooses to) that the panel enforces from the usage the API reports.
 - Conversations stay in memory unless the user saves one.
+- Through the MCP server the terminal sends nothing to Anthropic itself:
+  Claude Desktop or Claude Code does, under the user's own account and their
+  settings there. The *Let ASK see the paper account* switch governs the MCP
+  server's `paper_account` tool too, and every tool call it answers shows in
+  LOG.
 
 **Safety.**
 
@@ -348,7 +379,9 @@ search tool, off by default and cited when on.
 
 **Testing it.** CI runs the loop against a fake server, as the order desk's
 tests use a fake broker: streaming, tool rounds, parallel calls, refusals,
-`max_tokens`, 429s and cancelling. An evaluation set of questions about past
+`max_tokens`, 429s and cancelling; and the MCP server against a scripted
+client: the handshake, listing tools, calls, errors and the read-only
+handle. An evaluation set of questions about past
 events, with the tools' results recorded so it can be replayed, grades
 answers on facts that match the data, causes the data supports, and saying
 "I can't tell" when it cannot. It spends real money, so it runs by hand
@@ -365,7 +398,7 @@ before a release and after prompt or tool changes, not in CI.
 - New panels (BETA, FCST, ASK) get snapshot tests against fixtures; ASK's
   snapshot renders a recorded conversation, not a live one.
 - The drift job keeps checking the MISO report formats the day store parses,
-  and adds the EDGAR lookup and any rate source BETA uses.
+  and adds any rate source BETA uses.
 
 ## Risks
 
@@ -374,8 +407,13 @@ before a release and after prompt or tool changes, not in CI.
   and both have limits there.
 - **Forecasts mistaken for advice.** Every forecast shows its bands and its
   record against naive, and the assistant is told to say how uncertain it is.
-- **Assistant cost and errors.** Caps per question and per month, costs shown
-  per answer, and an evaluation set that runs before releases.
+- **Assistant cost and errors.** The subscription route through MCP costs
+  nothing extra; the API route has caps per question and per month (the
+  monthly one $0 until raised), costs shown per answer, and an evaluation set
+  that runs before releases.
+- **Anthropic's terms change.** If subscription use through MCP or the API
+  route's terms change, the routes are separate, so one can go without the
+  other.
 - **Library churn.** augurs and Perpetual are young; each sits behind
   `mt-forecast`'s own trait, so either can be replaced without touching the
   panels.
@@ -383,17 +421,21 @@ before a release and after prompt or tool changes, not in CI.
   as a `0.2.x` release on their own; the signing application waits for
   `0.3.0` either way.
 
+## Decided since the first draft
+
+Aren, 2026-10-07:
+
+- The backfill keeps **three months** by default.
+- **No SEC EDGAR lookup;** industry benchmarks come from configuration and
+  list baskets.
+- ASK defaults to **low effort** and a **$0 monthly spending cap**, so a
+  subscriber uses their plan (through the MCP server) and the API route stays
+  silent until chosen.
+
 ## Open questions
 
-- **How far back the backfill offers by default:** one year (about 160 MB) or
-  everything since 2023 (about 600 MB).
-- **EDGAR's contact line.** The SEC asks every client for a User-Agent with a
-  contact address. Either the project's address, or the user's, entered in
-  SET; or skip EDGAR and rely on configured benchmarks and list baskets.
 - **Which forecasts to keep as issued** beyond MTLF and wind and solar, and how
   long to keep them.
-- **Default effort and spending cap** for the assistant, once the evaluation
-  set shows what each costs per answer.
 
 ## Sources
 
@@ -403,8 +445,9 @@ before a release and after prompt or tool changes, not in CI.
   [docs.alpaca.markets](https://docs.alpaca.markets/reference/stockbars)
 - [augurs](https://docs.rs/augurs) (ETS, MSTL) and
   [Perpetual](https://docs.rs/perpetual) (gradient boosting), both on docs.rs
-- SEC EDGAR APIs (submissions with SIC codes, the ticker to CIK map):
-  [sec.gov](https://www.sec.gov/search-filings/edgar-application-programming-interfaces)
+- Anthropic on subscription sign-in in other products (Claude Code docs,
+  *Legal and compliance*):
+  [code.claude.com](https://code.claude.com/docs/en/legal-and-compliance)
 - Claude: [models](https://platform.claude.com/docs/en/about-claude/models/overview),
   [pricing](https://platform.claude.com/docs/en/about-claude/pricing),
   [tool use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview),

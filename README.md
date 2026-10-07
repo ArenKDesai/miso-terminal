@@ -356,7 +356,8 @@ through Alpaca. See the
 The work before the application for code signing. See the
 [analytics plan](docs/ANALYTICS-PLAN.md) for the design and decisions; in order:
 - [ ] **The terminal's own price history:** every daily DA and RT report kept for
-      every node, with a backfill to 2023 started from SET, replacing the
+      every node, with a backfill started from SET (three months by default,
+      back to 2023 if you like), replacing the
       Energy-Pricing-Journalist export (`tools/export_history.py` goes).
 - [ ] **Forward fill for gaps in security prices:** charts hold the last price
       until the next trade and break between sessions, instead of drawing slopes
@@ -364,15 +365,17 @@ The work before the application for code signing. See the
 - [ ] **Studies on GP for securities:** simple and exponential moving averages,
       Bollinger bands, momentum and rate of change, RSI and MACD.
 - [ ] **`BETA`:** alpha, beta, R² and rolling beta against the S&P 500 (`SPY US`)
-      and against the security's industry (a configured benchmark, a list basket,
-      or an ETF from its SEC industry code), on total returns.
+      and against the security's industry (a configured benchmark or a list
+      basket), on total returns.
 - [ ] **`FCST`:** forecasts for DA and RT LMPs, DART and securities: statistical
       baselines (seasonal naive, ETS, MSTL, volatility cones) and gradient-boosted
       models, with bands and a backtest record against naive.
-- [ ] **`ASK`:** a Claude assistant, off by default with your own key, whose
-      read-only tools reach the terminal's prices, constraints, reserves, system
-      conditions, weather, gas, news and forecasts, so it can answer "why did RT
-      spike yesterday" or "what will DA be tomorrow in Indiana" from the data.
+- [ ] **`ASK`:** a Claude assistant whose read-only tools reach the terminal's
+      prices, constraints, reserves, system conditions, weather, gas, news and
+      forecasts, so it can answer "why did RT spike yesterday" or "what will DA
+      be tomorrow in Indiana" from the data. Use it from Claude Desktop or Claude
+      Code on your Claude plan (the terminal as an MCP server), or inside the
+      terminal with an API key (low effort, $0 monthly cap until you raise it).
 
 ### Data
 - [x] Yesterday's five-minute RT alongside today's in GP (MISO's `Previous` feed, on demand).
