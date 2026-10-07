@@ -467,6 +467,22 @@ fn trading(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig, restricted: &mu
                     .color(skin.text_muted),
             );
             ui.end_row();
+            ui.label("Oldest price to trade on");
+            ui.add(
+                egui::DragValue::new(&mut t.max_price_age_secs)
+                    .speed(5.0)
+                    .suffix(" s")
+                    .range(0..=86_400),
+            );
+            ui.label(
+                RichText::new(
+                    "when an order would trade at once: older, and a market order is refused, \
+                     any other order warned; 0 turns it off",
+                )
+                .small()
+                .color(skin.text_muted),
+            );
+            ui.end_row();
             ui.label("Restricted list");
             // Keep the typed text while it still says the same thing.
             if crate::trading::parse_tickers(restricted) != t.restricted {

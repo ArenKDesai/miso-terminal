@@ -509,6 +509,7 @@ impl Spread {
                     info: m.info(&l.symbol),
                     bid,
                     ask,
+                    quoted_at: m.quoted_at(&l.symbol),
                 }
             })
             .collect();

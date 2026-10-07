@@ -13,7 +13,8 @@
 use chrono::{DateTime, Utc};
 
 use super::{
-    Check, Level, Limits, Loaded, Review, check_loaded, dollars, options::expiry, pct, pct_text,
+    Check, Level, Limits, Loaded, Review, check_loaded, check_price_age, dollars, options::expiry,
+    pct, pct_text,
 };
 use crate::account::{Account, PDT_DAY_TRADES, Position, from_f64};
 use crate::exchange::Session;
@@ -29,6 +30,8 @@ pub struct LegMarket<'a> {
     pub info: Option<&'a ContractInfo>,
     pub bid: Option<Decimal>,
     pub ask: Option<Decimal>,
+    /// When the leg's quote is from.
+    pub quoted_at: Option<DateTime<Utc>>,
 }
 
 /// What a spread ticket knows besides the request.
@@ -266,6 +269,21 @@ pub fn review_spread(req: &OrderRequest, cx: &SpreadContext<'_>, limits: &Limits
             "Options trade 09:30 to 16:00 New York: this order waits for the next session.".into(),
         ),
     }
+    // The net price is only as fresh as its oldest leg.
+    let priced_at = cx
+        .legs
+        .iter()
+        .map(|l| l.quoted_at)
+        .collect::<Option<Vec<_>>>()
+        .and_then(|times| times.into_iter().min());
+    check_price_age(
+        req.order_type,
+        cx.session == Session::Regular,
+        priced_at,
+        cx.now,
+        limits,
+        &mut add,
+    );
 
     // Net prices, and what the order ties up.
     let quotes: Vec<(i64, Option<Decimal>, Option<Decimal>)> = req
@@ -546,6 +564,7 @@ mod tests {
                     info: None,
                     bid: Some(d(b)),
                     ask: Some(d(k)),
+                    quoted_at: "2026-10-02T14:59:30Z".parse().ok(),
                 })
                 .collect(),
             session: Session::Regular,
@@ -576,6 +595,30 @@ mod tests {
     }
 
     use OrderSide::{Buy, Sell};
+
+    #[test]
+    fn a_spread_is_as_fresh_as_its_oldest_leg() {
+        let a = account();
+        let req = spread(&[(C45, Buy, 1), (C47, Sell, 1)], "2", Some("0.85"));
+        let lim = Limits::default();
+        let fresh = cx(&a, &[], 2);
+        assert!(
+            review_spread(&req, &fresh, &lim)
+                .review
+                .has("price_age", Level::Pass)
+        );
+        let mut stale = fresh.clone();
+        stale.legs[1].quoted_at = "2026-10-02T14:50:00Z".parse().ok();
+        let r = review_spread(&req, &stale, &lim).review;
+        assert!(r.has("price_age", Level::Warn), "{:#?}", r.checks);
+        let mut unknown = fresh.clone();
+        unknown.legs[0].quoted_at = None;
+        assert!(
+            review_spread(&req, &unknown, &lim)
+                .review
+                .has("price_age", Level::Warn)
+        );
+    }
 
     #[test]
     fn a_debit_spread_ties_up_its_premium() {

@@ -459,6 +459,7 @@ collar_pct = 5.0            # limit and stop prices within 5% of the last trade 
 fat_finger_pct = 10.0       # orders over 10% of equity need the tick box
 max_shares = 5000           # shares in one order
 max_contracts = 50          # option contracts in one order
+max_price_age_secs = 120    # how old the latest price may be when an order trades at once
 restricted = ["MGEE"]       # never trade these, nor their options
 ```
 
@@ -468,6 +469,13 @@ hours* to trade before or after), enough buying power for what the order opens,
 no order that turns a long position short (or a short one long) in one go, no
 selling shares that open orders already hold, and Alpaca's limit of three day
 trades in five business days below $25,000 of equity.
+
+When an order would trade as soon as it arrives (in the regular session, or
+before and after it with *Extended hours*), the price the caps and the collar
+use must be recent: older than `max_price_age_secs`, a market order is refused
+and any other order needs the tick box. A stream that has stopped, an option
+chain that has not refreshed, or the 15-minute-delayed feed all show up here;
+for a spread, the oldest leg's quote counts. 0 turns the check off.
 
 **The kill switch.** *Kill switch…* at the top right of `ORD` cancels every open
 order and, if you tick the box, closes every position at the market. It also

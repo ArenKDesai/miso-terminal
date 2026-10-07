@@ -11,7 +11,10 @@
 
 use chrono::{DateTime, Utc};
 
-use super::{Check, Level, Limits, Loaded, Review, check_loaded, dollars, pct, pct_text, positive};
+use super::{
+    Check, Level, Limits, Loaded, Review, check_loaded, check_price_age, dollars, pct, pct_text,
+    positive,
+};
 use crate::account::{Account, OrderSide, PDT_DAY_TRADES, Position};
 use crate::exchange::Session;
 use crate::instrument::{OptionContract, OptionRight};
@@ -33,9 +36,11 @@ pub struct OptionContext<'a> {
     pub bid: Option<Decimal>,
     pub ask: Option<Decimal>,
     pub last: Option<Decimal>,
+    /// When the newest of the contract's last trade and quote is from.
+    pub priced_at: Option<DateTime<Utc>>,
     /// The exchange's session now.
     pub session: Session,
-    /// Now, for the expiry-day cutoff.
+    /// Now, for the expiry-day cutoff and the price's age.
     pub now: DateTime<Utc>,
     /// What today's orders are worth already ([`crate::order::day_value`]).
     pub today_value: Decimal,
@@ -338,6 +343,14 @@ pub fn review_option(req: &OrderRequest, cx: &OptionContext<'_>, limits: &Limits
             "Options trade 09:30 to 16:00 New York: this order waits for the next session.".into(),
         ),
     }
+    check_price_age(
+        req.order_type,
+        cx.session == Session::Regular,
+        cx.priced_at,
+        cx.now,
+        limits,
+        &mut add,
+    );
 
     // Value and caps.
     match value {
@@ -759,6 +772,7 @@ mod tests {
             bid: Some(d("1.55")),
             ask: Some(d("1.65")),
             last: Some(d("1.60")),
+            priced_at: Some(morning() - chrono::Duration::seconds(30)),
             session: Session::Regular,
             now: morning(),
             today_value: Decimal::ZERO,
@@ -846,6 +860,33 @@ mod tests {
             )
             .has("buying_power", Level::Block)
         );
+    }
+
+    #[test]
+    fn a_chain_that_has_not_refreshed_is_flagged() {
+        let (a, i) = (account(), info(CALL));
+        let stale = OptionContext {
+            priced_at: Some(morning() - chrono::Duration::minutes(4)),
+            ..cx(&a, &[], &i)
+        };
+        let lim = Limits::default();
+        let r = review_option(&order(CALL, OrderSide::Buy, "2", "1.60"), &stale, &lim);
+        assert!(
+            r.has("price_age", Level::Warn) && !r.blocked(),
+            "{:#?}",
+            r.checks
+        );
+        let mut market = order(CALL, OrderSide::Buy, "2", "1.60");
+        market.order_type = OrderType::Market;
+        market.limit_price = None;
+        assert!(review_option(&market, &stale, &lim).has("price_age", Level::Block));
+        // Outside the regular session the order waits, and is not priced now.
+        let closed = OptionContext {
+            session: Session::Closed,
+            ..stale
+        };
+        let r = review_option(&order(CALL, OrderSide::Buy, "2", "1.60"), &closed, &lim);
+        assert!(!r.checks.iter().any(|c| c.rule == "price_age"));
     }
 
     #[test]
