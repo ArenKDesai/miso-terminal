@@ -9,6 +9,11 @@ before tagging, since a `v*` tag publishes one). `docs/MARKETS-PLAN.md` is the a
 data, trading and portfolio tracking: Phase 0 (foundations), Phase 1 (news),
 Phase 2 (market data), Phase 3 (the paper account), Phase 4 (paper trading)
 and Phase 5 (options) are built, the README's roadmap tracks the rest.
+`docs/ANALYTICS-PLAN.md` is the plan for `0.3.0`, before the code signing
+application: the terminal's own price history (retiring the
+Energy-Pricing-Journalist export), forward-filled security prices, studies and
+BETA, forecasts (FCST, crate `mt-forecast`) and the Claude assistant (ASK,
+crate `mt-ai`, read-only tools only); live trading moves to `0.4.0`.
 `docs/SECURITY-REVIEW.md` lists what the order path review found and what is
 still open before live trading (Phase 6); update its status column when a
 finding is fixed.

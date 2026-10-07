@@ -4,7 +4,7 @@ The [markets plan](MARKETS-PLAN.md#phase-6-live-trading) asks for a review
 of the order path before live trading (Phase 6) ships. This is the first
 pass, made on 2026-10-06 against `main` at the end of markets phase 5, before
 the first release. A second pass reviews the Phase 6 changes themselves
-before `0.3.0`.
+before `0.4.0`, the release that carries them.
 
 ## What was read
 

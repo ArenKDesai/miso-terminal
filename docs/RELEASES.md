@@ -169,9 +169,15 @@ request open, for:
   Alpaca stock, ETF and option data, the paper account, and paper trading in
   stocks, ETFs and options (markets phases 0 to 5), and the tutorials. Phases 3
   to 5 were finished before the release and folded in (decided on 2026-10-05).
-  After it, a minor release closes each step: Phase 6, live trading, is
-  `0.3.0`, and ships only once releases are signed ([Signing](#signing)).
-  Patch releases come as needed in between. No fixed calendar.
+  After it, a minor release closes each step. **`0.3.0`** is the
+  [analytics plan](ANALYTICS-PLAN.md): the terminal's own price history (no
+  more Energy-Pricing-Journalist export), forward-filled gaps in security
+  prices, studies and BETA, forecasts (FCST) and the Claude assistant (ASK),
+  with the update check and the order-path fixes already on `main`. The
+  application for code signing follows `0.3.0` (decided on 2026-10-07).
+  Phase 6, live trading, is **`0.4.0`**, and ships only once releases are
+  signed ([Signing](#signing)). Patch releases come as needed in between. No
+  fixed calendar.
 - Release candidates are tagged `v0.2.0-rc.1`, carry that version in
   `Cargo.toml` (so `--version` says so), and are published as GitHub
   pre-releases.
@@ -310,7 +316,8 @@ outright. Options:
 - A conventional code-signing certificate, which costs more and builds
   SmartScreen reputation slowly.
 
-The plan is to apply to SignPath Foundation after the first release. Until
+The plan is to apply to SignPath Foundation once `0.3.0` (the
+[analytics plan](ANALYTICS-PLAN.md)) is released. Until
 releases are signed, the notes explain the SmartScreen prompt and how to check
 the checksum and attestation instead. **Signing must be in place before live
 trading (markets Phase 6) ships.**
@@ -366,6 +373,15 @@ new rules), tracked as issues in the `v0.2.0` milestone.
    way (`install.ps1` now installs the licences with the program).
 6. **`v0.2.0-rc.1`**, tested as above. Done: the one problem it showed, the
    install command, was a matter for the notes, so no `rc.2` was needed.
-7. **`v0.2.0`.** Then: the docs site deploys from releases, the application to
-   SignPath Foundation, and for `0.3.0` the update check (off by default) and
-   live trading (Phase 6), once releases are signed.
+7. **`v0.2.0`.** Released on 2026-10-07.
+
+## After v0.2.0
+
+1. **`0.3.0`:** the [analytics plan](ANALYTICS-PLAN.md) in its order
+   (history, gaps in security prices, studies and BETA, forecasts, the
+   assistant), the update check (off by default) and the docs site deploying
+   from releases, released the same way as `v0.2.0` (a candidate first).
+2. **Signing:** the application to SignPath Foundation, with `0.3.0` as the
+   release it looks at, then signing in the release workflow.
+3. **`0.4.0`:** live trading (markets Phase 6), once releases are signed and
+   the open findings of the [security review](SECURITY-REVIEW.md) are closed.
