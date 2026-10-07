@@ -210,11 +210,21 @@ the first candidate and a ridge regression from `linfa` as the fallback.
   forecasts, the NWS temperature forecast by zone and scheduled outages.
 - **Only what was known at the time.** A model trained on the actual load
   where a forecast would have been known learns to be right for the wrong
-  reason. So every forecast the terminal shows (MTLF, wind and solar, the
-  NWS forecasts, the outage schedule) is kept as issued, in the same per-day
-  stores as the five-minute prices, and a feature joins the model only once
-  enough of its history has accumulated, or once a MISO report of past
-  forecasts is found for it.
+  reason. So four forecasts are kept as issued: MISO's load forecast (MTLF),
+  the wind and solar forecasts, the NWS temperature forecasts by zone, and the
+  outage schedule. Each fetch that brings a new version is stored with the
+  time it was fetched, in per-day stores beside the five-minute prices, and
+  a feature joins the model only once enough of its history has accumulated,
+  or once a MISO report of past forecasts is found for it. CAP's headroom
+  forecasts and PJM's CTS forecast are left out for now.
+- **Kept small.** A version identical to the one before it is not stored
+  again (most fetches change nothing), only the fields the models use are
+  kept, each day's versions are packed into one file, and that file is
+  compressed like the rest of the disk cache (gzip, which `mt-data` already
+  uses). Versions are kept for two years, long enough for the seasons to
+  repeat, then pruned; SET shows the space they take. At a few megabytes a
+  month before compression, the whole two years should stay in the tens of
+  megabytes.
 - **Intervals** from the spread of past errors (split conformal prediction
   over the backtest), so an 80% band holds about 80% of outcomes by
   construction rather than by assumption.
@@ -431,11 +441,14 @@ Aren, 2026-10-07:
 - ASK defaults to **low effort** and a **$0 monthly spending cap**, so a
   subscriber uses their plan (through the MCP server) and the API route stays
   silent until chosen.
+- Forecasts kept as issued: **MTLF, wind and solar, NWS temperatures by zone
+  and the outage schedule**, for **two years**, stored **compressed** and
+  without repeated versions.
 
 ## Open questions
 
-- **Which forecasts to keep as issued** beyond MTLF and wind and solar, and how
-  long to keep them.
+None at the moment; questions that come up while building go to the pull
+request that raises them.
 
 ## Sources
 
