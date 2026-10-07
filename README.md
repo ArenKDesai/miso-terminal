@@ -349,8 +349,33 @@ through Alpaca. See the
       symbol: covered calls, cash-secured puts, opening and closing) and multi-leg
       spreads (`MLEG`, built from OMON's chain, with payoff at expiry), with the
       option guardrails: levels, cover, expiry-day cutoffs, quote collars.
-- [ ] **Phase 6, live trading:** off by default, behind a typed confirmation,
+- [ ] **Phase 6, live trading (0.4.0):** off by default, behind a typed confirmation,
       signed releases and a security review, after paper trading has run cleanly.
+
+### Analytics and AI (0.3.0)
+The work before the application for code signing. See the
+[analytics plan](docs/ANALYTICS-PLAN.md) for the design and decisions; in order:
+- [ ] **The terminal's own price history:** every daily DA and RT report kept for
+      every node, with a backfill started from SET (three months by default,
+      back to 2023 if you like), replacing the
+      Energy-Pricing-Journalist export (`tools/export_history.py` goes).
+- [ ] **Forward fill for gaps in security prices:** charts hold the last price
+      until the next trade and break between sessions, instead of drawing slopes
+      across empty minutes and nights; return statistics keep using actual bars.
+- [ ] **Studies on GP for securities:** simple and exponential moving averages,
+      Bollinger bands, momentum and rate of change, RSI and MACD.
+- [ ] **`BETA`:** alpha, beta, R² and rolling beta against the S&P 500 (`SPY US`)
+      and against the security's industry (a configured benchmark or a list
+      basket), on total returns.
+- [ ] **`FCST`:** forecasts for DA and RT LMPs, DART and securities: statistical
+      baselines (seasonal naive, ETS, MSTL, volatility cones) and gradient-boosted
+      models, with bands and a backtest record against naive.
+- [ ] **`ASK`:** a Claude assistant whose read-only tools reach the terminal's
+      prices, constraints, reserves, system conditions, weather, gas, news and
+      forecasts, so it can answer "why did RT spike yesterday" or "what will DA
+      be tomorrow in Indiana" from the data. Use it from Claude Desktop or Claude
+      Code on your Claude plan (the terminal as an MCP server), or inside the
+      terminal with an API key (low effort, $0 monthly cap until you raise it).
 
 ### Data
 - [x] Yesterday's five-minute RT alongside today's in GP (MISO's `Previous` feed, on demand).
@@ -364,7 +389,8 @@ through Alpaca. See the
       hourly DA and RT (since 2023-01-01) for the hubs, load zones and interfaces, or any
       `--nodes`, from the Energy-Pricing-Journalist DuckDB into the terminal's cache.
       GP, SPRD, CMP and HUBS then reach back up to about four years (`GP MINN.HUB 365`),
-      downloading only the days after the archive ends.
+      downloading only the days after the archive ends. Replaced in 0.3.0 by the
+      terminal's own archive (see *Analytics and AI*).
 - [x] Hub **ex-ante LMPs** (next interval) on HOME.
 - [x] New MISO feeds: `ACE` and `RDT` (regional directional transfer vs limits).
 - [x] Net actual interchange (NSI) and reserve / sub-regional constraints (CONS).
@@ -425,11 +451,11 @@ through Alpaca. See the
       (per its port policy) instead of the sync example here.
 
 ### Releases
-Nothing has been released yet. The [release plan](docs/RELEASES.md) sets out
+v0.2.0 was released on 2026-10-07. The [release plan](docs/RELEASES.md) sets out
 how changes land, versioning, the changelog, the checklist, verification and
-signing, and [the road to v0.2.0](docs/RELEASES.md#the-road-to-v020) orders the steps.
+signing, and [what comes after v0.2.0](docs/RELEASES.md#after-v020) orders the next steps.
 - [x] A release workflow: a `v*` tag builds the Windows zip and attaches it to a
-      GitHub release (never run so far).
+      GitHub release.
 - [x] **Pull requests for every change:** squash merges, auto-merge, rulesets
       protecting `main` and `v*` tags with no bypass, immutable releases.
 - [x] [`CONTRIBUTING.md`](CONTRIBUTING.md), and [`CHANGELOG.md`](CHANGELOG.md)
@@ -448,10 +474,10 @@ signing, and [the road to v0.2.0](docs/RELEASES.md#the-road-to-v020) orders the 
 - [ ] The docs site deploys from published releases, not from `main`.
 - [x] **The first release, v0.2.0:** MISO functions, themes, news, Alpaca
       market data, the paper account and paper trading in stocks and options
-      (markets phases 0 to 5). Live trading (Phase 6) follows in 0.3.0, once
-      releases are signed.
+      (markets phases 0 to 5). The analytics plan follows in 0.3.0, and live
+      trading (Phase 6) in 0.4.0, once releases are signed.
 - [ ] **Code signing** (SignPath Foundation, free for open source, applied for
-      after the first release). Unsigned executables trip SmartScreen and Smart
+      once 0.3.0 is released). Unsigned executables trip SmartScreen and Smart
       App Control; signing is required before live trading.
 - [ ] An update check against GitHub releases, off by default (a setting in SET;
       it shows a link, never downloads anything).

@@ -9,7 +9,7 @@
 
 The Markdown stays the single source: README.md (minus its TODO list, which
 becomes the roadmap page), docs/TUTORIALS.md, docs/ARCHITECTURE.md, docs/EXTENDING.md,
-docs/MARKETS-PLAN.md, docs/RELEASES.md and themes/README.md, plus a card for every theme and the
+docs/MARKETS-PLAN.md, docs/ANALYTICS-PLAN.md, docs/RELEASES.md and themes/README.md, plus a card for every theme and the
 gallery's files to download. Links between them become links between pages;
 links to other files point at GitHub. The page is styled with the Everforge palette and fonts.
 `.github/workflows/docs.yml` runs this and deploys the result. Every build checks
@@ -302,6 +302,7 @@ def main() -> None:
         Page("themes.html", "themes/README.md", "Themes"),
         Page("roadmap.html", "README.md#todo", "Roadmap", roadmap),
         Page("markets-plan.html", "docs/MARKETS-PLAN.md", "Markets plan"),
+        Page("analytics-plan.html", "docs/ANALYTICS-PLAN.md", "Analytics plan"),
         Page("releases.html", "docs/RELEASES.md", "Release plan"),
     ]
     md = renderer()
