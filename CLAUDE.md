@@ -4,8 +4,8 @@ A Bloomberg-style terminal for MISO market data. It is read-only for MISO;
 trading goes only through Alpaca, on the paper account, through confirmed tickets. It is a
 Rust workspace with an egui UI, and Windows is the primary platform. Read
 `docs/ARCHITECTURE.md` before structural changes and `docs/EXTENDING.md` for
-recipes. `docs/RELEASES.md` is the plan for releases (none made yet; ask before
-tagging, since a `v*` tag publishes one). `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
+recipes. `docs/RELEASES.md` is the plan for releases (the first is `v0.2.0`; ask
+before tagging, since a `v*` tag publishes one). `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
 data, trading and portfolio tracking: Phase 0 (foundations), Phase 1 (news),
 Phase 2 (market data), Phase 3 (the paper account), Phase 4 (paper trading)
 and Phase 5 (options) are built, the README's roadmap tracks the rest.
