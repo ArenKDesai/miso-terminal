@@ -259,7 +259,7 @@ impl Panel for Quotes {
                 )
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                widgets::freshness(ui, skin, &board.snapshots)
+                widgets::freshness(ui, skin, &board.snapshots);
             });
         });
         if board.snapshots.data.is_none() {
@@ -323,7 +323,7 @@ impl Panel for Quotes {
                             num_cell(
                                 ui,
                                 RichText::new(fmt::price_opt(r.last)).color(skin.text_strong),
-                            )
+                            );
                         });
                         row.col(|ui| num_cell(ui, delta(r.change, fmt::change_opt(r.change))));
                         row.col(|ui| num_cell(ui, delta(r.change_pct, fmt::pct_opt(r.change_pct))));

@@ -1205,7 +1205,11 @@ impl eframe::App for TerminalApp {
         let ctx = ui.ctx().clone();
         self.background_work(&ctx);
         let mut commands = std::mem::take(&mut self.pending);
-        if let Some(forwarded) = self.remote.as_ref().and_then(|r| r.drain()) {
+        if let Some(forwarded) = self
+            .remote
+            .as_ref()
+            .and_then(super::remote::RemoteInbox::drain)
+        {
             // Another launch: come forward (Windows may only flash the taskbar
             // button if focus cannot be taken) and run what it asked for.
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));

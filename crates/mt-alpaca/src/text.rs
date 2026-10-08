@@ -44,15 +44,12 @@ fn decode_entities(s: &str) -> String {
             }?;
             Some((c, e + 1))
         });
-        match decoded {
-            Some((c, used)) => {
-                out.push(c);
-                rest = &tail[used..];
-            }
-            None => {
-                out.push('&');
-                rest = &tail[1..];
-            }
+        if let Some((c, used)) = decoded {
+            out.push(c);
+            rest = &tail[used..];
+        } else {
+            out.push('&');
+            rest = &tail[1..];
         }
     }
     out.push_str(rest);

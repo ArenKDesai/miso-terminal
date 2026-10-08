@@ -56,7 +56,7 @@ impl Panel for Gas {
         let skin = cx.skin;
         let hh = cx.hub.watch(&cx.eia.henry_hub());
         widgets::title_bar(ui, skin, "Natural gas · Henry Hub", |ui| {
-            widgets::freshness(ui, skin, &hh)
+            widgets::freshness(ui, skin, &hh);
         });
         let Some(spot) = hh.data() else {
             widgets::placeholder(ui, skin, hh.error.as_ref().map(ToString::to_string));

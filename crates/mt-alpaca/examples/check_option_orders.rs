@@ -166,7 +166,7 @@ fn main() -> Result<(), Error> {
     let snaps = rt.block_on(alpaca.snapshots([UNDERLYING]).fetch(ctx.clone(), None))?;
     let spot = snaps
         .get(UNDERLYING)
-        .and_then(|s| s.last())
+        .and_then(mt_core::equity::Snapshot::last)
         .ok_or("no last price for XLU")?;
     let contracts = rt.block_on(alpaca.option_contracts(UNDERLYING).fetch(ctx.clone(), None))?;
     let today = mt_core::exchange::now_exchange().date_naive();
@@ -364,7 +364,10 @@ fn run(
     for id in &open {
         loop {
             let status = parse_order(&get(format!("{trading}/v2/orders/{id}"))?).map(|o| o.status);
-            if status.as_ref().is_some_and(|s| s.is_final()) {
+            if status
+                .as_ref()
+                .is_some_and(mt_core::order::OrderStatus::is_final)
+            {
                 println!("{id}: {}", status.map(|s| s.label()).unwrap_or_default());
                 break;
             }

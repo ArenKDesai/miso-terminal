@@ -59,7 +59,7 @@ impl ThemeRegistry {
                     let errors: Vec<String> = theme
                         .validate()
                         .into_iter()
-                        .filter(|i| i.is_error())
+                        .filter(super::model::Issue::is_error)
                         .map(|i| i.message)
                         .collect();
                     if !errors.is_empty() {

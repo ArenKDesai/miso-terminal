@@ -314,7 +314,7 @@ impl Gp {
                 );
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
-                widgets::freshness(ui, skin, &intraday)
+                widgets::freshness(ui, skin, &intraday);
             });
         });
 

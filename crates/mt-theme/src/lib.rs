@@ -65,7 +65,11 @@ mod tests {
         assert_eq!(themes.len(), BUILTIN_SOURCES.len());
         assert!(themes.iter().any(|t| t.meta.id == DEFAULT_THEME_ID));
         for t in &themes {
-            let errors: Vec<_> = t.validate().into_iter().filter(|i| i.is_error()).collect();
+            let errors: Vec<_> = t
+                .validate()
+                .into_iter()
+                .filter(super::model::Issue::is_error)
+                .collect();
             assert!(errors.is_empty(), "{}: {errors:#?}", t.meta.id);
         }
     }
@@ -109,7 +113,11 @@ mod tests {
                 format!("{}.toml", t.meta.id),
                 "file name must be the id"
             );
-            let errors: Vec<_> = t.validate().into_iter().filter(|i| i.is_error()).collect();
+            let errors: Vec<_> = t
+                .validate()
+                .into_iter()
+                .filter(super::model::Issue::is_error)
+                .collect();
             assert!(errors.is_empty(), "{name}: {errors:#?}");
             assert!(!ids.contains(&t.meta.id), "{name}: id already taken");
             ids.push(t.meta.id.clone());

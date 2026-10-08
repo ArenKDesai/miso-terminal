@@ -488,10 +488,10 @@ impl Blotter {
                                         .map(portfolio::qty)
                                         .or_else(|| o.notional.map(portfolio::usd))
                                         .unwrap_or_default(),
-                                )
+                                );
                             });
                             row.col(|ui| {
-                                crate::widgets::table::num_cell(ui, portfolio::qty(o.filled_qty))
+                                crate::widgets::table::num_cell(ui, portfolio::qty(o.filled_qty));
                             });
                             row.col(|ui| {
                                 ui.label(type_text(o));
@@ -516,7 +516,7 @@ impl Blotter {
                                 crate::widgets::table::num_cell(
                                     ui,
                                     o.filled_avg_price.map(portfolio::price).unwrap_or_default(),
-                                )
+                                );
                             });
                             row.col(|ui| {
                                 if !o.status.is_open() {

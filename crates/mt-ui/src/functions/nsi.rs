@@ -42,7 +42,7 @@ impl Panel for Nsi {
         let now = cx.hub.watch(&cx.miso.interchange());
         let hist = cx.hub.watch(&cx.miso.interchange_history());
         widgets::title_bar(ui, skin, "Net scheduled interchange", |ui| {
-            widgets::freshness(ui, skin, &now)
+            widgets::freshness(ui, skin, &now);
         });
         ui.label(
             RichText::new("Positive = MISO exporting, negative = importing.")
@@ -53,7 +53,7 @@ impl Panel for Nsi {
         // Scheduled against metered: the gap is inadvertent interchange.
         let actual = cx.hub.watch(&cx.miso.actual_interchange());
         ui.horizontal_wrapped(|ui| {
-            let scheduled = now.data().and_then(|n| n.net());
+            let scheduled = now.data().and_then(mt_core::Interchange::net);
             let metered = actual.data().and_then(|a| a.mw);
             let mw = |v: Option<f64>| v.map_or_else(|| fmt::DASH.into(), fmt::mw_signed);
             widgets::stat_tile(ui, skin, "Scheduled (NSI) · MW", &mw(scheduled), None);

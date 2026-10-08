@@ -292,7 +292,7 @@ impl Panel for Cross {
                     }
                 }
                 for (n, pts) in &node_lines {
-                    for (t, v) in pts.iter() {
+                    for (t, v) in *pts {
                         rows.push(vec![
                             (*n).to_owned(),
                             t.format("%Y-%m-%d %H:%M").to_string(),
@@ -308,7 +308,7 @@ impl Panel for Cross {
                 csv::to_csv(&["series", "time_est", value], rows)
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                widgets::freshness(ui, skin, &snap)
+                widgets::freshness(ui, skin, &snap);
             });
         });
 

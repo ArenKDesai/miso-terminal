@@ -119,7 +119,7 @@ impl Panel for Portfolio {
                     }
                     csv::copy_button(ui, skin, || to_csv(&lines));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        widgets::freshness(ui, skin, &book.positions)
+                        widgets::freshness(ui, skin, &book.positions);
                     });
                 });
                 if book.positions.data.is_none() {
@@ -365,7 +365,7 @@ impl Portfolio {
                                     ui,
                                     RichText::new(portfolio::price(p.avg_entry_price))
                                         .color(skin.text_muted),
-                                )
+                                );
                             });
                             row.col(|ui| {
                                 let mut text = RichText::new(portfolio::price(m.price))
@@ -384,7 +384,7 @@ impl Portfolio {
                                         |w| format!("{:.1}%", w * 100.0),
                                     ))
                                     .color(skin.text_muted),
-                                )
+                                );
                             });
                             row.col(|ui| {
                                 num_cell(
@@ -394,14 +394,14 @@ impl Portfolio {
                                         portfolio::usd_signed,
                                     ))
                                     .color(portfolio::delta_color(skin, m.day_pl)),
-                                )
+                                );
                             });
                             row.col(|ui| {
                                 num_cell(
                                     ui,
                                     RichText::new(portfolio::pct_signed(m.day_pct))
                                         .color(portfolio::delta_color(skin, m.day_pl)),
-                                )
+                                );
                             });
                             row.col(|ui| {
                                 num_cell(
@@ -411,14 +411,14 @@ impl Portfolio {
                                         portfolio::usd_signed,
                                     ))
                                     .color(portfolio::delta_color(skin, m.unrealized_pl)),
-                                )
+                                );
                             });
                             row.col(|ui| {
                                 num_cell(
                                     ui,
                                     RichText::new(portfolio::pct_signed(m.unrealized_pct))
                                         .color(portfolio::delta_color(skin, m.unrealized_pl)),
-                                )
+                                );
                             });
                         });
                     });

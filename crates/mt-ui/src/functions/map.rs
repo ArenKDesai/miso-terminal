@@ -212,7 +212,7 @@ impl Panel for MapPanel {
                 "Interpolated price field over the footprint (inverse-distance weighting)",
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                widgets::freshness(ui, skin, &board)
+                widgets::freshness(ui, skin, &board);
             });
         });
         let Some(board) = board.data() else {

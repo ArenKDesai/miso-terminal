@@ -40,7 +40,7 @@ impl Panel for AcePanel {
         let skin = cx.skin;
         let snap = cx.hub.watch(&cx.miso.ace());
         widgets::title_bar(ui, skin, "Area control error · MW", |ui| {
-            widgets::freshness(ui, skin, &snap)
+            widgets::freshness(ui, skin, &snap);
         });
         ui.label(
             RichText::new(

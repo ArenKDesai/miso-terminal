@@ -41,7 +41,7 @@ impl Panel for Outages {
         let skin = cx.skin;
         let snap = cx.hub.watch(&cx.miso.outages());
         widgets::title_bar(ui, skin, "Generation outages · MW", |ui| {
-            widgets::freshness(ui, skin, &snap)
+            widgets::freshness(ui, skin, &snap);
         });
         widgets::with_data(ui, skin, &snap, |ui, o| {
             ui.label(RichText::new(&o.headline).color(skin.text_muted));

@@ -431,17 +431,14 @@ impl Ticket {
                     .desired_width(if option.is_some() { 160.0 } else { 70.0 }),
             )
             .on_hover_text("A ticker (XLU) or an option's OCC symbol (XLU261218C00045000)");
-            match &option {
-                Some(c) => {
-                    ui.label(RichText::new(contract_name(c)).color(skin.text_strong));
-                }
-                None => {
-                    ui.label(RichText::new("US").color(skin.text_muted));
-                    if let Some(name) = mt_alpaca::normalize_symbol(&d.symbol)
-                        .and_then(|t| market::name_of(&assets, &t))
-                    {
-                        ui.label(RichText::new(name).small().color(skin.text_muted));
-                    }
+            if let Some(c) = &option {
+                ui.label(RichText::new(contract_name(c)).color(skin.text_strong));
+            } else {
+                ui.label(RichText::new("US").color(skin.text_muted));
+                if let Some(name) = mt_alpaca::normalize_symbol(&d.symbol)
+                    .and_then(|t| market::name_of(&assets, &t))
+                {
+                    ui.label(RichText::new(name).small().color(skin.text_muted));
                 }
             }
         });
@@ -902,7 +899,10 @@ impl Ticket {
         // Prices, greeks and the position.
         ui.horizontal_wrapped(|ui| {
             let q = snap.and_then(|s| s.latest_quote.as_ref());
-            match (snap.and_then(|s| s.bid()), snap.and_then(|s| s.ask())) {
+            match (
+                snap.and_then(mt_core::equity::OptionSnapshot::bid),
+                snap.and_then(mt_core::equity::OptionSnapshot::ask),
+            ) {
                 (None, None) => {
                     ui.label(RichText::new("No quote yet").color(skin.text_muted));
                 }

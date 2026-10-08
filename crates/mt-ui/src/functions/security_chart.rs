@@ -275,7 +275,7 @@ impl Panel for SecurityChart {
                 )
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                widgets::freshness(ui, skin, &snap)
+                widgets::freshness(ui, skin, &snap);
             });
         });
         if bars.is_empty() {

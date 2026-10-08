@@ -170,7 +170,7 @@ impl RtIntraday {
             self.mlc[n][t] = r.mlc as f32;
         }
         if self.market_day.is_none() {
-            self.market_day = self.intervals.first().map(|t| t.date());
+            self.market_day = self.intervals.first().map(chrono::NaiveDateTime::date);
         }
         self.intervals.len() - before
     }

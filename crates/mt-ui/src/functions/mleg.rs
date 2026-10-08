@@ -404,9 +404,15 @@ impl Spread {
                         )
                         .on_hover_text(&leg.symbol);
                         let snap = m.as_ref().and_then(|m| m.snapshot(&leg.symbol));
-                        ui.label(opt::premium_opt(snap.and_then(|s| s.bid())));
-                        ui.label(opt::premium_opt(snap.and_then(|s| s.ask())));
-                        ui.label(opt::premium_opt(snap.and_then(|s| s.mark())));
+                        ui.label(opt::premium_opt(
+                            snap.and_then(mt_core::equity::OptionSnapshot::bid),
+                        ));
+                        ui.label(opt::premium_opt(
+                            snap.and_then(mt_core::equity::OptionSnapshot::ask),
+                        ));
+                        ui.label(opt::premium_opt(
+                            snap.and_then(mt_core::equity::OptionSnapshot::mark),
+                        ));
                         ui.label(opt::greek(snap.and_then(|s| s.greeks.delta), 2));
                         ui.label(opt::iv(snap.and_then(|s| s.implied_volatility)));
                         ui.label(

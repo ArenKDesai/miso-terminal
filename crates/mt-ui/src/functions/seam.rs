@@ -45,7 +45,7 @@ impl Panel for Seam {
         let board = cx.hub.watch(&cx.miso.lmp_board());
         let cts = cx.hub.watch(&cx.miso.cts());
         widgets::title_bar(ui, skin, "Seams · interfaces", |ui| {
-            widgets::freshness(ui, skin, &board)
+            widgets::freshness(ui, skin, &board);
         });
         egui::ScrollArea::vertical()
             .id_salt("seam-scroll")

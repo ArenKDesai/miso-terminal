@@ -276,7 +276,7 @@ impl Panel for Lmp {
                     ui.label(RichText::new("No nodes match.").color(skin.text_muted));
                 }
                 (err, false) => {
-                    widgets::placeholder(ui, skin, err.as_ref().map(ToString::to_string))
+                    widgets::placeholder(ui, skin, err.as_ref().map(ToString::to_string));
                 }
             }
             return;

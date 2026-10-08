@@ -464,7 +464,9 @@ mod tests {
         let asked = t.asked.lock();
         assert!(asked[0].header_value("if-none-match").is_none());
         assert_eq!(
-            asked[1].header_value("if-none-match").map(|v| v.expose()),
+            asked[1]
+                .header_value("if-none-match")
+                .map(super::super::request::HeaderValue::expose),
             Some("W/\"v1\"")
         );
         assert!(

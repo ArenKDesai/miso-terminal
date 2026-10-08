@@ -125,7 +125,7 @@ impl Panel for Watchlist {
             .collect();
 
         widgets::title_bar(ui, skin, "Watchlist", |ui| {
-            widgets::freshness(ui, skin, &board)
+            widgets::freshness(ui, skin, &board);
         });
         ui.horizontal(|ui| {
             if let Some(n) = self.picker.show(ui, cx, "wl", "add a node…") {

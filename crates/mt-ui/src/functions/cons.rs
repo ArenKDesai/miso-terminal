@@ -128,7 +128,7 @@ impl Panel for Cons {
                             num_cell(
                                 ui,
                                 RichText::new(fmt::price_opt(k.shadow_price)).color(skin.warning),
-                            )
+                            );
                         });
                         row.col(|ui| {
                             let curve = match (k.overridden, &k.curve_type) {
@@ -184,7 +184,7 @@ impl Panel for Cons {
                     }
                 }
                 None => {
-                    widgets::placeholder(ui, skin, snap.error.as_ref().map(ToString::to_string))
+                    widgets::placeholder(ui, skin, snap.error.as_ref().map(ToString::to_string));
                 }
             }
         }

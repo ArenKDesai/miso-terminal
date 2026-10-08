@@ -371,7 +371,8 @@ mod tests {
         assert!(has_keys(secrets.as_ref()));
         let req = request(&ctx, "https://data.alpaca.markets/v2/x".into()).unwrap();
         assert_eq!(
-            req.header_value("APCA-API-KEY-ID").map(|v| v.expose()),
+            req.header_value("APCA-API-KEY-ID")
+                .map(mt_data::HeaderValue::expose),
             Some("PKTEST")
         );
         assert!(!req.describe().contains("shh"));

@@ -231,26 +231,23 @@ pub fn combine<'a>(feeds: impl IntoIterator<Item = &'a [Headline]>) -> Vec<Headl
                 .get(&h.id)
                 .or_else(|| link.as_ref().and_then(|l| index.get(l)))
                 .copied();
-            match hit {
-                Some(i) => {
-                    let o = &mut out[i];
-                    for s in &h.sections {
-                        if !o.sections.contains(s) {
-                            o.sections.push(s.clone());
-                        }
-                    }
-                    o.seen = o.seen.min(h.seen);
-                    if o.summary.is_empty() {
-                        o.summary.clone_from(&h.summary);
+            if let Some(i) = hit {
+                let o = &mut out[i];
+                for s in &h.sections {
+                    if !o.sections.contains(s) {
+                        o.sections.push(s.clone());
                     }
                 }
-                None => {
-                    index.insert(h.id.clone(), out.len());
-                    if let Some(l) = link {
-                        index.insert(l, out.len());
-                    }
-                    out.push(h.clone());
+                o.seen = o.seen.min(h.seen);
+                if o.summary.is_empty() {
+                    o.summary.clone_from(&h.summary);
                 }
+            } else {
+                index.insert(h.id.clone(), out.len());
+                if let Some(l) = link {
+                    index.insert(l, out.len());
+                }
+                out.push(h.clone());
             }
         }
     }
