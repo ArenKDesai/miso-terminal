@@ -161,12 +161,11 @@ pub fn with_data<T>(ui: &mut Ui, skin: &Skin, snap: &Snapshot<T>, body: impl FnO
 
 pub fn placeholder(ui: &mut Ui, skin: &Skin, error: Option<String>) {
     ui.add_space(12.0);
-    ui.horizontal(|ui| match error {
-        Some(e) => {
+    ui.horizontal(|ui| {
+        if let Some(e) = error {
             ui.label(RichText::new(format!("Could not load: {e}")).color(skin.negative));
             ui.label(RichText::new("Retrying automatically.").color(skin.text_muted));
-        }
-        None => {
+        } else {
             ui.spinner();
             ui.label(RichText::new("Loading…").color(skin.text_muted));
         }

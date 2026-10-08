@@ -38,7 +38,7 @@ impl Panel for Asm {
         let skin = cx.skin;
         let snap = cx.hub.watch(&cx.miso.ancillary());
         widgets::title_bar(ui, skin, "Ancillary-service MCPs · $/MW", |ui| {
-            widgets::freshness(ui, skin, &snap)
+            widgets::freshness(ui, skin, &snap);
         });
         widgets::with_data(ui, skin, &snap, |ui, a| {
             if let Some(t) = a.interval {

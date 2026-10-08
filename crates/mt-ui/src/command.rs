@@ -32,15 +32,12 @@ fn group_instruments(tokens: &[&str]) -> Vec<String> {
     let mut out = Vec::with_capacity(tokens.len());
     let mut i = 0;
     while i < tokens.len() {
-        match instrument::parse_tokens(&tokens[i..]) {
-            Some((inst, used)) => {
-                out.push(inst.to_string());
-                i += used;
-            }
-            None => {
-                out.push(tokens[i].to_owned());
-                i += 1;
-            }
+        if let Some((inst, used)) = instrument::parse_tokens(&tokens[i..]) {
+            out.push(inst.to_string());
+            i += used;
+        } else {
+            out.push(tokens[i].to_owned());
+            i += 1;
         }
     }
     out

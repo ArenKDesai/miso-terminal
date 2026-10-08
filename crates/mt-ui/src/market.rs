@@ -283,15 +283,14 @@ impl SecurityPicker {
                 && ui.input(|i| i.key_pressed(egui::Key::Enter))
                 && !typed.is_empty()
             {
-                chosen = match security_of(&typed) {
-                    Some(s) => Some(s),
-                    None => {
-                        let best = assets.search(&typed, 1).first().map(|a| a.security());
-                        best.or_else(|| {
-                            (assets.assets.is_empty() && mt_core::instrument::is_ticker(&typed))
-                                .then(|| Security::us(&typed))
-                        })
-                    }
+                chosen = if let Some(s) = security_of(&typed) {
+                    Some(s)
+                } else {
+                    let best = assets.search(&typed, 1).first().map(|a| a.security());
+                    best.or_else(|| {
+                        (assets.assets.is_empty() && mt_core::instrument::is_ticker(&typed))
+                            .then(|| Security::us(&typed))
+                    })
                 };
             }
             if !typed.is_empty() && chosen.is_none() {

@@ -263,8 +263,8 @@ fn paper_account() {
             .filter_map(|p| p.unrealized_intraday_pl)
             .sum();
         assert_eq!(day, a.day_pl());
-        assert!(positions.iter().any(|p| p.is_short()));
-        assert!(positions.iter().any(|p| p.is_option()));
+        assert!(positions.iter().any(mt_core::account::Position::is_short));
+        assert!(positions.iter().any(mt_core::account::Position::is_option));
         assert!(
             a.number.contains("SAMPLE"),
             "never a real account number in the repository"
@@ -446,7 +446,12 @@ fn order_events() {
         assert!(!e.event.is_empty() && !e.order_id.is_empty(), "{e:?}");
     }
     if sample() {
-        assert!(state.events.iter().any(|e| e.is_fill()));
+        assert!(
+            state
+                .events
+                .iter()
+                .any(mt_core::account::OrderEvent::is_fill)
+        );
     }
 }
 

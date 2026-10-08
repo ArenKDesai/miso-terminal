@@ -83,7 +83,7 @@ fn save_png(image: &ColorImage, dir: &Path, name: &str) -> Result<PathBuf, Strin
     let rgba: Vec<u8> = image
         .pixels
         .iter()
-        .flat_map(|c| c.to_srgba_unmultiplied())
+        .flat_map(egui::Color32::to_srgba_unmultiplied)
         .collect();
     let buf = image::RgbaImage::from_raw(w as u32, h as u32, rgba).ok_or("image size mismatch")?;
     buf.save(&path).map_err(|e| e.to_string())?;

@@ -73,7 +73,7 @@ pub fn parse_index(body: &str) -> Result<Gallery, GalleryError> {
         let errors: Vec<String> = theme
             .validate()
             .into_iter()
-            .filter(|issue| issue.is_error())
+            .filter(super::model::Issue::is_error)
             .map(|issue| issue.message)
             .collect();
         if !errors.is_empty() {

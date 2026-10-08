@@ -39,7 +39,7 @@ impl Panel for Capacity {
         let skin = cx.skin;
         let cap = cx.hub.watch(&cx.miso.capacity());
         widgets::title_bar(ui, skin, "Capacity & headroom", |ui| {
-            widgets::freshness(ui, skin, &cap)
+            widgets::freshness(ui, skin, &cap);
         });
         reliability(ui, cx);
         widgets::with_data(ui, skin, &cap, |ui, c| {

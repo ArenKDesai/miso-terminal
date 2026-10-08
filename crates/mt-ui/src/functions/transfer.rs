@@ -40,7 +40,7 @@ impl Panel for Transfer {
         let skin = cx.skin;
         let snap = cx.hub.watch(&cx.miso.regional_transfer());
         widgets::title_bar(ui, skin, "Regional directional transfer", |ui| {
-            widgets::freshness(ui, skin, &snap)
+            widgets::freshness(ui, skin, &snap);
         });
         ui.label(
             RichText::new("Positive = South → North, negative = North → South.")

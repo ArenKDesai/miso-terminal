@@ -57,15 +57,12 @@ pub fn decode_entities(s: &str) -> String {
         // Entities are short; a stray `&` (AT&T) is not one.
         let semi = tail[1..].find(';').filter(|&j| j > 0 && j <= 10);
         let decoded = semi.and_then(|j| entity(&tail[1..=j]).map(|c| (c, j + 2)));
-        match decoded {
-            Some((c, len)) => {
-                out.push(c);
-                rest = &tail[len..];
-            }
-            None => {
-                out.push('&');
-                rest = &tail[1..];
-            }
+        if let Some((c, len)) = decoded {
+            out.push(c);
+            rest = &tail[len..];
+        } else {
+            out.push('&');
+            rest = &tail[1..];
         }
     }
     out.push_str(rest);

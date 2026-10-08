@@ -95,19 +95,18 @@ impl Panel for Ni {
             self.overview(ui, cx, &topics, &items);
             return;
         };
-        let matcher = match topics.iter().find(|t| t.name == name) {
-            Some(t) => t.matcher(),
-            None => {
-                ui.label(
-                    RichText::new(format!(
-                        "No topic named {name}: showing headlines that mention it. Add topics \
-                         under [[news.topics]] in config.toml."
-                    ))
-                    .small()
-                    .color(skin.text_muted),
-                );
-                Matcher::from_list(&name)
-            }
+        let matcher = if let Some(t) = topics.iter().find(|t| t.name == name) {
+            t.matcher()
+        } else {
+            ui.label(
+                RichText::new(format!(
+                    "No topic named {name}: showing headlines that mention it. Add topics \
+                     under [[news.topics]] in config.toml."
+                ))
+                .small()
+                .color(skin.text_muted),
+            );
+            Matcher::from_list(&name)
         };
         self.browser
             .ui(ui, cx, &items, Some((name.as_str(), &matcher)), None);

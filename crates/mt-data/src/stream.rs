@@ -277,12 +277,11 @@ impl DataHub {
         e.last_watched = now;
         let mut new_topic = false;
         for t in topics {
-            match e.topics.get_mut(*t) {
-                Some(at) => *at = now,
-                None => {
-                    e.topics.insert((*t).to_owned(), now);
-                    new_topic = true;
-                }
+            if let Some(at) = e.topics.get_mut(*t) {
+                *at = now
+            } else {
+                e.topics.insert((*t).to_owned(), now);
+                new_topic = true;
             }
         }
         let start = !e.running && !self.is_paused() && e.phase != StreamPhase::Failed;

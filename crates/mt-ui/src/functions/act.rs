@@ -299,15 +299,12 @@ impl ActivityPanel {
                             });
                             row.col(|ui| {
                                 let Some(sym) = &a.symbol else { return };
-                                match a.contract() {
-                                    Some(c) => {
-                                        ui.label(portfolio::contract_name(&c)).on_hover_text(sym);
-                                    }
-                                    None => {
-                                        let name = format!("{sym} US");
-                                        if widgets::link(ui, skin, &name).clicked() {
-                                            open = Some(Route::new("GP", [name]));
-                                        }
+                                if let Some(c) = a.contract() {
+                                    ui.label(portfolio::contract_name(&c)).on_hover_text(sym);
+                                } else {
+                                    let name = format!("{sym} US");
+                                    if widgets::link(ui, skin, &name).clicked() {
+                                        open = Some(Route::new("GP", [name]));
                                     }
                                 }
                             });
@@ -323,14 +320,14 @@ impl ActivityPanel {
                                 crate::widgets::table::num_cell(
                                     ui,
                                     a.qty.map(portfolio::qty).unwrap_or_default(),
-                                )
+                                );
                             });
                             row.col(|ui| {
                                 let p = a.price.or(a.per_share_amount).filter(|p| !p.is_zero());
                                 crate::widgets::table::num_cell(
                                     ui,
                                     p.map(portfolio::price).unwrap_or_default(),
-                                )
+                                );
                             });
                             row.col(|ui| {
                                 let amount = a.amount();
@@ -340,7 +337,7 @@ impl ActivityPanel {
                                         amount.map_or_else(String::new, portfolio::usd_signed),
                                     )
                                     .color(portfolio::delta_color(skin, amount)),
-                                )
+                                );
                             });
                             row.col(|ui| {
                                 ui.label(RichText::new(details(a)).small().color(skin.text_muted));

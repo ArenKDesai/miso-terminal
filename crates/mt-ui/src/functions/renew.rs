@@ -41,7 +41,7 @@ impl Panel for Renew {
         let ren = cx.hub.watch(&cx.miso.renewables());
         let mix = cx.hub.watch(&cx.miso.fuel_mix());
         widgets::title_bar(ui, skin, "Wind & solar", |ui| {
-            widgets::freshness(ui, skin, &ren)
+            widgets::freshness(ui, skin, &ren);
         });
 
         ui.horizontal_wrapped(|ui| {

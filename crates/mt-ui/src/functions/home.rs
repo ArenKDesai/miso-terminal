@@ -56,7 +56,7 @@ impl Panel for Home {
 
         ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             widgets::title_bar(ui, skin, "MISO at a glance", |ui| {
-                widgets::freshness(ui, skin, &board)
+                widgets::freshness(ui, skin, &board);
             });
 
             ui.horizontal_wrapped(|ui| {
@@ -123,7 +123,7 @@ impl Panel for Home {
                         .constraints
                         .iter()
                         .filter_map(|k| k.shadow_price)
-                        .min_by(|a, b| a.total_cmp(b));
+                        .min_by(f64::total_cmp);
                     widgets::stat_tile(
                         ui,
                         skin,
@@ -135,7 +135,7 @@ impl Panel for Home {
                         }),
                     );
                 }
-                if let Some((day, price)) = gas.data().and_then(|g| g.latest()) {
+                if let Some((day, price)) = gas.data().and_then(mt_core::SpotPrices::latest) {
                     // Marginal energy cost over gas: the market's heat rate right now.
                     let hr = mec.and_then(|m| mt_core::implied_heat_rate(m, price));
                     let sub = match hr {

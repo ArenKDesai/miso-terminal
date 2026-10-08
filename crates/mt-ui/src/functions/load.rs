@@ -41,7 +41,7 @@ impl Panel for Load {
         let skin = cx.skin;
         let load = cx.hub.watch(&cx.miso.load());
         widgets::title_bar(ui, skin, "System load", |ui| {
-            widgets::freshness(ui, skin, &load)
+            widgets::freshness(ui, skin, &load);
         });
         widgets::with_data(ui, skin, &load, |ui, l| {
             let Some(day) = l.market_day else { return };

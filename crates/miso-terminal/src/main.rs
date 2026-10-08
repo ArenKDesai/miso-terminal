@@ -238,13 +238,12 @@ fn main() -> Result<()> {
         .context("starting the data runtime")?;
 
     let replaying = args.offline.is_some();
-    let (transport, cache): (Arc<dyn Transport>, Option<DiskCache>) = match args.offline {
-        Some(dir) => {
+    let (transport, cache): (Arc<dyn Transport>, Option<DiskCache>) =
+        if let Some(dir) = args.offline {
             let dir = dir.unwrap_or_else(default_fixtures);
             tracing::info!("offline mode: replaying {}", dir.display());
             (Arc::new(FixtureTransport::new(dir)), None)
-        }
-        None => {
+        } else {
             let ua = format!(
                 "MISO-Terminal/{} (+{})",
                 env!("CARGO_PKG_VERSION"),
@@ -254,8 +253,7 @@ fn main() -> Result<()> {
                 Arc::new(HttpTransport::new(&ua)?),
                 Some(DiskCache::new(paths.cache_dir.join("http"))),
             )
-        }
-    };
+        };
     let opts = FetchCtxOptions {
         max_concurrent: config.data.max_concurrent_requests,
         polite_interval: std::time::Duration::from_secs(config.data.polite_interval_secs),

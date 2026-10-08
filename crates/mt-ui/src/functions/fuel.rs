@@ -44,7 +44,7 @@ impl Panel for Fuel {
         let today = cx.hub.watch(&cx.miso.fuel_mix_today());
 
         widgets::title_bar(ui, skin, "Generation by fuel", |ui| {
-            widgets::freshness(ui, skin, &now)
+            widgets::freshness(ui, skin, &now);
         });
         widgets::with_data(ui, skin, &now, |ui, mix| {
             let total = mix.total();

@@ -140,7 +140,7 @@ fn main() -> Result<(), Error> {
     let snaps = rt.block_on(alpaca.snapshots([SYMBOL]).fetch(ctx.clone(), None))?;
     let last = snaps
         .get(SYMBOL)
-        .and_then(|s| s.last())
+        .and_then(mt_core::equity::Snapshot::last)
         .and_then(|p| mt_core::account::from_f64(p, 4))
         .ok_or("no last price for XLU")?;
     let limit = round_to_tick(last / Decimal::TWO, PENNY, RoundingStrategy::ToZero);
@@ -293,7 +293,10 @@ fn run(
                 .as_ref()
                 .and_then(parse_order)
                 .map(|o| o.status);
-            if status.as_ref().is_some_and(|s| s.is_final()) {
+            if status
+                .as_ref()
+                .is_some_and(mt_core::order::OrderStatus::is_final)
+            {
                 println!("{id}: {}", status.map(|s| s.label()).unwrap_or_default());
                 break;
             }
