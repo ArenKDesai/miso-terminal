@@ -645,10 +645,13 @@ impl TerminalApp {
                 AppCommand::RefreshWatched => self.hub.refresh_watched(),
                 AppCommand::SetPaused(p) => self.hub.set_paused(p),
                 AppCommand::ClearCache => {
-                    if let Some(cache) = self.hub.ctx().cache()
-                        && let Err(e) = cache.clear()
-                    {
-                        self.notices.push(format!("Could not clear cache: {e}"));
+                    // Everything but the archives, which take days to rebuild.
+                    if let Some(cache) = self.hub.ctx().cache() {
+                        let (files, bytes) = cache.prune(0, &crate::kept_cache_dirs(cache));
+                        tracing::info!(
+                            "cleared the cache: {files} files ({} MB)",
+                            bytes / 1_048_576
+                        );
                     }
                 }
                 AppCommand::RevealPath(path) => reveal(&path),

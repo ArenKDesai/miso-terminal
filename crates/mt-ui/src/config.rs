@@ -127,7 +127,8 @@ pub struct DataConfig {
     /// Default look-back for GP history charts, in days.
     pub history_days: u32,
     /// Size cap for the market-report cache, in MB. Least-recently-used files
-    /// are pruned at startup. The five-minute archive is not counted.
+    /// are pruned at startup. The archives (five-minute prices, the day store,
+    /// headlines) are not counted.
     pub cache_max_mb: u64,
     /// Days of five-minute prices to keep in the local archive (about 3 MB a
     /// day); 0 keeps them all.

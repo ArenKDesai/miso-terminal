@@ -281,11 +281,7 @@ fn main() -> Result<()> {
         let archive_days = config.data.archive_days;
         let news_days = config.news.keep_days;
         runtime.spawn_blocking(move || {
-            let mut keep = vec![
-                mt_miso::archive_dir(&cache),
-                mt_miso::lmp_archive_dir(&cache),
-            ];
-            keep.extend(mt_news::archive_dirs(&cache));
+            let keep = mt_ui::kept_cache_dirs(&cache);
             let (files, bytes) = cache.prune(max, &keep);
             if files > 0 {
                 tracing::info!("pruned {files} cached reports ({} MB)", bytes / 1_048_576);

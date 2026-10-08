@@ -60,10 +60,12 @@ wait.
   downloaded for any panel lands there, so the archive grows with use. For
   scale: the Energy-Pricing-Journalist keeps the raw reports gzipped at about
   220 KB a day per market, about 600 MB for both markets since 2023; a binary
-  store should be no larger.
+  store should be no larger. *Built* (the [day store](ARCHITECTURE.md#the-day-store)):
+  whole cents in byte planes come to about 170 KB a day per market for
+  MISO's 2,600 nodes.
 - **Backfill on request.** A *Price history* section in SET: how far back to
-  keep (three months by default, about 40 MB; up to MISO's first day,
-  2023-01-01, about 600 MB), the disk it will take, and *Download now*. The backfill runs on the hub at a polite pace (a
+  keep (three months by default, about 31 MB; up to MISO's first day,
+  2023-01-01, about 470 MB), the disk it will take, and *Download now*. The backfill runs on the hub at a polite pace (a
   `Budget` on `docs.misoenergy.org`; at one report every two seconds the whole
   span takes about an hour and a half), shows its progress in LOG and the
   status bar, can be paused, resumes where it stopped, and replaces a

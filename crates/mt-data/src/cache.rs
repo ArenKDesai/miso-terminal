@@ -82,6 +82,16 @@ impl DiskCache {
         self.files().iter().map(|f| f.1).sum()
     }
 
+    /// Size on disk outside the `keep` directories: the part [`Self::prune`]
+    /// governs.
+    pub fn size_bytes_outside(&self, keep: &[PathBuf]) -> u64 {
+        self.files()
+            .iter()
+            .filter(|f| !keep.iter().any(|k| f.0.starts_with(k)))
+            .map(|f| f.1)
+            .sum()
+    }
+
     /// Every cached file with its size and last-use time.
     fn files(&self) -> Vec<(PathBuf, u64, SystemTime)> {
         fn walk(p: &Path, out: &mut Vec<(PathBuf, u64, SystemTime)>) {
@@ -173,10 +183,14 @@ mod tests {
         cache.get(a).unwrap(); // a becomes the most recently used
         let per_file = cache.size_bytes() / 4;
         let archive = cache.path_for(kept).parent().unwrap().to_path_buf();
-        let (removed, freed) = cache.prune(per_file * 2, &[archive]);
+        let (removed, freed) = cache.prune(per_file * 2, std::slice::from_ref(&archive));
         assert_eq!(
             removed, 1,
             "the kept directory does not count towards the cap"
+        );
+        assert_eq!(
+            cache.size_bytes_outside(std::slice::from_ref(&archive)),
+            cache.size_bytes() - per_file
         );
         assert!(freed > 0);
         assert!(cache.get(b).is_none(), "b was least recently used");

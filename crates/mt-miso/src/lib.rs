@@ -18,5 +18,6 @@ pub use endpoints::MisoEndpoints;
 pub use queries::{
     ApiQuery, ConstraintHistoryQuery, DayReportQuery, INTERVALS_PER_DAY, LmpArchiveQuery, Miso,
     RtArchiveQuery, RtBestDayQuery, RtIntradayQuery, RtPreviousDayQuery, archive_dir,
-    intraday_archive_key, lmp_archive_dir, lmp_archive_key, prune_archive,
+    day_store_dir, day_store_key, intraday_archive_key, lmp_archive_dir, lmp_archive_key,
+    prune_archive, read_day_store,
 };

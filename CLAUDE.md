@@ -211,6 +211,11 @@ keys, and anything Aren has asked to see.
   account figures out of anything that is always on screen.
 - The rolling five-minute feed can take most of a minute to download late in
   the day; today's store is saved to the disk cache and restored at launch.
+- Daily DA ex-post and RT reports pass through the day store
+  (`local://archive/report/<da|rt>/<date>`, ARCHITECTURE's *The day store*):
+  read old days with `mt_miso::read_day_store` or the report queries, never
+  by caching the CSVs. Anything the app keeps on purpose in the cache goes in
+  `mt_ui::kept_cache_dirs`, which the size cap and *Clear cache* skip.
 - News: headlines and summaries only, attributed and linked; never fetch or
   store article text, and never commit publishers' text (news fixtures are
   sample copies from `capture_news`; snapshots render those). Articles open through `AppCommand::OpenHeadline`, which
