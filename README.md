@@ -152,7 +152,7 @@ and themes.
 | `ORD` | Orders | The paper account's orders, kept current by the order stream: open, filled, cancelled (`ORD ALL`); cancel or replace open ones; the **kill switch** (cancel every open order, optionally close every position, and turn trading off until you turn it back on); where the order audit log is |
 | `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast, ACE and headlines (`MISO, PJM, power prices`): add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
 | `LOG` | Data feeds & log | Every feed's freshness and errors, live streams and request budgets (when a source uses them), fetch activity, cache and file locations |
-| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits, news feeds, the stock price feed, trading limits (caps, price collar, fat-finger check, restricted list) and MISO endpoints, saved to config.toml; API keys, kept in Windows Credential Manager, with a check that Alpaca accepts them. *Reset to defaults…* starts over, keeping the old file as config.toml.bak |
+| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits, news feeds, the stock price feed, trading limits (caps, price collar, fat-finger check, oldest price to trade on, restricted list) and MISO endpoints, saved to config.toml; API keys, kept in Windows Credential Manager, with a check that Alpaca accepts them. *Reset to defaults…* starts over, keeping the old file as config.toml.bak |
 | `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
 | `HELP` | Help | Functions, keyboard shortcuts, data notes |
 
@@ -184,7 +184,8 @@ on the ticket's **Confirm** sends an order. Before that, the ticket checks the
 order against Alpaca's rules and your limits under `[trading]` in config.toml (or
 SET): per-order, daily and per-position caps in dollars, a collar keeping limit
 and stop prices near the last trade, a fat-finger check, a restricted list, no
-market orders outside the regular session, buying power and day trades. Option
+market orders outside the regular session, a recent price for an order that
+would trade at once, buying power and day trades. Option
 orders also check the account's options level, that a sold call is covered by
 shares and a sold put by buying power, the contract's expiry (Alpaca takes no
 orders for contracts expiring that day after 15:15 New York time), a limit

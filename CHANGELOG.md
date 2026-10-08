@@ -12,6 +12,15 @@ notes are that section.
 
 ## [Unreleased]
 
+### Added
+
+- **A recent price for orders that trade at once.** When an order would trade
+  as soon as it arrives, its price must be no older than `[trading]
+  max_price_age_secs` (120 seconds; SET, *Oldest price to trade on*): a market
+  order is refused past it, and any other order needs the warning ticked. This
+  catches a stopped stream, an option chain that has not refreshed and the
+  15-minute-delayed feed.
+
 ### Fixed
 
 - After the kill switch, saving other changes in SET no longer turns trading

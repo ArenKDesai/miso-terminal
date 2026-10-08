@@ -8,7 +8,7 @@
 //! a ticket or ORD is clicked. Commands (typed, `--run`, forwarded by another
 //! launch, hotkeys) open tickets; none of them sends anything.
 
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use egui::{RichText, Ui};
 use mt_alpaca::{LiveTrades, OptionChain, Outcome, TRADE_UPDATES};
 use mt_core::account::{Account, Position, from_f64};
@@ -119,6 +119,13 @@ impl OptionMarket {
         self.contracts.data().and_then(|l| l.get(symbol))
     }
 
+    /// When `symbol`'s quote is from.
+    pub fn quoted_at(&self, symbol: &str) -> Option<DateTime<Utc>> {
+        self.snapshot(symbol)
+            .and_then(|s| s.latest_quote.as_ref())
+            .map(|q| q.time)
+    }
+
     /// Bid, ask and last as exact prices.
     pub fn quote(&self, symbol: &str) -> (Option<Decimal>, Option<Decimal>, Option<Decimal>) {
         let s = self.snapshot(symbol);
@@ -173,6 +180,7 @@ impl OptionMarket {
             bid,
             ask,
             last,
+            priced_at: self.snapshot(symbol).and_then(OptionSnapshot::priced_at),
             session,
             now: mt_core::time::now_utc(),
             today_value,

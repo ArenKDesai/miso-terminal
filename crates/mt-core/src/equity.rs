@@ -191,6 +191,12 @@ pub struct OptionSnapshot {
 }
 
 impl OptionSnapshot {
+    /// When the newest of the last trade and the quote is from.
+    pub fn priced_at(&self) -> Option<DateTime<Utc>> {
+        let trade = self.latest_trade.as_ref().map(|t| t.time);
+        trade.max(self.latest_quote.as_ref().map(|q| q.time))
+    }
+
     /// The mid of a two-sided quote, else the last trade.
     pub fn mark(&self) -> Option<f64> {
         self.latest_quote

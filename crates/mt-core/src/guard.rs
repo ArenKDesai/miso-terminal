@@ -9,15 +9,17 @@
 //! tick, missing prices); the account's standing; the position and order
 //! lists loaded (the caps count them); the asset is tradable (and
 //! shortable, for a short); no market orders outside the regular session;
-//! per-order, daily and per-position caps in dollars; a collar on limit and
-//! stop prices around the last trade; a fat-finger check on size; buying
-//! power; and the pattern-day-trader count. Option orders have their own
+//! per-order, daily and per-position caps in dollars; a recent price when the
+//! order would trade at once; a collar on limit and stop prices around the
+//! last trade; a fat-finger check on size; buying power; and the
+//! pattern-day-trader count. Option orders have their own
 //! review ([`review_option`]), and multi-leg orders theirs ([`review_spread`]),
 //! sharing the switches, lists and caps.
 
 mod options;
 mod spread;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 pub use options::{OptionContext, review_option};
@@ -54,6 +56,9 @@ pub struct Limits {
     pub max_shares: u64,
     /// The most option contracts one order may be for.
     pub max_contracts: u64,
+    /// How old, in seconds, the latest price may be when an order would trade
+    /// at once: a market order is blocked past it, any other order warned.
+    pub max_price_age_secs: u64,
     /// Tickers that cannot be traded (`XEL` or `XEL US`), for an employer's
     /// personal-trading policy or anything else.
     pub restricted: Vec<String>,
@@ -70,6 +75,8 @@ impl Default for Limits {
             fat_finger_pct: 10.0,
             max_shares: 5_000,
             max_contracts: 50,
+            // Stocks stream; option chains are polled each minute.
+            max_price_age_secs: 120,
             restricted: Vec::new(),
         }
     }
@@ -146,6 +153,68 @@ fn check_loaded(loaded: Loaded, add: &mut impl FnMut(Level, &'static str, String
     }
 }
 
+/// `45 s`, `3 min`, `5 h`, `2 days`.
+fn age_text(secs: i64) -> String {
+    match secs {
+        ..90 => format!("{secs} s"),
+        90..5_400 => format!("{} min", secs / 60),
+        5_400..129_600 => format!("{} h", secs / 3_600),
+        _ => format!("{} days", secs / 86_400),
+    }
+}
+
+/// The `price_age` check: the caps, the collar and a market order's value
+/// all come from the latest price, so when an order would trade as soon as
+/// it arrives (`trades_now`), that price must be recent. A stream that has
+/// stopped, a delayed feed or a chain that has not refreshed all show here.
+/// Past `max_price_age_secs` a market order is blocked and any other order
+/// needs the user's acknowledgement; a price with no known time counts as old.
+fn check_price_age(
+    order_type: OrderType,
+    trades_now: bool,
+    priced_at: Option<DateTime<Utc>>,
+    now: DateTime<Utc>,
+    limits: &Limits,
+    add: &mut impl FnMut(Level, &'static str, String),
+) {
+    if limits.max_price_age_secs == 0 || !trades_now {
+        return;
+    }
+    let max = i64::try_from(limits.max_price_age_secs).unwrap_or(i64::MAX);
+    let age = priced_at.map(|t| (now - t).num_seconds().max(0));
+    let what = match age {
+        Some(a) if a <= max => {
+            add(
+                Level::Pass,
+                "price_age",
+                format!("The latest price is {} old.", age_text(a)),
+            );
+            return;
+        }
+        Some(a) => format!(
+            "The latest price is {} old (the limit is {})",
+            age_text(a),
+            age_text(max)
+        ),
+        None => "When the latest price is from is not known".to_owned(),
+    };
+    if order_type == OrderType::Market {
+        add(
+            Level::Block,
+            "price_age",
+            format!(
+                "{what}: a market order would be valued and capped from it. Wait for a fresh quote, or use a limit order."
+            ),
+        );
+    } else {
+        add(
+            Level::Warn,
+            "price_age",
+            format!("{what}: the caps and the collar are measured from it."),
+        );
+    }
+}
+
 /// What the ticket knows besides the request.
 #[derive(Clone, Debug)]
 pub struct Context<'a> {
@@ -159,8 +228,11 @@ pub struct Context<'a> {
     pub last: Option<Decimal>,
     pub bid: Option<Decimal>,
     pub ask: Option<Decimal>,
+    /// When the newest of the last trade and the quote is from.
+    pub priced_at: Option<DateTime<Utc>>,
     /// The exchange's session now.
     pub session: Session,
+    pub now: DateTime<Utc>,
     /// What today's orders are worth already ([`crate::order::day_value`]).
     pub today_value: Decimal,
     /// Whether this order would be a day trade ([`crate::order::is_day_trade`]).
@@ -448,6 +520,20 @@ pub fn review(req: &OrderRequest, cx: &Context<'_>, limits: &Limits) -> Review {
             "The market is closed: this order waits for the next session.".into(),
         ),
     }
+    let trades_now = !req.tif.is_auction()
+        && match cx.session {
+            Session::Regular => true,
+            Session::PreMarket | Session::AfterHours => req.extended_hours,
+            Session::Closed => false,
+        };
+    check_price_age(
+        req.order_type,
+        trades_now,
+        cx.priced_at,
+        cx.now,
+        limits,
+        &mut add,
+    );
 
     // Value and caps.
     let price = req.reference_price(market_price);
@@ -682,7 +768,9 @@ mod tests {
             last: Some(d("82.41")),
             bid: Some(d("82.40")),
             ask: Some(d("82.43")),
+            priced_at: "2026-10-02T14:59:55Z".parse().ok(),
             session: Session::Regular,
+            now: "2026-10-02T15:00:00Z".parse().unwrap(),
             today_value: Decimal::ZERO,
             day_trade: false,
             available: None,
@@ -794,6 +882,93 @@ mod tests {
         assert!(review(&req, &cx(&a, &halted), &Limits::default()).has("asset", Level::Block));
         let bad = request("10", OrderType::Limit, Some("82.505"));
         assert!(review(&bad, &cx(&a, &s), &Limits::default()).has("valid", Level::Block));
+    }
+
+    #[test]
+    fn prices_must_be_recent_when_an_order_trades_at_once() {
+        let (a, s) = (account(), asset());
+        let lim = Limits::default();
+        let market = request("10", OrderType::Market, None);
+        let limit = request("10", OrderType::Limit, Some("82.50"));
+        let fresh = cx(&a, &s);
+        let r = review(&market, &fresh, &lim);
+        assert!(
+            r.has("price_age", Level::Pass) && r.can_confirm(false),
+            "{:#?}",
+            r.checks
+        );
+
+        // A stream that stopped five minutes ago, or a delayed feed.
+        let stale = Context {
+            priced_at: Some(fresh.now - chrono::Duration::minutes(5)),
+            ..fresh.clone()
+        };
+        let r = review(&market, &stale, &lim);
+        assert!(r.has("price_age", Level::Block), "{:#?}", r.checks);
+        let m = &r
+            .checks
+            .iter()
+            .find(|c| c.rule == "price_age")
+            .unwrap()
+            .message;
+        assert!(
+            m.starts_with("The latest price is 5 min old (the limit is 2 min)"),
+            "{m}"
+        );
+        let r = review(&limit, &stale, &lim);
+        assert!(r.has("price_age", Level::Warn) && !r.blocked());
+        assert!(!r.can_confirm(false) && r.can_confirm(true));
+        // No time at all counts as old.
+        let unknown = Context {
+            priced_at: None,
+            ..fresh.clone()
+        };
+        assert!(review(&market, &unknown, &lim).has("price_age", Level::Block));
+
+        // Orders that wait for a later session are not priced now.
+        for session in [Session::Closed, Session::AfterHours] {
+            let later = Context {
+                session,
+                ..stale.clone()
+            };
+            assert!(
+                !review(&limit, &later, &lim)
+                    .checks
+                    .iter()
+                    .any(|c| c.rule == "price_age")
+            );
+        }
+        let mut ext = limit.clone();
+        ext.extended_hours = true;
+        let after = Context {
+            session: Session::AfterHours,
+            ..stale.clone()
+        };
+        assert!(review(&ext, &after, &lim).has("price_age", Level::Warn));
+        let mut opg = market.clone();
+        opg.tif = TimeInForce::Opg;
+        assert!(
+            !review(&opg, &stale, &lim)
+                .checks
+                .iter()
+                .any(|c| c.rule == "price_age")
+        );
+
+        // A limit of zero turns the check off.
+        let off = Limits {
+            max_price_age_secs: 0,
+            ..Limits::default()
+        };
+        assert!(review(&market, &stale, &off).can_confirm(false));
+        assert_eq!(
+            [
+                age_text(45),
+                age_text(300),
+                age_text(7_200),
+                age_text(172_800)
+            ],
+            ["45 s", "5 min", "2 h", "2 days"]
+        );
     }
 
     #[test]
@@ -1066,6 +1241,7 @@ mod tests {
         assert_eq!(l.max_order_value, 2500);
         assert_eq!(l.max_daily_value, Limits::default().max_daily_value);
         assert_eq!(l.max_contracts, 50, "older files get the default");
+        assert_eq!(l.max_price_age_secs, 120);
         assert!(l.enabled && l.is_restricted("mgee"));
     }
 }

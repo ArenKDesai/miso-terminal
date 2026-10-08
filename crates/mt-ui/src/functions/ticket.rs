@@ -607,7 +607,9 @@ impl Ticket {
             last,
             bid,
             ask,
+            priced_at: row.priced_at(),
             session,
+            now: mt_core::time::now_utc(),
             today_value: day_value(&book.orders, today, |s| {
                 (s == symbol).then_some(last).flatten()
             }),

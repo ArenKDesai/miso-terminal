@@ -27,6 +27,14 @@ pub struct Row {
     pub ticking: bool,
 }
 
+impl Row {
+    /// When the newest of the last trade and the quote is from: how fresh
+    /// the row's prices are, for the guardrails.
+    pub fn priced_at(&self) -> Option<DateTime<Utc>> {
+        self.last_time.max(self.quote.as_ref().map(|q| q.time))
+    }
+}
+
 fn newer<'a, T>(
     a: Option<&'a T>,
     b: Option<&'a T>,
