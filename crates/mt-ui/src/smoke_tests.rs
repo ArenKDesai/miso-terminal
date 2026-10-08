@@ -189,6 +189,7 @@ struct Harness {
     eia: mt_eia::Eia,
     alpaca: mt_alpaca::Alpaca,
     desk: mt_alpaca::OrderDesk,
+    backfill: mt_miso::Backfill,
     config: AppConfig,
     paths: AppPaths,
     registry: Registry,
@@ -209,6 +210,8 @@ impl Harness {
                 hub.runtime().clone(),
                 mt_alpaca::AuditLog::in_memory(),
             ),
+            // A replay: SET and LOG show it as unavailable.
+            backfill: mt_miso::Backfill::new(hub.ctx().clone(), hub.runtime()),
             hub,
             miso: Miso::default(),
             nws: mt_nws::Nws::default(),
@@ -268,6 +271,7 @@ impl Harness {
                     eia: &self.eia,
                     alpaca: &self.alpaca,
                     desk: &self.desk,
+                    backfill: &self.backfill,
                     skin,
                     config: &self.config,
                     paths: &self.paths,
@@ -566,6 +570,20 @@ fn app_shell_runs_frames_and_executes_commands() {
     app.apply_commands(&ctx, vec![AppCommand::ResetLayout]);
     run(&mut app);
 
+    // SET's *Download now* and *Pause* are saved at once (a replay has
+    // nothing to download, and says so).
+    app.apply_commands(&ctx, vec![AppCommand::SetBackfill(true)]);
+    assert!(app.config().price_history.backfill);
+    assert!(
+        AppConfig::load(&app.paths.config_file)
+            .0
+            .price_history
+            .backfill
+    );
+    run(&mut app);
+    app.apply_commands(&ctx, vec![AppCommand::SetBackfill(false)]);
+    assert!(!app.config().price_history.backfill);
+
     // SET's *Reset to defaults*: the old file is kept, the defaults are live
     // and saved, and the shell keeps running.
     app.apply_commands(&ctx, vec![AppCommand::SetNotifyAlerts(false)]);
@@ -665,6 +683,62 @@ fn intraday_prices_survive_a_restart() {
     std::fs::remove_file(cache.path_for(&key)).unwrap();
     eframe::App::on_exit(&mut app);
     assert!(cache.get(&key).is_some(), "saved on exit");
+    let _ = std::fs::remove_dir_all(paths.config_file.parent().unwrap());
+}
+
+#[test]
+fn a_config_that_failed_to_load_never_prunes_the_price_history() {
+    use mt_core::{DayLmpReport, DayReportKind, Market};
+    use mt_data::DiskCache;
+    use mt_miso::history::Phase;
+
+    let rt = runtime();
+    let paths = temp_paths("history-guard");
+    let cache = DiskCache::new(paths.cache_dir.join("http"));
+    let old = mt_core::time::market_today() - chrono::Duration::days(200);
+    let key = mt_miso::day_store_key(Market::DayAhead, old);
+    let report = DayLmpReport::new(DayReportKind::DaExPost, old, Vec::new());
+    cache.put(&key, &report.to_bytes()).unwrap();
+    let live = FetchCtx::new(
+        Arc::new(LiveLooking {
+            fixtures: FixtureTransport::new(fixtures()),
+            writes: parking_lot::Mutex::default(),
+        }),
+        Some(cache.clone()),
+        FetchCtxOptions::default(),
+        EventLog::default(),
+    );
+    let hub = DataHub::new(rt.handle().clone(), live);
+    hub.set_paused(true);
+    let deps = Deps {
+        hub,
+        // What a config.toml that does not parse becomes.
+        config: AppConfig::default(),
+        config_error: Some("config.toml: expected a value".into()),
+        paths: paths.clone(),
+        reset_layout: true,
+        startup_commands: Vec::new(),
+        remote: None,
+        notifier: None,
+    };
+    let ctx = egui::Context::default();
+    let mut app = TerminalApp::headless(&ctx, deps);
+    app.apply_commands(&ctx, vec![AppCommand::SetPaused(true)]);
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(app.backfill().status().phase, Phase::Starting);
+    assert!(
+        cache.get(&key).is_some(),
+        "the default window removed nothing"
+    );
+
+    // Once the config is saved (here from SET), its window applies.
+    app.apply_commands(&ctx, vec![AppCommand::ReplaceConfig(Box::default())]);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while app.backfill().status().phase != Phase::Off {
+        assert!(Instant::now() < deadline, "{:?}", app.backfill().status());
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(cache.get(&key).is_none(), "now removed");
     let _ = std::fs::remove_dir_all(paths.config_file.parent().unwrap());
 }
 
@@ -966,14 +1040,60 @@ fn log_and_set_show_streams_budgets_and_keys() {
     }
     assert_eq!(h.hub.ctx().budget_status()[0].used, 2);
     let registry = Registry::builtin();
-    for theme in mt_theme::builtin() {
-        let skin = Skin::new(theme.clone());
-        h.apply(&skin);
-        for code in ["LOG", "SET"] {
-            let mut panel = registry.open(&Route::code(code)).unwrap();
-            h.draw(&skin, panel.as_mut());
+    let draw_all = |h: &Harness| {
+        for theme in mt_theme::builtin() {
+            let skin = Skin::new(theme.clone());
+            h.apply(&skin);
+            for code in ["LOG", "SET"] {
+                let mut panel = registry.open(&Route::code(code)).unwrap();
+                h.draw(&skin, panel.as_mut());
+            }
         }
-    }
+    };
+    draw_all(&h);
+
+    // The price history as a live terminal shows it: today's DA stored, then
+    // a pass in which MISO has published nothing (every report is a 404 here).
+    let mut h = h;
+    let cache = mt_data::DiskCache::new(root.join("cache"));
+    let today = mt_core::time::market_today();
+    let report = mt_core::DayLmpReport::new(mt_core::DayReportKind::DaExPost, today, Vec::new());
+    cache
+        .put(
+            &mt_miso::day_store_key(mt_core::Market::DayAhead, today),
+            &report.to_bytes(),
+        )
+        .unwrap();
+    let live = FetchCtx::new(
+        Arc::new(LiveLooking {
+            fixtures: FixtureTransport::new(&root),
+            writes: parking_lot::Mutex::default(),
+        }),
+        Some(cache),
+        FetchCtxOptions::default(),
+        EventLog::default(),
+    );
+    h.backfill = mt_miso::Backfill::with_timing(live, rt.handle(), Duration::ZERO, Duration::ZERO);
+    let wait = |h: &Harness, phase: mt_miso::history::Phase| {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while h.backfill.status().phase != phase {
+            assert!(Instant::now() < deadline, "{:?}", h.backfill.status());
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        h.backfill.status()
+    };
+    let mut history = h.config.price_history.clone();
+    let endpoints = mt_miso::MisoEndpoints::default();
+    h.backfill.configure(&endpoints, &history, false);
+    let off = wait(&h, mt_miso::history::Phase::Off);
+    assert_eq!(off.coverage.da_stored, 1);
+    assert_eq!(off.coverage.missing(), 92 * 2 - 2);
+    draw_all(&h);
+    history.backfill = true;
+    h.backfill.configure(&endpoints, &history, false);
+    let done = wait(&h, mt_miso::history::Phase::UpToDate);
+    assert_eq!(done.not_published.len(), 92 * 2 - 2);
+    draw_all(&h);
     let _ = std::fs::remove_dir_all(root);
 }
 

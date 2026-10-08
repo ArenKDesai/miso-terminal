@@ -216,6 +216,11 @@ keys, and anything Aren has asked to see.
   read old days with `mt_miso::read_day_store` or the report queries, never
   by caching the CSVs. Anything the app keeps on purpose in the cache goes in
   `mt_ui::kept_cache_dirs`, which the size cap and *Clear cache* skip.
+  `mt_miso::history` holds the store to `[price_history]`'s window and fills
+  it (`Backfill`, a worker the app configures; SET, LOG and the status bar
+  read its status through `mt_ui::history`). It fetches through
+  `fetch_report` like the panels, so the store stays the only record of what
+  is there; keep it that way rather than tracking progress elsewhere.
 - News: headlines and summaries only, attributed and linked; never fetch or
   store article text, and never commit publishers' text (news fixtures are
   sample copies from `capture_news`; snapshots render those). Articles open through `AppCommand::OpenHeadline`, which

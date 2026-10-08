@@ -5,6 +5,7 @@
 use egui::{RichText, ScrollArea, Ui};
 use egui_extras::{Column, TableBuilder};
 use mt_data::{EntryState, EventLevel, StreamPhase};
+use mt_miso::history::Phase;
 
 use crate::context::{AppCommand, PanelCx};
 use crate::function::{Category, FunctionSpec, Panel, Route};
@@ -16,7 +17,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Data feeds & log",
     category: Category::System,
     usage: "LOG",
-    description: "Every data feed with its freshness and last error, recent fetch activity, cache and file locations.",
+    description: "Every data feed with its freshness and last error, the price history's download, recent fetch activity, cache and file locations.",
     takes_node: false,
     takes_security: false,
     takes_option: false,
@@ -157,6 +158,7 @@ impl Panel for Log {
 
             streams(ui, cx);
             budgets(ui, cx);
+            price_history(ui, cx);
 
             widgets::section(ui, skin, "Recent activity");
             for e in hub.ctx().events().recent(80).iter().rev() {
@@ -290,6 +292,59 @@ fn streams(ui: &mut Ui, cx: &mut PanelCx<'_>) {
     }
     if restart {
         hub.restart_streams();
+    }
+}
+
+/// The price history's download: what it is doing, what is stored, and the
+/// days it could not get.
+fn price_history(ui: &mut Ui, cx: &mut PanelCx<'_>) {
+    let skin = cx.skin;
+    let s = cx.backfill.status();
+    if s.phase == Phase::Unavailable {
+        return;
+    }
+    widgets::section(ui, skin, "Price history");
+    let (text, color) = crate::history::activity(&s, skin);
+    ui.label(RichText::new(text).color(color));
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(format!("Stored: {}", crate::history::stored(&s))).color(skin.text_muted),
+        );
+        if ui.small_button("Settings").clicked() {
+            cx.open(Route::code("SET"));
+        }
+    });
+    if !s.not_published.is_empty() {
+        let mut days: Vec<String> = s
+            .not_published
+            .iter()
+            .take(8)
+            .map(ToString::to_string)
+            .collect();
+        if s.not_published.len() > days.len() {
+            days.push(format!("and {} more", s.not_published.len() - days.len()));
+        }
+        ui.label(
+            RichText::new(format!(
+                "Not published by MISO (yet), asked again within the hour: {}",
+                days.join(", ")
+            ))
+            .color(skin.text_muted),
+        );
+    }
+    for (job, error) in &s.unreadable {
+        ui.label(RichText::new(format!("⚠ Could not read {job}: {error}")).color(skin.warning));
+    }
+    if s.pruned > 0
+        && let Some(first) = s.first_day
+    {
+        ui.label(
+            RichText::new(format!(
+                "Removed {} reports from before {first} since launch.",
+                s.pruned
+            ))
+            .color(skin.text_muted),
+        );
     }
 }
 

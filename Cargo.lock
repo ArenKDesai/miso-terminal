@@ -2652,6 +2652,7 @@ dependencies = [
  "csv",
  "mt-core",
  "mt-data",
+ "parking_lot",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

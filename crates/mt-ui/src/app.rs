@@ -100,6 +100,12 @@ pub struct TerminalApp {
     desk: mt_alpaca::OrderDesk,
     /// The desk's generation last seen: when it moves, the account is re-read.
     desk_seen: u64,
+    /// Keeps the price history's window and downloads its missing days.
+    backfill: mt_miso::Backfill,
+    /// The config came from the file, or has been saved since. One that
+    /// failed to load is the defaults, whose three-month window must not
+    /// prune a longer price history, so the backfill waits until then.
+    config_trusted: bool,
 }
 
 impl TerminalApp {
@@ -136,6 +142,9 @@ impl TerminalApp {
         desk.set_enabled(deps.config.trading.enabled);
         let repaint = ctx.clone();
         desk.set_notify(move || repaint.request_repaint());
+        let backfill = mt_miso::Backfill::new(deps.hub.ctx().clone(), deps.hub.runtime());
+        let repaint = ctx.clone();
+        backfill.set_notify(move || repaint.request_repaint());
         let mut app = Self {
             miso: Miso::new(deps.config.endpoints.clone()),
             nws: mt_nws::Nws::default(),
@@ -147,6 +156,7 @@ impl TerminalApp {
             themes_fingerprint: dir_fingerprint(&deps.paths.themes_dir),
             themes,
             fonts: FontLibrary::new(Some(deps.paths.fonts_dir.clone())),
+            config_trusted: deps.config_error.is_none(),
             notices: deps.config_error.into_iter().collect(),
             workspace: {
                 let mut ws = Workspace::restore(saved);
@@ -176,9 +186,11 @@ impl TerminalApp {
             trade_sync: None,
             desk,
             desk_seen: 0,
+            backfill,
             config: deps.config,
             paths: deps.paths,
         };
+        app.sync_backfill();
         app.apply_theme(ctx);
         app.restore_intraday();
         app.restore_news();
@@ -291,6 +303,19 @@ impl TerminalApp {
         &mut self.workspace
     }
 
+    /// Hand the backfill the window and switch it from the config; it holds
+    /// off while fetching is paused.
+    fn sync_backfill(&self) {
+        if !self.config_trusted {
+            return;
+        }
+        self.backfill.configure(
+            &self.config.endpoints,
+            &self.config.price_history,
+            self.hub.is_paused(),
+        );
+    }
+
     /// The theme id to show now: the configured one, or the light/dark pair
     /// when following the OS setting (and the OS has told us which it is).
     fn wanted_theme(&self, ctx: &egui::Context) -> String {
@@ -339,6 +364,11 @@ impl TerminalApp {
     #[cfg(test)]
     pub(crate) fn desk(&self) -> &mt_alpaca::OrderDesk {
         &self.desk
+    }
+
+    #[cfg(test)]
+    pub(crate) fn backfill(&self) -> &mt_miso::Backfill {
+        &self.backfill
     }
 
     /// Whether everything asked for has loaded (or failed).
@@ -400,11 +430,13 @@ impl TerminalApp {
             self.apply_theme(ctx);
         }
         self.save_config();
+        self.sync_backfill();
     }
 
     fn save_config(&mut self) {
-        if let Err(e) = self.config.save(&self.paths.config_file) {
-            self.notices.push(format!("Could not save config: {e}"));
+        match self.config.save(&self.paths.config_file) {
+            Ok(()) => self.config_trusted = true,
+            Err(e) => self.notices.push(format!("Could not save config: {e}")),
         }
     }
 
@@ -643,7 +675,17 @@ impl TerminalApp {
                 AppCommand::DockBack(tab) => self.workspace.dock_back(tab),
                 AppCommand::Zoom(tab) => self.workspace.zoom(tab),
                 AppCommand::RefreshWatched => self.hub.refresh_watched(),
-                AppCommand::SetPaused(p) => self.hub.set_paused(p),
+                AppCommand::SetPaused(p) => {
+                    self.hub.set_paused(p);
+                    self.sync_backfill();
+                }
+                AppCommand::SetBackfill(on) => {
+                    if self.config.price_history.backfill != on {
+                        self.config.price_history.backfill = on;
+                        self.save_config();
+                    }
+                    self.sync_backfill();
+                }
                 AppCommand::ClearCache => {
                     // Everything but the archives, which take days to rebuild.
                     if let Some(cache) = self.hub.ctx().cache() {
@@ -1116,6 +1158,21 @@ impl TerminalApp {
                         .color(skin.text_muted),
                 );
             }
+            if let Some((text, color)) =
+                crate::history::status_bar_text(&self.backfill.status(), skin)
+            {
+                let note =
+                    egui::Label::new(RichText::new(format!("· {text}")).small().color(color))
+                        .sense(egui::Sense::click());
+                if ui
+                    .add(note)
+                    .on_hover_text("Downloading the price history (SET)")
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .clicked()
+                {
+                    commands.push(AppCommand::Open(Route::code("SET")));
+                }
+            }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let market = now_market().format("%a %b %d  %H:%M:%S");
                 if self.config.ui.show_local_clock {
@@ -1270,6 +1327,7 @@ impl eframe::App for TerminalApp {
             eia: &self.eia,
             alpaca: &self.alpaca,
             desk: &self.desk,
+            backfill: &self.backfill,
             skin: &self.skin,
             config: &self.config,
             paths: &self.paths,

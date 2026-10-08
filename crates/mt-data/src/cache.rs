@@ -62,6 +62,19 @@ impl DiskCache {
         Some(Bytes::from(out))
     }
 
+    /// The first `n` bytes of an entry (fewer if it is shorter), decompressing
+    /// only that far: enough to read a header while listing many entries.
+    /// Does not count as a use.
+    pub fn head(&self, url: &str, n: usize) -> Option<Vec<u8>> {
+        let file = fs::File::open(self.path_for(url)).ok()?;
+        let mut out = Vec::with_capacity(n);
+        GzDecoder::new(file)
+            .take(n as u64)
+            .read_to_end(&mut out)
+            .ok()?;
+        Some(out)
+    }
+
     /// Write atomically (temp file + rename) so a crash never leaves a torn entry.
     pub fn put(&self, url: &str, body: &[u8]) -> io::Result<()> {
         let path = self.path_for(url);
@@ -156,6 +169,9 @@ mod tests {
         assert!(cache.get(url).is_none());
         cache.put(url, b"hello,world").unwrap();
         assert_eq!(cache.get(url).unwrap().as_ref(), b"hello,world");
+        assert_eq!(cache.head(url, 5).unwrap(), b"hello");
+        assert_eq!(cache.head(url, 100).unwrap(), b"hello,world");
+        assert!(cache.head("https://h/missing.csv", 5).is_none());
         assert!(
             cache
                 .path_for(url)

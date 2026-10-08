@@ -26,6 +26,16 @@ notes are that section.
   without waiting. An RT day keeps its preliminary prices until the final
   report replaces them. This is the start of history without the
   Energy-Pricing-Journalist export.
+- **Download the price history.** SET's new *Price history* section chooses
+  how far back to keep (three months by default, up to everything since
+  2023-01-01, MISO's first day) and shows what is stored. *Download now*
+  fetches the missing days in the background, newest first, one report every
+  two seconds (three months is about 230 MB to download and 30 MB on disk);
+  *Pause* stops it, and it carries on where it stopped, after a restart too.
+  Once done it keeps the window filled, replacing preliminary RT days with
+  final ones. Progress shows in the status bar and LOG. Nothing downloads
+  until you click *Download now*, and days before the window are removed
+  (`[price_history]` in config.toml).
 
 ### Changed
 

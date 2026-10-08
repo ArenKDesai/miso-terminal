@@ -10,6 +10,7 @@
 //! - [`market`]: shared pieces for securities (market status, live rows, formats).
 //! - [`portfolio`]: shared pieces for the account (live marks, re-sync, the band).
 //! - [`trading`]: shared pieces for order tickets and the blotter (orders, checks, outcomes).
+//! - [`history`]: the price history's window and backfill, as SET, LOG and the status bar show them.
 
 pub mod alerts;
 pub mod app;
@@ -22,6 +23,7 @@ pub mod function;
 pub mod functions;
 pub mod gallery;
 pub mod geo;
+pub mod history;
 pub mod market;
 pub mod news;
 pub mod notify;

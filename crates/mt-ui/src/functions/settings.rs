@@ -5,11 +5,12 @@ use egui::{Grid, RichText, ScrollArea, Ui};
 use mt_core::equity::Feed;
 use mt_data::Secret;
 use mt_miso::MisoEndpoints;
+use mt_miso::history::Phase;
 
 use crate::config::AppConfig;
 use crate::context::{AppCommand, PanelCx};
 use crate::function::{Category, FunctionSpec, Panel, Route};
-use crate::widgets;
+use crate::{history, widgets};
 
 pub const SPEC: FunctionSpec = FunctionSpec {
     code: "SET",
@@ -17,7 +18,7 @@ pub const SPEC: FunctionSpec = FunctionSpec {
     name: "Settings",
     category: Category::System,
     usage: "SET",
-    description: "Display, price highlighting, data, news feed, market data, trading limit and endpoint settings (saved to config.toml, or reset to the defaults), and API keys (kept in Windows Credential Manager).",
+    description: "Display, price highlighting, data, price history (how far back to keep MISO's daily prices, and downloading them), news feed, market data, trading limit and endpoint settings (saved to config.toml, or reset to the defaults), and API keys (kept in Windows Credential Manager).",
     takes_node: false,
     takes_security: false,
     takes_option: false,
@@ -103,6 +104,8 @@ impl Panel for Settings {
         let live = cx.config;
         let mut draft = self.draft.take().unwrap_or_else(|| live.clone());
         follow_switch(&mut self.enabled_seen, &mut draft, live);
+        // Download now and Pause act at once, never through the draft.
+        draft.price_history.backfill = live.price_history.backfill;
 
         ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             widgets::title_bar(ui, skin, "Settings", |_| {});
@@ -208,6 +211,8 @@ impl Panel for Settings {
                     ui.end_row();
                 });
 
+            price_history(ui, cx, &mut draft);
+
             news(ui, cx, &mut draft);
 
             markets(ui, cx, &mut draft);
@@ -282,8 +287,9 @@ impl Panel for Settings {
                     RichText::new(
                         "Reset every setting to its default? This also clears your watchlist, \
                          alerts, function keys, theme choice, trading limits, and your own news \
-                         feeds, topics and Q lists. API keys and the layout are kept. The current \
-                         file is saved as config.toml.bak first.",
+                         feeds, topics and Q lists, and removes stored prices older than three \
+                         months. API keys and the layout are kept. The current file is saved as \
+                         config.toml.bak first.",
                     )
                     .color(skin.warning),
                 );
@@ -311,6 +317,94 @@ impl Panel for Settings {
 
         self.draft = (&draft != live).then_some(draft);
     }
+}
+
+/// How far back MISO's daily prices are kept, what is stored, and the
+/// download that fills the window.
+fn price_history(ui: &mut Ui, cx: &mut PanelCx<'_>, draft: &mut AppConfig) {
+    let (skin, live) = (cx.skin, &cx.config.price_history);
+    let status = cx.backfill.status();
+    let today = mt_core::time::market_today();
+    widgets::section(ui, skin, "Price history");
+    // Two columns: the stored line is long, and a third column after it
+    // would be pushed off the pane.
+    Grid::new("set-history")
+        .num_columns(2)
+        .spacing([16.0, 6.0])
+        .show(ui, |ui| {
+            ui.label("Keep");
+            ui.horizontal_wrapped(|ui| {
+                let keep = &mut draft.price_history.keep_days;
+                egui::ComboBox::from_id_salt("set-history-keep")
+                    .selected_text(history::window_label(*keep))
+                    .show_ui(ui, |ui| {
+                        for (days, label) in history::WINDOWS {
+                            ui.selectable_value(keep, *days, *label);
+                        }
+                    });
+                ui.label(
+                    RichText::new(history::estimate(&draft.price_history, today))
+                        .small()
+                        .color(skin.text_muted),
+                );
+            });
+            ui.end_row();
+            ui.label("Stored");
+            ui.label(history::stored(&status));
+            ui.end_row();
+        });
+    let same_window = draft.price_history.keep_days == live.keep_days;
+    if !same_window {
+        let first = draft.price_history.first_day(today);
+        let (note, color) = if first > live.first_day(today) {
+            (
+                format!("Apply and save removes the stored days before {first}."),
+                skin.warning,
+            )
+        } else {
+            (
+                "Apply and save, then Download now fills the longer window.".to_owned(),
+                skin.text_muted,
+            )
+        };
+        ui.label(RichText::new(note).small().color(color));
+    }
+    let (text, color) = history::activity(&status, skin);
+    ui.horizontal_wrapped(|ui| {
+        if status.phase != Phase::Unavailable {
+            if live.backfill {
+                if ui
+                    .button("Pause")
+                    .on_hover_text("Stop downloading; Download now carries on where it stopped")
+                    .clicked()
+                {
+                    cx.send(AppCommand::SetBackfill(false));
+                }
+            } else if ui
+                .add_enabled(same_window, egui::Button::new("Download now"))
+                .on_hover_text(
+                    "Download the missing days, newest first, and keep the window filled from \
+                     then on",
+                )
+                .on_disabled_hover_text("Apply the new window first")
+                .clicked()
+            {
+                cx.send(AppCommand::SetBackfill(true));
+            }
+        }
+        ui.label(RichText::new(text).color(color));
+    });
+    ui.label(
+        RichText::new(
+            "MISO's DA ex-post and RT reports (final, or preliminary until the final is out) for \
+             every node, from docs.misoenergy.org, which has them back to 2023-01-01. Charts read \
+             stored days from disk. The download runs in the background, one report every 2 \
+             seconds and newest first; it carries on after a restart and, once done, keeps the \
+             window filled. Days before the window are removed.",
+        )
+        .small()
+        .color(skin.text_muted),
+    );
 }
 
 /// How long headlines are kept, and which feeds are read.

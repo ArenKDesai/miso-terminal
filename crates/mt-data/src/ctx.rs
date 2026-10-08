@@ -194,6 +194,16 @@ impl FetchCtx {
         Ok(body)
     }
 
+    /// GET something the caller keeps itself (the day store's reports): no
+    /// polite reuse, no conditional request and no disk cache, so the body is
+    /// not held in memory or on disk a second time. Statuses become errors as
+    /// with [`Self::get`].
+    pub async fn get_uncached(&self, req: impl Into<Request>) -> Result<Bytes, FetchError> {
+        let req = req.into();
+        let resp = self.send_network(&req).await?;
+        self.check(&req, resp)
+    }
+
     /// GET a URL whose content never changes once it exists. Served from the
     /// disk cache when present; stored there after a successful download.
     pub async fn get_immutable(&self, req: impl Into<Request>) -> Result<Bytes, FetchError> {
@@ -258,6 +268,10 @@ impl FetchCtx {
 
     pub async fn get_text_immutable(&self, req: impl Into<Request>) -> Result<String, FetchError> {
         Ok(text(self.get_immutable(req).await?))
+    }
+
+    pub async fn get_text_uncached(&self, req: impl Into<Request>) -> Result<String, FetchError> {
+        Ok(text(self.get_uncached(req).await?))
     }
 
     pub async fn get_json<T: DeserializeOwned>(
@@ -549,6 +563,28 @@ mod tests {
         c.send("https://api.example.com/x").await.unwrap();
         c.send("https://api.example.com/x").await.unwrap();
         assert!(t.asked.lock()[2].header_value("if-none-match").is_none());
+    }
+
+    #[tokio::test]
+    async fn uncached_gets_keep_nothing() {
+        let t = Scripted::with(vec![
+            resp(200, &[("etag", "x")], "one"),
+            resp(200, &[("etag", "x")], "two"),
+            resp(404, &[], ""),
+        ]);
+        // The default polite interval would answer a repeat from memory.
+        let c = ctx(t.clone(), FetchCtxOptions::default());
+        let url = "https://docs.example.org/20261001_da_expost_lmp.csv";
+        assert_eq!(c.get_uncached(url).await.unwrap().as_ref(), b"one");
+        assert_eq!(c.get_uncached(url).await.unwrap().as_ref(), b"two");
+        assert!(
+            t.asked.lock()[1].header_value("if-none-match").is_none(),
+            "no validators kept"
+        );
+        assert!(matches!(
+            c.get_uncached(url).await,
+            Err(FetchError::NotFound(_))
+        ));
     }
 
     #[test]

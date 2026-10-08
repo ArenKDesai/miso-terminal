@@ -52,6 +52,10 @@ pub enum AppCommand {
     DockBack(u64),
     RefreshWatched,
     SetPaused(bool),
+    /// Start or pause downloading the price history (SET's *Download now* and
+    /// *Pause*). Saved to `[price_history] backfill`, so it carries on after
+    /// a restart.
+    SetBackfill(bool),
     ClearCache,
     AddAlert(AlertRule),
     /// Remove the alert rule at this index in `config.alerts`.
@@ -96,6 +100,8 @@ pub struct PanelCx<'a> {
     /// Sends, replaces and cancels orders: only ever from a click in a
     /// ticket or ORD.
     pub desk: &'a mt_alpaca::OrderDesk,
+    /// Fills the price history in the background; its progress for SET and LOG.
+    pub backfill: &'a mt_miso::Backfill,
     pub skin: &'a Skin,
     pub config: &'a AppConfig,
     pub paths: &'a AppPaths,

@@ -479,14 +479,29 @@ impl DayLmpReport {
         out
     }
 
-    /// Inverse of [`Self::to_bytes`]; `None` for anything malformed.
-    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        let mut r = Reader { bytes, at: 0 };
+    /// How many leading bytes of [`Self::to_bytes`] [`Self::peek`] needs.
+    pub const HEADER_LEN: usize = DAY_REPORT_MAGIC.len() + 1 + 4;
+
+    /// The kind and market day of a stored report, from its first
+    /// [`Self::HEADER_LEN`] bytes, so the store can be listed without
+    /// reading whole days.
+    pub fn peek(bytes: &[u8]) -> Option<(DayReportKind, NaiveDate)> {
+        Self::header(&mut Reader { bytes, at: 0 })
+    }
+
+    fn header(r: &mut Reader<'_>) -> Option<(DayReportKind, NaiveDate)> {
         if r.take(DAY_REPORT_MAGIC.len())? != DAY_REPORT_MAGIC {
             return None;
         }
         let kind = *DayReportKind::ALL.get(usize::from(r.take(1)?[0]))?;
         let day = NaiveDate::from_num_days_from_ce_opt(i32::from_le_bytes(r.array()?))?;
+        Some((kind, day))
+    }
+
+    /// Inverse of [`Self::to_bytes`]; `None` for anything malformed.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let mut r = Reader { bytes, at: 0 };
+        let (kind, day) = Self::header(&mut r)?;
         let decimals = r.take(1)?[0];
         let n = u32::from_le_bytes(r.array()?) as usize;
         let mut rows = Vec::with_capacity(n.min(100_000));
@@ -703,6 +718,12 @@ mod tests {
         assert_eq!(back.node("ALTE.ALTE").unwrap().node_type, "Gennode");
         assert_eq!(back.day.to_string(), "2026-10-06");
         assert_eq!(back.kind.market(), Market::RealTime);
+        assert_eq!(
+            DayLmpReport::peek(&bytes[..DayLmpReport::HEADER_LEN]),
+            Some((DayReportKind::RtFinal, day)),
+            "the header alone names the kind and day"
+        );
+        assert!(DayLmpReport::peek(&bytes[..DayLmpReport::HEADER_LEN - 1]).is_none());
 
         // Something finer than a cent is kept too, just less compactly.
         let mut odd = day_row("X", 100);
