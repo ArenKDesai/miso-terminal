@@ -241,15 +241,12 @@ impl Panel for Cross {
             .collect();
 
         // Nodes: hourly history, as CMP draws it.
+        let names: Vec<&str> = self.nodes.iter().map(String::as_str).collect();
         let histories: Vec<(String, series::History)> = self
             .nodes
             .iter()
-            .map(|n| {
-                (
-                    n.clone(),
-                    series::node_history(cx, n, self.component, self.days),
-                )
-            })
+            .cloned()
+            .zip(series::nodes_history(cx, &names, self.component, self.days))
             .collect();
         let node_lines: Vec<(&str, &Points)> = histories
             .iter()

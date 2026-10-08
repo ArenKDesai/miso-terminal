@@ -19,7 +19,7 @@ pub mod parse;
 pub mod queries;
 
 pub use endpoints::MisoEndpoints;
-pub use history::{Backfill, BackfillStatus, HistoryConfig};
+pub use history::{Backfill, BackfillStatus, HistoryConfig, StoredPrices, StoredPricesQuery};
 pub use queries::{
     ApiQuery, ConstraintHistoryQuery, DayReportQuery, INTERVALS_PER_DAY, LmpArchiveQuery, Miso,
     RtArchiveQuery, RtBestDayQuery, RtIntradayQuery, RtPreviousDayQuery, archive_dir,

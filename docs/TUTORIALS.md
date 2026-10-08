@@ -149,10 +149,13 @@ before* shows how each hour moved.
 
 ## Reach back years
 
-Out of the box, history goes back as far as you ask MISO's daily reports for,
-a day at a time (the first long window takes a while). Every report the
-terminal downloads is kept on disk for every node, so a day is downloaded
-once.
+Every daily report the terminal downloads is kept on disk for every node (the
+price history), so a day is downloaded once and charts read it from disk
+afterwards. A chart downloads the days it is missing from the last 90 days,
+a day at a time (the first long window takes a while); older days it shows
+from the price history. `GP MINN.HUB 365`, `SPRD`, `CMP` and `HUBS 365` reach
+back as far as the price history goes, and say how many older days it lacks,
+with a *Price history…* button that opens `SET`.
 
 **Fill it in ahead of time.** `SET` → *Price history* chooses how far back to
 keep (*3 months* by default, up to *Everything since 2023-01-01*, the first
@@ -175,8 +178,8 @@ uv run tools/export_history.py --nodes ALTE.ALTE MGE.AZ # any nodes you like
 uv run tools/export_history.py --home D:\miso-portable  # a portable install
 ```
 
-Restart the terminal, and `GP MINN.HUB 365`, `SPRD`, `CMP` and `HUBS` reach
-back as far as the archive does, downloading only the days after it ends.
+Restart the terminal, and charts take the days the price history lacks from
+the archive.
 
 Five-minute history is different: MISO publishes only today and yesterday at
 five minutes, so the terminal keeps its own archive of every day it runs (90

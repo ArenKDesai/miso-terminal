@@ -161,8 +161,25 @@ requests (`FetchCtx::get_uncached`): a settled report lives once, in the store;
 only a preliminary RT report, which comes round again, is asked "changed
 since?". The store is exempt from the size cap; `mt_ui::kept_cache_dirs` lists
 what the cap and LOG's *Clear cache* leave alone. Part 1 of the
-[analytics plan](ANALYTICS-PLAN.md) builds on it (next, `series::node_history`
-reading any node from it).
+[analytics plan](ANALYTICS-PLAN.md) builds on it.
+
+Charts read the store a node at a time, not a day at a time: a whole day of
+every node is about 1 MB in memory, so a year of them for one chart would be
+most of a gigabyte. `StoredPricesQuery` (`Miso::stored_prices(nodes, first)`)
+lists the store from the window's first day and reads only the asked-for
+nodes' rows from each file (`DayLmpReport::rows_from_bytes`, which decodes no
+other row); HUBS asks for its eight hubs at once, so each day is decompressed
+once for all of them. It refreshes every minute, re-reading only files whose
+size or modified time changed (`DiskCache::read` leaves the time alone, so a
+read is not a change), which is how a final RT report written over a
+preliminary one, or a day the backfill adds, shows up.
+`series::nodes_history` (and `node_history`, for one node) then takes each
+day from the first source that has it: the store, the exported archive (below),
+or a download, which only the last 90 days get (`DOWNLOAD_DAYS`, two reports a
+day of every node). A stored day without the node is not downloaded again,
+and a preliminary RT day recent enough to download is asked for again, since
+its final may be out. Older days the store lacks are counted (`unstored_days`)
+and the chart points to SET's *Price history*.
 
 ### The price history's backfill
 
@@ -199,10 +216,10 @@ would make a long GP window wait behind the backfill.
 `tools/export_history.py` exports hourly DA and RT prices per node from the
 Energy-Pricing-Journalist DuckDB into the cache (`local://archive/lmp/<node>`,
 exempt from the size cap). `LmpArchiveQuery` reads a node's file once per run,
-and `series::node_history` takes every day the archive covers from it, so only
-the days after it ends are downloaded as daily reports. Without an archive,
-windows are capped at 90 days of downloads. The DuckDB is linked by the script,
-not the app, which keeps a large C++ build out of the terminal.
+and `series::node_history` takes the days the day store lacks from it. The
+DuckDB is linked by the script, not the app, which keeps a large C++ build out
+of the terminal. The day store and its backfill replace it; the export goes
+once the two have been compared.
 
 ### News
 

@@ -140,27 +140,20 @@ impl Panel for Hubs {
                 );
             }
         });
-        // Each daily report covers every node, so the eight hubs share downloads.
-        let (mut pending, mut prelim, mut archived, mut capped) = (0, 0, 0, false);
-        let rows: Vec<HubRow> = TRADING_HUBS
+        // Each daily report covers every node, so the eight hubs share
+        // downloads, and each stored day is read once for all of them.
+        let mut history = series::History::default();
+        let rows: Vec<HubRow> = series::nodes_history(cx, &TRADING_HUBS, Component::Lmp, self.days)
             .iter()
-            .map(|hub| {
-                let h = series::node_history(cx, hub, Component::Lmp, self.days);
-                pending = pending.max(h.pending);
-                prelim = prelim.max(h.prelim_days);
-                archived = archived.max(h.archived_days);
-                capped |= h.capped;
+            .zip(TRADING_HUBS)
+            .map(|(h, hub)| {
+                history.pending = history.pending.max(h.pending);
+                history.prelim_days = history.prelim_days.max(h.prelim_days);
+                history.archived_days = history.archived_days.max(h.archived_days);
+                history.unstored_days = history.unstored_days.max(h.unstored_days);
                 HubRow::of(hub, &h.da, &h.rt)
             })
             .collect();
-        let history = series::History {
-            da: Vec::new(),
-            rt: Vec::new(),
-            pending,
-            prelim_days: prelim,
-            archived_days: archived,
-            capped,
-        };
         super::gp::history_notes(ui, cx, &history, || {
             let mut headers = vec!["hub"];
             headers.extend(HEADERS);

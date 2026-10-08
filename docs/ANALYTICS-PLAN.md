@@ -81,7 +81,10 @@ wait.
   cap applies only to days not archived, and GP, SPRD, CMP and HUBS reach back
   as far as the archive does for every node, not only the exported ones. The
   forecasts (part 4) and the assistant's scans across nodes (part 5) need
-  exactly that.
+  exactly that. *Built* (ARCHITECTURE's [day store](ARCHITECTURE.md#the-day-store)):
+  charts read only their nodes' rows from each stored day, several nodes at
+  once, since a whole day of every node is about 1 MB in memory; downloads
+  stay limited to the last 90 days.
 - **Retiring the export.** `LmpArchiveQuery`, `tools/export_history.py` and
   their docs (the tutorial's *Reach back years*, ARCHITECTURE's *Long history*,
   the README's roadmap item, `CLAUDE.md`) go. Files an earlier version

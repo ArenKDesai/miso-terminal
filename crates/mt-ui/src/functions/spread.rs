@@ -130,10 +130,7 @@ impl Panel for Spread {
                 );
             }
             View::Duration => {
-                let (ha, hb) = (
-                    series::node_history(cx, &a, self.component, self.days),
-                    series::node_history(cx, &b, self.component, self.days),
-                );
+                let (ha, hb) = self.pair(cx, &a, &b);
                 let (da, rt) = (
                     series::subtract(&ha.da, &hb.da),
                     series::subtract(&ha.rt, &hb.rt),
@@ -151,10 +148,7 @@ impl Panel for Spread {
                     ui.selectable_value(&mut self.heat, Heat::Rt, "RT spread");
                     ui.selectable_value(&mut self.heat, Heat::Da, "DA spread");
                 });
-                let (ha, hb) = (
-                    series::node_history(cx, &a, self.component, self.days),
-                    series::node_history(cx, &b, self.component, self.days),
-                );
+                let (ha, hb) = self.pair(cx, &a, &b);
                 let pts = match self.heat {
                     Heat::Da => series::subtract(&ha.da, &hb.da),
                     _ => series::subtract(&ha.rt, &hb.rt),
@@ -166,6 +160,15 @@ impl Panel for Spread {
 }
 
 impl Spread {
+    /// Both nodes' hourly history, read together.
+    fn pair(&self, cx: &PanelCx<'_>, a: &str, b: &str) -> (series::History, series::History) {
+        let mut both = series::nodes_history(cx, &[a, b], self.component, self.days).into_iter();
+        (
+            both.next().unwrap_or_default(),
+            both.next().unwrap_or_default(),
+        )
+    }
+
     fn today(&self, ui: &mut Ui, cx: &mut PanelCx<'_>, a: &str, b: &str) {
         let skin = cx.skin;
         let (ta, tb) = (
@@ -216,10 +219,7 @@ impl Spread {
 
     fn history(&self, ui: &mut Ui, cx: &mut PanelCx<'_>, a: &str, b: &str) {
         let skin = cx.skin;
-        let (ha, hb) = (
-            series::node_history(cx, a, self.component, self.days),
-            series::node_history(cx, b, self.component, self.days),
-        );
+        let (ha, hb) = self.pair(cx, a, b);
         let da = series::subtract(&ha.da, &hb.da);
         let rt = series::subtract(&ha.rt, &hb.rt);
         let stats = Stats::of(&da, &rt);
@@ -246,12 +246,11 @@ impl Spread {
             }
         });
         let pending = series::History {
-            da: Vec::new(),
-            rt: Vec::new(),
             pending: ha.pending + hb.pending,
             prelim_days: ha.prelim_days.max(hb.prelim_days),
             archived_days: ha.archived_days.min(hb.archived_days),
-            capped: ha.capped || hb.capped,
+            unstored_days: ha.unstored_days.max(hb.unstored_days),
+            ..series::History::default()
         };
         history_notes(ui, cx, &pending, || {
             csv::to_csv(

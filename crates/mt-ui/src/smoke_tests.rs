@@ -687,6 +687,89 @@ fn intraday_prices_survive_a_restart() {
 }
 
 #[test]
+fn history_reads_stored_days_older_than_charts_download() {
+    use crate::series::{self, Component, DOWNLOAD_DAYS};
+    use mt_core::{DayLmpReport, DayNodeRow, DayReportKind};
+
+    let rt = runtime();
+    let root = std::env::temp_dir().join(format!("mt-smoke-stored-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let cache = mt_data::DiskCache::new(root.join("cache"));
+    let today = mt_core::time::market_today();
+    let old = today - chrono::Duration::days(200);
+    for (kind, lmp) in [
+        (DayReportKind::DaExPost, 42.0),
+        (DayReportKind::RtFinal, 43.0),
+    ] {
+        let row = DayNodeRow {
+            node: "MINN.HUB".into(),
+            node_type: "Hub".into(),
+            lmp: [lmp; 24],
+            mcc: [0.0; 24],
+            mlc: [0.0; 24],
+        };
+        let report = DayLmpReport::new(kind, old, vec![row]);
+        cache
+            .put(
+                &mt_miso::day_store_key(kind.market(), old),
+                &report.to_bytes(),
+            )
+            .unwrap();
+    }
+    // The fixtures stand in for MISO for the recent days a chart downloads.
+    let live = FetchCtx::new(
+        Arc::new(LiveLooking {
+            fixtures: FixtureTransport::new(fixtures()),
+            writes: parking_lot::Mutex::default(),
+        }),
+        Some(cache),
+        FetchCtxOptions {
+            max_concurrent: 8,
+            polite_interval: Duration::ZERO,
+            ..FetchCtxOptions::default()
+        },
+        EventLog::default(),
+    );
+    let h = Harness::new(DataHub::new(rt.handle().clone(), live));
+    let skin = Skin::new(mt_theme::builtin().remove(0));
+    h.apply(&skin);
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let year = loop {
+        let mut got = None;
+        h.draw_with(&skin, |_, cx| {
+            got = Some(series::node_history(cx, "MINN.HUB", Component::Lmp, 365));
+        });
+        let got = got.unwrap();
+        if got.pending == 0 {
+            break got;
+        }
+        assert!(Instant::now() < deadline, "still {} pending", got.pending);
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    let on = |pts: &series::Points| -> Vec<f64> {
+        pts.iter()
+            .filter(|(t, _)| t.date() == old)
+            .map(|p| p.1)
+            .collect()
+    };
+    assert_eq!(on(&year.da), vec![42.0; 24], "DA from the store");
+    assert_eq!(on(&year.rt), vec![43.0; 24], "RT from the store");
+    // Before the download window, the other days are counted, not fetched.
+    assert_eq!(year.unstored_days, (365 - DOWNLOAD_DAYS - 1) as usize);
+    let download_from = today - chrono::Duration::days(i64::from(DOWNLOAD_DAYS) - 1);
+    for s in h.hub.status() {
+        if let Some(day) = s.key.strip_prefix("miso/report/").and_then(|k| {
+            k.rsplit('/')
+                .next()
+                .and_then(|d| d.parse::<chrono::NaiveDate>().ok())
+        }) {
+            assert!(day >= download_from, "{} was downloaded", s.key);
+        }
+    }
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn a_config_that_failed_to_load_never_prunes_the_price_history() {
     use mt_core::{DayLmpReport, DayReportKind, Market};
     use mt_data::DiskCache;

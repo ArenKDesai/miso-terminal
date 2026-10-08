@@ -52,13 +52,21 @@ impl DiskCache {
 
     pub fn get(&self, url: &str) -> Option<Bytes> {
         let path = self.path_for(url);
-        let file = fs::File::open(&path).ok()?;
-        let mut out = Vec::new();
-        GzDecoder::new(file).read_to_end(&mut out).ok()?;
+        let out = self.read(url)?;
         // Mark as recently used so pruning evicts the least-recently-read files first.
         if let Ok(f) = fs::File::options().write(true).open(&path) {
             let _ = f.set_modified(SystemTime::now());
         }
+        Some(out)
+    }
+
+    /// Like [`Self::get`], but not counted as a use: the file's modified
+    /// time stays when it was written, so a reader can tell a changed entry
+    /// from a read one. For the app's own data, which the size cap leaves alone.
+    pub fn read(&self, url: &str) -> Option<Bytes> {
+        let file = fs::File::open(self.path_for(url)).ok()?;
+        let mut out = Vec::new();
+        GzDecoder::new(file).read_to_end(&mut out).ok()?;
         Some(Bytes::from(out))
     }
 
@@ -169,6 +177,20 @@ mod tests {
         assert!(cache.get(url).is_none());
         cache.put(url, b"hello,world").unwrap();
         assert_eq!(cache.get(url).unwrap().as_ref(), b"hello,world");
+        let written = fs::metadata(cache.path_for(url))
+            .unwrap()
+            .modified()
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        assert_eq!(cache.read(url).unwrap().as_ref(), b"hello,world");
+        assert_eq!(
+            fs::metadata(cache.path_for(url))
+                .unwrap()
+                .modified()
+                .unwrap(),
+            written,
+            "read leaves the modified time alone"
+        );
         assert_eq!(cache.head(url, 5).unwrap(), b"hello");
         assert_eq!(cache.head(url, 100).unwrap(), b"hello,world");
         assert!(cache.head("https://h/missing.csv", 5).is_none());

@@ -178,25 +178,28 @@ impl Panel for Compare {
             }
         });
 
-        let lines: Vec<(String, Points)> = self
-            .nodes
-            .iter()
-            .map(|n| {
-                let pts = if self.history {
-                    let h = series::node_history(cx, n, self.component, self.days);
-                    if self.da { h.da } else { h.rt }
-                } else {
-                    series::node_today(cx, n, self.component).rt_5min
-                };
-                (n.clone(), pts)
-            })
-            .collect();
+        let names: Vec<&str> = self.nodes.iter().map(String::as_str).collect();
+        let histories = if self.history {
+            series::nodes_history(cx, &names, self.component, self.days)
+        } else {
+            Vec::new()
+        };
+        let lines: Vec<(String, Points)> = if self.history {
+            self.nodes
+                .iter()
+                .zip(&histories)
+                .map(|(n, h)| (n.clone(), if self.da { h.da.clone() } else { h.rt.clone() }))
+                .collect()
+        } else {
+            self.nodes
+                .iter()
+                .map(|n| (n.clone(), series::node_today(cx, n, self.component).rt_5min))
+                .collect()
+        };
 
         if lines.iter().all(|(_, p)| p.is_empty()) {
             let loading = if self.history {
-                self.nodes
-                    .iter()
-                    .any(|n| series::node_history(cx, n, self.component, self.days).pending > 0)
+                histories.iter().any(|h| h.pending > 0)
             } else {
                 cx.hub.peek(&cx.miso.rt_intraday()).data.is_none()
             };
