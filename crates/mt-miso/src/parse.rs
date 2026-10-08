@@ -1136,6 +1136,14 @@ pub fn parse_day_report(
     Ok(DayLmpReport::new(kind, day, rows))
 }
 
+/// The market day a daily LMP report names on its second line (`10/06/2026`,
+/// or `9/26/2026` in RT reports), if it has one.
+pub fn day_report_date(body: &str) -> Option<NaiveDate> {
+    body.lines()
+        .take(4)
+        .find_map(|l| NaiveDate::parse_from_str(l.trim().trim_matches(','), "%m/%d/%Y").ok())
+}
+
 /// Hourly `(start, value)` points from a report row, skipping missing hours.
 pub fn hourly_points(day: NaiveDate, values: &[f32; 24]) -> Vec<(NaiveDateTime, f64)> {
     values

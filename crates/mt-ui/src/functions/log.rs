@@ -196,9 +196,18 @@ impl Panel for Log {
                 });
             ui.horizontal(|ui| {
                 if let Some(cache) = hub.ctx().cache() {
-                    let size = *self.cache_size.get_or_insert_with(|| cache.size_bytes());
+                    let size = *self.cache_size.get_or_insert_with(|| {
+                        cache.size_bytes_outside(&crate::kept_cache_dirs(cache))
+                    });
                     ui.label(format!("Report cache: {:.1} MB", size as f64 / 1_048_576.0));
-                    if ui.button("Clear cache").clicked() {
+                    if ui
+                        .button("Clear cache")
+                        .on_hover_text(
+                            "Downloaded reports and responses. The five-minute archive, \
+                             the price history and saved headlines are kept.",
+                        )
+                        .clicked()
+                    {
                         cx.send(AppCommand::ClearCache);
                         self.cache_size = None;
                     }

@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use chrono::{Datelike, NaiveDate, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 
+use crate::constraints::Market;
+
 /// MISO's eight trading hubs, in display order.
 pub const TRADING_HUBS: [&str; 8] = [
     "ARKANSAS.HUB",
@@ -376,6 +378,25 @@ impl DayReportKind {
             Self::RtPrelim => "RT prelim",
         }
     }
+
+    /// The market a report prices.
+    pub fn market(self) -> Market {
+        match self {
+            Self::DaExPost | Self::DaExAnte => Market::DayAhead,
+            Self::RtFinal | Self::RtPrelim => Market::RealTime,
+        }
+    }
+
+    const ALL: [Self; 4] = [
+        Self::DaExPost,
+        Self::DaExAnte,
+        Self::RtFinal,
+        Self::RtPrelim,
+    ];
+
+    fn code(self) -> u8 {
+        Self::ALL.iter().position(|k| *k == self).unwrap_or(0) as u8
+    }
 }
 
 /// One node's 24 hourly values from a daily report. Missing hours are `NaN`.
@@ -416,6 +437,120 @@ impl DayLmpReport {
     pub fn node(&self, node: &str) -> Option<&DayNodeRow> {
         self.index.get(node).map(|&i| &self.rows[i])
     }
+
+    /// Compact binary form, for the day store. Layout (little-endian): magic,
+    /// kind, market day, decimals, node count, node names and types, then
+    /// LMP, MCC and MLC node-major as `i32` in units of `10^-decimals` $
+    /// (`i32::MIN` for a missing hour), split into byte planes so gzip finds
+    /// the runs. About 170 KB a day gzipped for MISO's 2,600 nodes, against
+    /// 280 KB for the CSV. Decimals 255 stores the `f32` bits as they are, for
+    /// a report whose values are not whole cents.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let values: Vec<f32> = (0..3)
+            .flat_map(|c| self.rows.iter().flat_map(move |r| [r.lmp, r.mcc, r.mlc][c]))
+            .collect();
+        let decimals = [2, 3, 4]
+            .into_iter()
+            .find(|&d| values.iter().all(|&v| to_fixed(v, d).is_some()))
+            .unwrap_or(RAW_BITS);
+        let ints: Vec<i32> = values
+            .iter()
+            .map(|&v| match decimals {
+                RAW_BITS => v.to_bits() as i32,
+                d => to_fixed(v, d).unwrap_or(MISSING),
+            })
+            .collect();
+        let mut out = Vec::with_capacity(32 + self.rows.len() * 300);
+        out.extend_from_slice(DAY_REPORT_MAGIC);
+        out.push(self.kind.code());
+        out.extend_from_slice(&self.day.num_days_from_ce().to_le_bytes());
+        out.push(decimals);
+        out.extend_from_slice(&(self.rows.len() as u32).to_le_bytes());
+        for row in &self.rows {
+            for s in [&row.node, &row.node_type] {
+                let b = &s.as_bytes()[..s.len().min(usize::from(u16::MAX))];
+                out.extend_from_slice(&(b.len() as u16).to_le_bytes());
+                out.extend_from_slice(b);
+            }
+        }
+        for plane in 0..4 {
+            out.extend(ints.iter().map(|v| v.to_le_bytes()[plane]));
+        }
+        out
+    }
+
+    /// Inverse of [`Self::to_bytes`]; `None` for anything malformed.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let mut r = Reader { bytes, at: 0 };
+        if r.take(DAY_REPORT_MAGIC.len())? != DAY_REPORT_MAGIC {
+            return None;
+        }
+        let kind = *DayReportKind::ALL.get(usize::from(r.take(1)?[0]))?;
+        let day = NaiveDate::from_num_days_from_ce_opt(i32::from_le_bytes(r.array()?))?;
+        let decimals = r.take(1)?[0];
+        let n = u32::from_le_bytes(r.array()?) as usize;
+        let mut rows = Vec::with_capacity(n.min(100_000));
+        for _ in 0..n {
+            let mut text = || -> Option<String> {
+                let len = u16::from_le_bytes(r.array()?) as usize;
+                Some(std::str::from_utf8(r.take(len)?).ok()?.to_owned())
+            };
+            let (node, node_type) = (text()?, text()?);
+            rows.push(DayNodeRow {
+                node,
+                node_type,
+                lmp: [f32::NAN; 24],
+                mcc: [f32::NAN; 24],
+                mlc: [f32::NAN; 24],
+            });
+        }
+        let count = n.checked_mul(3 * 24)?;
+        let planes = r.take(count.checked_mul(4)?)?;
+        if r.at != bytes.len() {
+            return None;
+        }
+        let scale = 10f64.powi(i32::from(decimals));
+        let value = |i: usize| -> f32 {
+            let v = i32::from_le_bytes(std::array::from_fn(|p| planes[p * count + i]));
+            match (decimals, v) {
+                (RAW_BITS, _) => f32::from_bits(v as u32),
+                (_, MISSING) => f32::NAN,
+                _ => (f64::from(v) / scale) as f32,
+            }
+        };
+        for (c, i) in (0..3).flat_map(|c| (0..n).map(move |i| (c, i))) {
+            let row = &mut rows[i];
+            let target = match c {
+                0 => &mut row.lmp,
+                1 => &mut row.mcc,
+                _ => &mut row.mlc,
+            };
+            let base = (c * n + i) * 24;
+            for (h, slot) in target.iter_mut().enumerate() {
+                *slot = value(base + h);
+            }
+        }
+        Some(Self::new(kind, day, rows))
+    }
+}
+
+const DAY_REPORT_MAGIC: &[u8] = b"MTDR1\0";
+/// A missing hour in the day store's fixed-point columns.
+const MISSING: i32 = i32::MIN;
+/// The day store's "decimals" for values kept as raw `f32` bits.
+const RAW_BITS: u8 = 255;
+
+/// `v` in units of `10^-decimals`, if that gives back exactly the same `f32`
+/// (a missing value is always representable).
+fn to_fixed(v: f32, decimals: u8) -> Option<i32> {
+    if v.is_nan() {
+        return Some(MISSING);
+    }
+    let scale = 10f64.powi(i32::from(decimals));
+    let fixed = (f64::from(v) * scale).round();
+    let ok =
+        fixed > f64::from(MISSING) && fixed <= f64::from(i32::MAX) && (fixed / scale) as f32 == v;
+    ok.then_some(fixed as i32)
 }
 
 /// Ancillary-service market clearing prices for one reserve zone, $/MW.
@@ -512,5 +647,77 @@ mod tests {
         assert!(is_trading_hub("MINN.HUB"));
         assert!(!is_trading_hub("ALTE.ALTE"));
         assert_eq!(hub_short("MINN.HUB"), "MINN");
+    }
+
+    /// A price in cents as the report parser makes it: decimal text read as
+    /// `f64`, then narrowed.
+    fn cents(c: i32) -> f32 {
+        (f64::from(c) / 100.0) as f32
+    }
+
+    fn day_row(node: &str, base: i32) -> DayNodeRow {
+        DayNodeRow {
+            node: node.into(),
+            node_type: "Hub".into(),
+            lmp: std::array::from_fn(|h| cents(base + h as i32 * 137)),
+            mcc: std::array::from_fn(|h| cents(-(h as i32) * 5)),
+            mlc: std::array::from_fn(|h| cents(h as i32 - 12)),
+        }
+    }
+
+    /// Equal values, with NaN equal to NaN (a missing hour).
+    fn same(a: &[f32; 24], b: &[f32; 24]) -> bool {
+        a.iter()
+            .zip(b)
+            .all(|(x, y)| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan()))
+    }
+
+    fn same_report(a: &DayLmpReport, b: &DayLmpReport) -> bool {
+        a.kind == b.kind
+            && a.day == b.day
+            && a.rows.len() == b.rows.len()
+            && a.rows.iter().zip(&b.rows).all(|(x, y)| {
+                x.node == y.node
+                    && x.node_type == y.node_type
+                    && same(&x.lmp, &y.lmp)
+                    && same(&x.mcc, &y.mcc)
+                    && same(&x.mlc, &y.mlc)
+            })
+    }
+
+    #[test]
+    fn day_reports_round_trip_exactly() {
+        let day = NaiveDate::from_ymd_opt(2026, 10, 6).unwrap();
+        let mut a = day_row("MINN.HUB", 1567);
+        a.lmp[3] = f32::NAN;
+        a.lmp[18] = cents(999_999);
+        a.mcc[5] = cents(-123_456);
+        let mut b = day_row("ALTE.ALTE", -4210);
+        b.node_type = "Gennode".into();
+        b.mlc = [f32::NAN; 24];
+        let report = DayLmpReport::new(DayReportKind::RtFinal, day, vec![a, b]);
+        let bytes = report.to_bytes();
+        assert_eq!(bytes[DAY_REPORT_MAGIC.len() + 5], 2, "whole cents");
+        let back = DayLmpReport::from_bytes(&bytes).unwrap();
+        assert!(same_report(&report, &back));
+        assert_eq!(back.node("ALTE.ALTE").unwrap().node_type, "Gennode");
+        assert_eq!(back.day.to_string(), "2026-10-06");
+        assert_eq!(back.kind.market(), Market::RealTime);
+
+        // Something finer than a cent is kept too, just less compactly.
+        let mut odd = day_row("X", 100);
+        odd.lmp[0] = 0.123_456_7;
+        let report = DayLmpReport::new(DayReportKind::DaExPost, day, vec![odd]);
+        let bytes = report.to_bytes();
+        assert_eq!(bytes[DAY_REPORT_MAGIC.len() + 5], RAW_BITS);
+        assert!(same_report(
+            &report,
+            &DayLmpReport::from_bytes(&bytes).unwrap()
+        ));
+
+        // Truncated, padded or foreign bytes are refused.
+        assert!(DayLmpReport::from_bytes(&bytes[..bytes.len() - 1]).is_none());
+        assert!(DayLmpReport::from_bytes(&[bytes.as_slice(), &[0]].concat()).is_none());
+        assert!(DayLmpReport::from_bytes(b"MTRT1\0").is_none());
     }
 }

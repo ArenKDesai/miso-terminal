@@ -57,7 +57,8 @@ TUI, a web view, a CLI exporter) could reuse them unchanged.
    rule even when a user hammers F5); **conditional GETs** (a URL whose server
    sent an `ETag` or `Last-Modified` is asked "changed since?", so an unchanged
    feed costs a `304`); **request budgets** per host (below); an **on-disk gzip
-   cache** for immutable files (settled market reports); and an event log.
+   cache** for immutable files (settled market reports, apart from the LMP
+   reports the [day store](#the-day-store) keeps); and an event log.
 4. `FetchCtx` sends a `Request` (method, URL, headers, body) through a
    `Transport`: `HttpTransport` (reqwest with native-tls, so SChannel and the
    Windows certificate store) or `FixtureTransport` (recorded files, used by
@@ -142,6 +143,23 @@ keep the disk work off the async workers; any source can keep its own data the
 same way. `series::node_five_minute` stitches archive days, yesterday and today
 together for GP and SPRD (`… 5MIN`). The archive is exempt from the cache's size cap and
 keeps `data.archive_days` days instead.
+
+### The day store
+
+Every DA ex-post and RT daily report the terminal parses is kept whole under
+`local://archive/report/<da|rt>/<date>`: every node's hourly LMP, MCC and MLC
+(`DayLmpReport::to_bytes`: whole cents as `i32`, split into byte planes, about
+170 KB a day gzipped against 280 KB for the CSV). `fetch_report` answers from
+it before downloading, so a settled day costs one download ever; an RT day
+keeps its preliminary report until the final one replaces it (never the other
+way round), and a preliminary day is still asked for again. Only live files
+that name the day asked for are kept (a replay keeps nothing: the fixtures are
+trimmed to a few nodes and stand in for any date), and a live file for the
+wrong date is an error.
+The CSVs themselves are no longer cached. The store is exempt from the size
+cap; `mt_ui::kept_cache_dirs` lists what the cap and LOG's *Clear cache* leave
+alone. Part 1 of the [analytics plan](ANALYTICS-PLAN.md) builds on it (backfill,
+then `series::node_history` reading any node from it).
 
 ### Long history
 
@@ -405,7 +423,7 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 |---|---|
 | `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces; New York time across clock changes, and sessions; security and OCC parsing; option contract lists, chains by strike, the money's window, price steps and expiry cutoffs; exact decimals from broker JSON; marking positions (shorts, options, opened today), net delta, account figures, drawdowns, activity categories and merging; order requests the broker would refuse, order values, merging and day trades; every guardrail (switch, restricted list, sessions, the three caps, the collar, size, shorts, buying power, day trades); every option guardrail (levels, covered calls, cash-secured puts, flips and closes, expiry cutoffs, the quote collar, price steps, contracts per order); strategy names, net prices, payoffs and break-evens, Alpaca's spread margin and uncovered legs; every spread guardrail |
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; streams against a scripted server (shared connections, subscription unions, reconnect and resubscribe, refused logins, lingering topics, pause); a real WebSocket round trip on localhost; conditional GETs, status mapping, budgets and `429`s; secrets kept out of the log; the Windows Credential Manager round trip; transports; disk cache |
-| `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive |
+| `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive; the day store (what is kept, what is served from it, a prelim never replacing a final) |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
 | `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions within the plan's limit (trades before quotes, halving after a `405`), refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed; option contract lists and chains against the sample chains (live in the drift job); the account, positions, equity curves, activities, option greeks, orders and order events against the sample account (reconciled to the cent) or a live recording; the order desk against a fake broker: an order (and a spread, as one `mleg` order) goes in once, a lost answer is looked up rather than resent, an order that never arrived goes again under the same id (and a late arrival is found, not duplicated), rejections, rate limits, unknown fates, cancels, replaces and the kill switch, nothing new sent while trading is off, replacements held to their approval, with keys kept out of the audit log |
 | `mt-news` | RSS 2.0, RSS 1.0 and Atom (CDATA, escaped HTML, entities, dates, Atom links, no article bodies); every built-in feed against its recording (sample text in the feed's real structure; live in the drift job via `MT_FIXTURES`); identities, merging, combining, keyword rules, config overrides, read marks |

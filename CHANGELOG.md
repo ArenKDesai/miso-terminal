@@ -20,6 +20,17 @@ notes are that section.
   order is refused past it, and any other order needs the warning ticked. This
   catches a stopped stream, an option chain that has not refreshed and the
   15-minute-delayed feed.
+- **The terminal keeps its own price history.** Every daily DA and RT report
+  it downloads is kept for every node (about 170 KB a day per market, outside
+  the cache's size cap), so a day is downloaded once and charts reopen
+  without waiting. An RT day keeps its preliminary prices until the final
+  report replaces them. This is the start of history without the
+  Energy-Pricing-Journalist export.
+
+### Changed
+
+- LOG's *Clear cache* clears downloaded reports and responses only; the
+  five-minute archive, the price history and saved headlines stay.
 
 ### Fixed
 

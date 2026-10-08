@@ -266,6 +266,19 @@ fn day_reports() {
         assert!(hub.lmp.iter().all(|v| v.is_finite()), "{suffix}: 24 LMPs");
         assert!(hub.mcc.iter().all(|v| v.is_finite()), "{suffix}: 24 MCCs");
         assert_eq!(hourly_points(day, &hub.lmp).len(), 24);
+        // The day store relies on the date line and on whole cents.
+        assert_eq!(day_report_date(&body), Some(day), "{suffix}: date line");
+        let bytes = r.to_bytes();
+        assert_eq!(bytes[11], 2, "{suffix}: stored in whole cents");
+        let back = mt_core::DayLmpReport::from_bytes(&bytes).unwrap();
+        assert_eq!(back.rows.len(), r.rows.len());
+        for (a, b) in r.rows.iter().zip(&back.rows) {
+            let bits = |v: &[f32; 24]| v.map(f32::to_bits);
+            assert_eq!(a.node, b.node);
+            assert_eq!(bits(&a.lmp), bits(&b.lmp), "{suffix}: {}", a.node);
+            assert_eq!(bits(&a.mcc), bits(&b.mcc), "{suffix}: {}", a.node);
+            assert_eq!(bits(&a.mlc), bits(&b.mlc), "{suffix}: {}", a.node);
+        }
     }
     assert!(parse_day_report(DayReportKind::DaExPost, NaiveDate::MIN, "garbage").is_err());
 }

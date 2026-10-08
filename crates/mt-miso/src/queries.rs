@@ -554,23 +554,104 @@ fn suffix(kind: DayReportKind) -> &'static str {
 /// How often to look again for a report that is not out yet.
 const UNPUBLISHED_RETRY: Duration = Duration::from_secs(10 * 60);
 
+/// Where the day store keeps a market day's report: every node's hourly LMP,
+/// MCC and MLC, DA ex-post or RT (final, or preliminary until the final one
+/// appears). Exempt from the cache's size cap, like the five-minute archive.
+pub fn day_store_key(market: Market, day: NaiveDate) -> String {
+    let market = match market {
+        Market::DayAhead => "da",
+        Market::RealTime => "rt",
+    };
+    format!("local://archive/report/{market}/{day}")
+}
+
+/// The day store's directory in `cache`.
+pub fn day_store_dir(cache: &DiskCache) -> PathBuf {
+    cache
+        .path_for(&day_store_key(Market::DayAhead, NaiveDate::default()))
+        .parent()
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .unwrap_or_default()
+}
+
+/// The reports the day store keeps (not DA ex-ante, which ex-post replaces).
+fn stored(kind: DayReportKind) -> bool {
+    kind != DayReportKind::DaExAnte
+}
+
+/// A market day's report from the day store, if it has one.
+pub async fn read_day_store(
+    ctx: &FetchCtx,
+    market: Market,
+    day: NaiveDate,
+) -> Option<DayLmpReport> {
+    ctx.local_get(&day_store_key(market, day))
+        .await
+        .and_then(|b| DayLmpReport::from_bytes(&b))
+        .filter(|r| r.day == day && r.kind.market() == market)
+}
+
 async fn fetch_report(
     ctx: &FetchCtx,
     endpoints: &MisoEndpoints,
     kind: DayReportKind,
     day: NaiveDate,
 ) -> Result<Option<DayLmpReport>, FetchError> {
-    let url = endpoints.report(day, suffix(kind));
-    // Preliminary RT reports are superseded by final ones, so never pin them on disk.
-    let body = match kind {
-        DayReportKind::RtPrelim => ctx.get_text(&url).await,
-        _ => ctx.get_text_immutable(&url).await,
+    let kept = match stored(kind) {
+        true => read_day_store(ctx, kind.market(), day).await,
+        false => None,
     };
-    match body {
-        Ok(body) => parse::parse_day_report(kind, day, &body).map(Some),
-        Err(FetchError::NotFound(_)) => Ok(None),
-        Err(e) => Err(e),
+    // Settled reports never change; a preliminary one is asked for again.
+    if let Some(r) = &kept
+        && r.kind == kind
+        && kind != DayReportKind::RtPrelim
+    {
+        return Ok(kept);
     }
+    let url = endpoints.report(day, suffix(kind));
+    // The day store keeps what it parses, so those files are not cached as well.
+    let body = match stored(kind) {
+        true => ctx.get_text(&url).await,
+        false => ctx.get_text_immutable(&url).await,
+    };
+    let body = match body {
+        Ok(body) => body,
+        Err(FetchError::NotFound(_)) => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    let report = parse::parse_day_report(kind, day, &body)?;
+    let named = parse::day_report_date(&body);
+    // Replayed fixtures stand in for any date; live files must match.
+    if let Some(named) = named
+        && named != day
+        && ctx.is_live()
+    {
+        return Err(FetchError::parse(
+            format!("{} {day}", kind.label()),
+            format!("the file is for {named}"),
+        ));
+    }
+    // Only live files go in the store (replayed fixtures are trimmed to a few
+    // nodes), only for the day they name, and a preliminary report never
+    // replaces a final one.
+    let downgrade = kind == DayReportKind::RtPrelim
+        && kept
+            .as_ref()
+            .is_some_and(|k| k.kind == DayReportKind::RtFinal);
+    if stored(kind) && ctx.is_live() && named == Some(day) && !downgrade {
+        let bytes = report.to_bytes();
+        let unchanged = kept.is_some_and(|k| k.to_bytes() == bytes);
+        if !unchanged
+            && ctx
+                .local_put(&day_store_key(kind.market(), day), bytes)
+                .await
+        {
+            ctx.events()
+                .info(format!("kept {} for {day} in the day store", kind.label()));
+        }
+    }
+    Ok(Some(report))
 }
 
 /// A market day's binding-constraints report.
