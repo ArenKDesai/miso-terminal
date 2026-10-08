@@ -36,6 +36,13 @@ notes are that section.
   final ones. Progress shows in the status bar and LOG. Nothing downloads
   until you click *Download now*, and days before the window are removed
   (`[price_history]` in config.toml).
+- **Charts reach back as far as the price history.** GP, SPRD, CMP and HUBS
+  read stored days from disk for any window, a year and more, without the
+  Energy-Pricing-Journalist export; only days missing from the last 90 are
+  downloaded. When older days are missing, the chart says how many, with a
+  *Price history…* button that opens SET. Stored days take far less memory
+  than downloaded ones: a chart keeps only its nodes, not every node of every
+  day.
 
 ### Changed
 

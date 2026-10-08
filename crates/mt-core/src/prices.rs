@@ -500,52 +500,95 @@ impl DayLmpReport {
 
     /// Inverse of [`Self::to_bytes`]; `None` for anything malformed.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let s = StoredReport::split(bytes)?;
+        let rows = (0..s.names.len()).map(|i| s.row(i)).collect();
+        Some(Self::new(s.kind, s.day, rows))
+    }
+
+    /// Only some nodes' rows from [`Self::to_bytes`], without decoding the
+    /// rest of the day: one per name in `nodes`, `None` where the day has no
+    /// such node. `None` altogether for anything malformed.
+    pub fn rows_from_bytes(
+        bytes: &[u8],
+        nodes: &[&str],
+    ) -> Option<(DayReportKind, NaiveDate, Vec<Option<DayNodeRow>>)> {
+        let s = StoredReport::split(bytes)?;
+        let rows = nodes
+            .iter()
+            .map(|n| {
+                s.names
+                    .iter()
+                    .position(|(name, _)| name == n)
+                    .map(|i| s.row(i))
+            })
+            .collect();
+        Some((s.kind, s.day, rows))
+    }
+}
+
+/// [`DayLmpReport::to_bytes`] taken apart and checked, before any values
+/// are decoded.
+struct StoredReport<'a> {
+    kind: DayReportKind,
+    day: NaiveDate,
+    decimals: u8,
+    /// Node names and types, in row order.
+    names: Vec<(&'a str, &'a str)>,
+    planes: &'a [u8],
+}
+
+impl<'a> StoredReport<'a> {
+    fn split(bytes: &'a [u8]) -> Option<Self> {
         let mut r = Reader { bytes, at: 0 };
-        let (kind, day) = Self::header(&mut r)?;
+        let (kind, day) = DayLmpReport::header(&mut r)?;
         let decimals = r.take(1)?[0];
         let n = u32::from_le_bytes(r.array()?) as usize;
-        let mut rows = Vec::with_capacity(n.min(100_000));
+        let mut names = Vec::with_capacity(n.min(100_000));
         for _ in 0..n {
-            let mut text = || -> Option<String> {
+            let mut text = || -> Option<&'a str> {
                 let len = u16::from_le_bytes(r.array()?) as usize;
-                Some(std::str::from_utf8(r.take(len)?).ok()?.to_owned())
+                std::str::from_utf8(r.take(len)?).ok()
             };
-            let (node, node_type) = (text()?, text()?);
-            rows.push(DayNodeRow {
-                node,
-                node_type,
-                lmp: [f32::NAN; 24],
-                mcc: [f32::NAN; 24],
-                mlc: [f32::NAN; 24],
-            });
+            names.push((text()?, text()?));
         }
-        let count = n.checked_mul(3 * 24)?;
-        let planes = r.take(count.checked_mul(4)?)?;
+        let planes = r.take(n.checked_mul(3 * 24 * 4)?)?;
         if r.at != bytes.len() {
             return None;
         }
-        let scale = 10f64.powi(i32::from(decimals));
-        let value = |i: usize| -> f32 {
-            let v = i32::from_le_bytes(std::array::from_fn(|p| planes[p * count + i]));
-            match (decimals, v) {
+        Some(Self {
+            kind,
+            day,
+            decimals,
+            names,
+            planes,
+        })
+    }
+
+    /// Row `i`, decoded.
+    fn row(&self, i: usize) -> DayNodeRow {
+        let (node, node_type) = self.names[i];
+        let n = self.names.len();
+        let count = n * 3 * 24;
+        let scale = 10f64.powi(i32::from(self.decimals));
+        let value = |k: usize| -> f32 {
+            let v = i32::from_le_bytes(std::array::from_fn(|p| self.planes[p * count + k]));
+            match (self.decimals, v) {
                 (RAW_BITS, _) => f32::from_bits(v as u32),
                 (_, MISSING) => f32::NAN,
                 _ => (f64::from(v) / scale) as f32,
             }
         };
-        for (c, i) in (0..3).flat_map(|c| (0..n).map(move |i| (c, i))) {
-            let row = &mut rows[i];
-            let target = match c {
-                0 => &mut row.lmp,
-                1 => &mut row.mcc,
-                _ => &mut row.mlc,
-            };
+        let column = |c: usize| -> [f32; 24] {
             let base = (c * n + i) * 24;
-            for (h, slot) in target.iter_mut().enumerate() {
-                *slot = value(base + h);
-            }
+            std::array::from_fn(|h| value(base + h))
+        };
+        DayNodeRow {
+            node: node.to_owned(),
+            node_type: node_type.to_owned(),
+            lmp: column(0),
+            mcc: column(1),
+            mlc: column(2),
         }
-        Some(Self::new(kind, day, rows))
     }
 }
 
@@ -724,6 +767,16 @@ mod tests {
             "the header alone names the kind and day"
         );
         assert!(DayLmpReport::peek(&bytes[..DayLmpReport::HEADER_LEN - 1]).is_none());
+        // One node without the rest of the day, and a node the day lacks.
+        let (kind, named, rows) =
+            DayLmpReport::rows_from_bytes(&bytes, &["ALTE.ALTE", "NOWHERE"]).unwrap();
+        assert_eq!((kind, named), (DayReportKind::RtFinal, day));
+        assert!(same_report(
+            &DayLmpReport::new(kind, day, vec![rows[0].clone().unwrap()]),
+            &DayLmpReport::new(kind, day, vec![back.node("ALTE.ALTE").unwrap().clone()])
+        ));
+        assert!(rows[1].is_none());
+        assert!(DayLmpReport::rows_from_bytes(&bytes[..bytes.len() - 1], &["X"]).is_none());
 
         // Something finer than a cent is kept too, just less compactly.
         let mut odd = day_row("X", 100);

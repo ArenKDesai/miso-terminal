@@ -9,16 +9,19 @@
 //! and a day a panel downloaded in the meantime is not downloaded again. Once
 //! the window is full the backfill keeps it so, looking again every hour for
 //! a new day and for final RT reports to replace preliminary ones.
+//!
+//! Charts read the store through [`StoredPricesQuery`]: only their nodes'
+//! rows, from each day's file, re-read only when a file changes.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use chrono::{NaiveDate, TimeDelta};
 use mt_core::time::market_today;
-use mt_core::{DayLmpReport, DayReportKind, Market};
-use mt_data::{DiskCache, FetchCtx, FetchError};
+use mt_core::{DayLmpReport, DayNodeRow, DayReportKind, Market};
+use mt_data::{DiskCache, FetchCtx, FetchError, Freshness, Query};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Notify;
@@ -108,7 +111,8 @@ impl Inventory {
     pub fn scan(cache: &DiskCache) -> Self {
         let mut inv = Self::default();
         for market in [Market::DayAhead, Market::RealTime] {
-            for (day, bytes) in stored_files(cache, market) {
+            for (day, stamp) in stored_files(cache, market) {
+                let bytes = stamp.len;
                 let kind = match market {
                     // Only ex-post DA reports are kept.
                     Market::DayAhead => Some(DayReportKind::DaExPost),
@@ -188,8 +192,16 @@ impl Coverage {
     }
 }
 
-/// Each stored day's file in one market's directory, with its size.
-fn stored_files(cache: &DiskCache, market: Market) -> Vec<(NaiveDate, u64)> {
+/// A stored day's file as the directory lists it: a change of either means
+/// the day was written again (a final report over a preliminary one).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Stamp {
+    len: u64,
+    modified: Option<SystemTime>,
+}
+
+/// Each stored day's file in one market's directory.
+fn stored_files(cache: &DiskCache, market: Market) -> Vec<(NaiveDate, Stamp)> {
     let dir = day_store_dir(cache).join(match market {
         Market::DayAhead => "da",
         Market::RealTime => "rt",
@@ -206,7 +218,12 @@ fn stored_files(cache: &DiskCache, market: Market) -> Vec<(NaiveDate, u64)> {
                 .strip_suffix(".gz")?
                 .parse::<NaiveDate>()
                 .ok()?;
-            Some((day, e.metadata().map_or(0, |m| m.len())))
+            let meta = e.metadata().ok();
+            let stamp = Stamp {
+                len: meta.as_ref().map_or(0, std::fs::Metadata::len),
+                modified: meta.and_then(|m| m.modified().ok()),
+            };
+            Some((day, stamp))
         })
         .collect()
 }
@@ -216,16 +233,165 @@ fn stored_files(cache: &DiskCache, market: Market) -> Vec<(NaiveDate, u64)> {
 pub fn prune_day_store(cache: &DiskCache, first: NaiveDate) -> (usize, u64) {
     let (mut days, mut bytes) = (0, 0);
     for market in [Market::DayAhead, Market::RealTime] {
-        for (day, len) in stored_files(cache, market) {
+        for (day, stamp) in stored_files(cache, market) {
             if day < first
                 && std::fs::remove_file(cache.path_for(&day_store_key(market, day))).is_ok()
             {
                 days += 1;
-                bytes += len;
+                bytes += stamp.len;
             }
         }
     }
     (days, bytes)
+}
+
+/// How often the stored prices behind a chart look for days written since:
+/// a directory listing, plus reading only the files that changed.
+const STORED_REFRESH: Duration = Duration::from_secs(60);
+
+/// Some nodes' hourly prices from the day store, from a first day on: what
+/// GP, SPRD, CMP and HUBS read for any day the store holds, instead of whole
+/// days of every node.
+#[derive(Clone, Debug, Default)]
+pub struct StoredPrices {
+    nodes: Arc<[String]>,
+    da: BTreeMap<NaiveDate, StoredDay>,
+    rt: BTreeMap<NaiveDate, StoredDay>,
+}
+
+/// One stored day of a [`StoredPrices`].
+#[derive(Clone, Debug)]
+struct StoredDay {
+    kind: DayReportKind,
+    stamp: Stamp,
+    /// One per node asked for; `None` where the day has no such node.
+    rows: Vec<Option<DayNodeRow>>,
+}
+
+impl StoredPrices {
+    fn days(&self, market: Market) -> &BTreeMap<NaiveDate, StoredDay> {
+        match market {
+            Market::DayAhead => &self.da,
+            Market::RealTime => &self.rt,
+        }
+    }
+
+    /// Which report the store holds for a day, if any.
+    pub fn stored(&self, market: Market, day: NaiveDate) -> Option<DayReportKind> {
+        self.days(market).get(&day).map(|d| d.kind)
+    }
+
+    /// A node's row for a stored day (`None` if the day is not stored, or
+    /// has no such node).
+    pub fn row(&self, node: &str, market: Market, day: NaiveDate) -> Option<&DayNodeRow> {
+        let i = self.nodes.iter().position(|n| n == node)?;
+        self.days(market).get(&day)?.rows.get(i)?.as_ref()
+    }
+
+    /// Stored days, both markets.
+    pub fn len(&self) -> usize {
+        self.da.len() + self.rt.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// List the store from `first` on and read each day for `nodes`, reusing
+    /// what `prev` read from files that have not changed since. Blocking.
+    pub fn read(
+        cache: &DiskCache,
+        nodes: &Arc<[String]>,
+        first: NaiveDate,
+        prev: Option<&Self>,
+    ) -> Self {
+        let names: Vec<&str> = nodes.iter().map(String::as_str).collect();
+        let mut out = Self {
+            nodes: nodes.clone(),
+            ..Self::default()
+        };
+        for market in [Market::DayAhead, Market::RealTime] {
+            for (day, stamp) in stored_files(cache, market) {
+                if day < first {
+                    continue;
+                }
+                let kept = prev
+                    .and_then(|p| p.days(market).get(&day))
+                    .filter(|d| d.stamp == stamp);
+                let read = || {
+                    let bytes = cache.read(&day_store_key(market, day))?;
+                    let (kind, named, rows) = DayLmpReport::rows_from_bytes(&bytes, &names)?;
+                    (named == day && kind.market() == market).then_some(StoredDay {
+                        kind,
+                        stamp,
+                        rows,
+                    })
+                };
+                // An unreadable file is left out: the panels download that day.
+                if let Some(d) = kept.cloned().or_else(read) {
+                    match market {
+                        Market::DayAhead => out.da.insert(day, d),
+                        Market::RealTime => out.rt.insert(day, d),
+                    };
+                }
+            }
+        }
+        out
+    }
+}
+
+/// [`StoredPrices`] for some nodes from a first day on, kept fresh as the
+/// store grows. Nothing is downloaded.
+#[derive(Clone, Debug)]
+pub struct StoredPricesQuery {
+    nodes: Arc<[String]>,
+    first: NaiveDate,
+}
+
+impl StoredPricesQuery {
+    pub fn new(nodes: &[&str], first: NaiveDate) -> Self {
+        Self {
+            nodes: nodes.iter().map(|n| (*n).to_owned()).collect(),
+            first,
+        }
+    }
+}
+
+impl Query for StoredPricesQuery {
+    type Output = StoredPrices;
+
+    fn key(&self) -> String {
+        format!("miso/stored/{}/{}", self.first, self.nodes.join(","))
+    }
+
+    fn label(&self) -> String {
+        let nodes = match &*self.nodes {
+            [one] => one.clone(),
+            many => format!("{} nodes", many.len()),
+        };
+        format!("Price history, {nodes} from {}", self.first)
+    }
+
+    fn freshness(&self, _: &StoredPrices) -> Freshness {
+        Freshness::Every(STORED_REFRESH)
+    }
+
+    async fn fetch(
+        &self,
+        ctx: FetchCtx,
+        prev: Option<Arc<StoredPrices>>,
+    ) -> Result<StoredPrices, FetchError> {
+        // A replay has no store: every day comes from the reports.
+        let Some(cache) = ctx.cache().cloned() else {
+            return Ok(StoredPrices::default());
+        };
+        let (nodes, first) = (self.nodes.clone(), self.first);
+        tokio::task::spawn_blocking(move || {
+            StoredPrices::read(&cache, &nodes, first, prev.as_deref())
+        })
+        .await
+        .map_err(|e| FetchError::Other(format!("reading the price history: {e}")))
+    }
 }
 
 /// One day's report to fetch.

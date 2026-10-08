@@ -57,7 +57,8 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
     }))
 }
 
-/// The longest window offered: about four years, what the local archive holds.
+/// The longest window offered: about four years, everything MISO publishes
+/// (since 2023-01-01) and the price history can hold.
 pub(crate) const MAX_DAYS: u32 = 1500;
 
 /// Day-count buttons shared by the history views.
@@ -589,15 +590,16 @@ pub(crate) fn duration_view(
     });
 }
 
-/// Loading progress, the preliminary-RT note and a Copy CSV button.
+/// Loading progress, notes on where the days came from and a Copy CSV button.
 pub(crate) fn history_notes(
     ui: &mut Ui,
-    cx: &PanelCx<'_>,
+    cx: &mut PanelCx<'_>,
     h: &series::History,
     make_csv: impl FnOnce() -> String,
 ) {
     let skin = cx.skin;
-    ui.horizontal(|ui| {
+    // Wrapped: the notes can be longer than a narrow pane is wide.
+    ui.horizontal_wrapped(|ui| {
         csv::copy_button(ui, skin, make_csv);
         if h.pending > 0 {
             ui.spinner();
@@ -627,16 +629,24 @@ pub(crate) fn history_notes(
                 .color(skin.text_muted),
             );
         }
-        if h.capped {
+        if h.unstored_days > 0 {
             ui.label(
                 RichText::new(format!(
-                    "Showing {} days: longer history needs the local archive \
-                     (uv run tools/export_history.py).",
+                    "{} older day(s) are not in the price history; charts download only \
+                     the last {} days.",
+                    h.unstored_days,
                     series::DOWNLOAD_DAYS
                 ))
                 .small()
                 .color(skin.warning),
             );
+            if ui
+                .small_button("Price history…")
+                .on_hover_text("SET: download older days in the background")
+                .clicked()
+            {
+                cx.open(Route::code("SET"));
+            }
         }
     });
 }

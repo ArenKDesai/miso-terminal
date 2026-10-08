@@ -79,6 +79,9 @@ keys, and anything Aren has asked to see.
 - `crates/mt-ui/src/functions/`: one file per function (panel). `functions/mod.rs` lists them.
 - `crates/mt-ui/src/series.rs`: node price series (today / N-day history /
   spreads / stats / percentiles / on-peak). Reuse it rather than re-fetching.
+  History for several nodes goes through `nodes_history`, so the price
+  history is read once for all of them; never watch whole day reports for
+  long windows (about 1 MB a day in memory).
 - `crates/mt-ui/src/widgets/`: tiles, tables (`table`), charts (`chart`:
   time plots, step lines, duration plots), `node_picker`, `csv` copy button,
   `scale` (diverging colours), `heatmap`.

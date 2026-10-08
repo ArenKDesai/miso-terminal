@@ -1,12 +1,14 @@
 //! Price series for one node, assembled from whichever feeds cover each span:
-//! the five-minute intraday store for today, daily DA ex-post reports, and RT
-//! final-or-preliminary reports for past days. Shared by GP, SPRD and WL.
+//! the five-minute intraday store for today, and for past days the price
+//! history (the day store), else daily DA ex-post and RT final-or-preliminary
+//! reports. Shared by GP, SPRD, CMP, HUBS and WL.
 
 use std::collections::HashMap;
 
 use chrono::{Duration, NaiveDate, NaiveDateTime, Timelike};
 use mt_core::time::market_today;
 use mt_core::{DayLmpReport, DayNodeRow, DayReportKind, Market, NodeSeries, RtIntraday};
+use mt_miso::StoredPrices;
 use mt_miso::parse::hourly_points;
 
 use crate::context::PanelCx;
@@ -154,50 +156,80 @@ pub fn node_today(cx: &PanelCx<'_>, node: &str, component: Component) -> Today {
 }
 
 /// Hourly DA and RT at a node over the last `days` days (plus tomorrow's DA).
+#[derive(Debug, Default)]
 pub struct History {
     pub da: Points,
     pub rt: Points,
-    /// Daily reports still downloading.
+    /// Daily reports still downloading, or the price history still being read.
     pub pending: usize,
     /// Days whose RT is preliminary (final reports trail about a week).
     pub prelim_days: usize,
-    /// Days read from the local archive instead of downloaded.
+    /// Days read from the exported archive (`tools/export_history.py`).
     pub archived_days: usize,
-    /// The window asked for was longer than [`DOWNLOAD_DAYS`] and this node
-    /// has no local archive, so it was shortened to that.
-    pub capped: bool,
+    /// Days in the window the price history does not hold that are too old
+    /// for a chart to download ([`DOWNLOAD_DAYS`]): SET's *Price history*
+    /// fills them.
+    pub unstored_days: usize,
 }
 
-/// The longest window fetched from MISO's daily reports (two downloads a
-/// day); longer history comes from the local archive.
+/// How far back a chart downloads the days the price history lacks (two
+/// reports a day, every node in each); before that it shows what is stored.
 pub const DOWNLOAD_DAYS: u32 = 90;
 
 pub fn node_history(cx: &PanelCx<'_>, node: &str, component: Component, days: u32) -> History {
+    nodes_history(cx, &[node], component, days)
+        .pop()
+        .unwrap_or_default()
+}
+
+/// [`node_history`] for several nodes, which read the price history together
+/// (each stored day is read once for all of them).
+pub fn nodes_history(
+    cx: &PanelCx<'_>,
+    nodes: &[&str],
+    component: Component,
+    days: u32,
+) -> Vec<History> {
     let today = market_today();
-    let mut h = History {
-        da: Vec::new(),
-        rt: Vec::new(),
-        pending: 0,
-        prelim_days: 0,
-        archived_days: 0,
-        capped: false,
+    let first = today - Duration::days(i64::from(days.max(1)) - 1);
+    let snap = cx.hub.watch(&cx.miso.stored_prices(nodes, first));
+    // What is stored decides what to download, so wait for it.
+    let stored = match (snap.data, snap.error) {
+        (Some(s), _) => s,
+        (None, Some(_)) => std::sync::Arc::default(),
+        (None, None) => {
+            return nodes
+                .iter()
+                .map(|_| History {
+                    pending: 1,
+                    ..History::default()
+                })
+                .collect();
+        }
     };
-    // The local archive (tools/export_history.py) covers the older days, so
-    // only the days after it ends are downloaded.
+    nodes
+        .iter()
+        .map(|node| one_history(cx, node, component, today, first, &stored))
+        .collect()
+}
+
+fn one_history(
+    cx: &PanelCx<'_>,
+    node: &str,
+    component: Component,
+    today: NaiveDate,
+    first: NaiveDate,
+    stored: &StoredPrices,
+) -> History {
+    let mut h = History::default();
+    // The exported archive (tools/export_history.py) covers days the store
+    // lacks.
     let archive = cx.hub.watch(&cx.miso.lmp_archive(node));
     if archive.data.is_none() && archive.error.is_none() {
         h.pending += 1; // a local read; decides what to download
         return h;
     }
     let archive = archive.data().and_then(Option::as_ref);
-    let days = match archive {
-        None if days > DOWNLOAD_DAYS => {
-            h.capped = true;
-            DOWNLOAD_DAYS
-        }
-        _ => days.max(1),
-    };
-    let first = today - Duration::days(i64::from(days) - 1);
     let covered = |market: Market, day: NaiveDate| {
         archive
             .filter(|a| day >= a.first_day() && a.last_day(market).is_some_and(|last| day <= last))
@@ -208,33 +240,59 @@ pub fn node_history(cx: &PanelCx<'_>, node: &str, component: Component, days: u3
             .filter(|(_, v)| v.is_finite())
             .collect()
     };
+    let from_store = |market: Market, day: NaiveDate| -> Points {
+        stored
+            .row(node, market, day)
+            .map(|row| hourly_points(day, &component.hourly(row)))
+            .unwrap_or_default()
+    };
+    let download_from = today - Duration::days(i64::from(DOWNLOAD_DAYS) - 1);
+    let mut unstored = std::collections::BTreeSet::new();
     let mut day = first;
     while day <= today + Duration::days(1) {
-        let from_archive = covered(Market::DayAhead, day);
-        if let Some(a) = from_archive {
+        // DA ex-post: stored, else exported, else downloaded if recent. A
+        // stored day without this node has nothing to download either.
+        if stored.stored(Market::DayAhead, day).is_some() {
+            h.da.extend(from_store(Market::DayAhead, day));
+        } else if let Some(a) = covered(Market::DayAhead, day) {
             h.da.extend(pick(a.day(Market::DayAhead, day)));
             h.archived_days += 1;
-        } else {
+        } else if day >= download_from {
             let d = cx
                 .hub
                 .watch(&cx.miso.day_report(DayReportKind::DaExPost, day));
             h.pending += usize::from(d.data.is_none() && d.error.is_none());
             h.da.extend(report_points(d.data(), node, component, day));
+        } else {
+            unstored.insert(day);
         }
-        if let (true, Some(a)) = (day < today, covered(Market::RealTime, day)) {
-            h.rt.extend(pick(a.day(Market::RealTime, day)));
-        } else if day < today {
-            let r = cx.hub.watch(&cx.miso.rt_best_day(day));
-            h.pending += usize::from(r.data.is_none() && r.error.is_none());
-            if let Some(Some(report)) = r.data()
-                && report.kind == DayReportKind::RtPrelim
-            {
+        if day < today {
+            // RT: a stored final report; a preliminary day recent enough to
+            // download is asked for again, since its final may be out.
+            let kind = stored.stored(Market::RealTime, day);
+            if kind == Some(DayReportKind::RtFinal) {
+                h.rt.extend(from_store(Market::RealTime, day));
+            } else if let Some(a) = covered(Market::RealTime, day) {
+                h.rt.extend(pick(a.day(Market::RealTime, day)));
+            } else if day >= download_from {
+                let r = cx.hub.watch(&cx.miso.rt_best_day(day));
+                h.pending += usize::from(r.data.is_none() && r.error.is_none());
+                if let Some(Some(report)) = r.data()
+                    && report.kind == DayReportKind::RtPrelim
+                {
+                    h.prelim_days += 1;
+                }
+                h.rt.extend(report_points(r.data(), node, component, day));
+            } else if kind == Some(DayReportKind::RtPrelim) {
                 h.prelim_days += 1;
+                h.rt.extend(from_store(Market::RealTime, day));
+            } else {
+                unstored.insert(day);
             }
-            h.rt.extend(report_points(r.data(), node, component, day));
         }
         day += Duration::days(1);
     }
+    h.unstored_days = unstored.len();
     // Today's RT comes from the five-minute feed, averaged to hours.
     if let Some(s) = cx
         .hub

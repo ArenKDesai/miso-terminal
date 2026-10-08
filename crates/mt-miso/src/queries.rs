@@ -17,6 +17,7 @@ use mt_core::*;
 use mt_data::{DiskCache, FetchCtx, FetchError, Freshness, Query};
 
 use crate::endpoints::{MisoEndpoints, paths, reports};
+use crate::history::StoredPricesQuery;
 use crate::parse;
 
 /// MISO refreshes its real-time displays every five minutes and asks clients to
@@ -137,6 +138,12 @@ impl Miso {
         LmpArchiveQuery {
             node: node.to_ascii_uppercase(),
         }
+    }
+
+    /// Hourly prices at `nodes` for every day the day store holds from
+    /// `first` on, read from disk (nothing is downloaded).
+    pub fn stored_prices(&self, nodes: &[&str], first: NaiveDate) -> StoredPricesQuery {
+        StoredPricesQuery::new(nodes, first)
     }
 
     /// A market day's binding constraints, DA or RT (`None` until published:
