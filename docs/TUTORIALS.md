@@ -150,8 +150,22 @@ before* shows how each hour moved.
 ## Reach back years
 
 Out of the box, history goes back as far as you ask MISO's daily reports for,
-a day at a time (the first long window takes a while; after that it is cached).
-For years of history at once, the terminal can read an archive exported from the
+a day at a time (the first long window takes a while). Every report the
+terminal downloads is kept on disk for every node, so a day is downloaded
+once.
+
+**Fill it in ahead of time.** `SET` → *Price history* chooses how far back to
+keep (*3 months* by default, up to *Everything since 2023-01-01*, the first
+day MISO publishes) and shows what is stored. *Download now* fetches the
+missing days in the background, newest first, one report every two seconds:
+three months is about 230 MB to download and 30 MB on disk, and takes about
+eight minutes. Keep working meanwhile; the status bar counts the reports
+(click it for `SET`) and `LOG` lists them. *Pause* stops it, and it carries on
+where it stopped, after a restart too. Once done it keeps the window filled
+every day, and swaps preliminary RT days for MISO's final prices when they
+come out (five or six days later). Days before the window are removed.
+
+For years of history at once, the terminal can also read an archive exported from the
 [Energy-Pricing-Journalist](https://github.com/ArenKDesai/Energy-Pricing-Journalist)
 DuckDB, which holds hourly DA and RT nodal prices since 2023:
 
@@ -580,14 +594,16 @@ the restricted list takes its options with it.
 **Settings.** `SET` edits `config.toml` in place: zoom, the price levels that
 are highlighted (*Highlight prices at or above*, $100 by default) and flagged
 (*Flag prices at or above*, $500), the default history length for GP and SPRD,
-the cache cap, the five-minute archive, news feeds, the paper trading limits
-and the stock price feed. Press *Apply and save*; *Open config folder* opens
-the file itself.
+the cache cap, the five-minute archive, the price history, news feeds, the
+paper trading limits and the stock price feed. Press *Apply and save*; *Open
+config folder* opens the file itself. (*Download now* and *Pause* under
+*Price history* act at once.)
 
 **Start over.** *Reset to defaults…* at the bottom of `SET` puts every setting
 back as it was on first launch, after asking you to confirm. That includes your
 watchlist, alerts, function keys, theme choice, and your own news feeds, topics
-and Q lists. Your API keys and layout stay. The old file is kept beside the new
+and Q lists, and stored prices older than three months are removed. Your API
+keys and layout stay. The old file is kept beside the new
 one as `config.toml.bak`, so you can copy back anything you miss. If the
 terminal is closed, `miso-terminal.exe --reset-config` does the same at
 startup.

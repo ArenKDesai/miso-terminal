@@ -592,7 +592,10 @@ pub async fn read_day_store(
         .filter(|r| r.day == day && r.kind.market() == market)
 }
 
-async fn fetch_report(
+/// One daily report: from the day store when it holds a settled one,
+/// otherwise downloaded (and kept, for a live file naming `day`). `None` until
+/// MISO publishes it.
+pub(crate) async fn fetch_report(
     ctx: &FetchCtx,
     endpoints: &MisoEndpoints,
     kind: DayReportKind,
@@ -610,10 +613,13 @@ async fn fetch_report(
         return Ok(kept);
     }
     let url = endpoints.report(day, suffix(kind));
-    // The day store keeps what it parses, so those files are not cached as well.
-    let body = match stored(kind) {
-        true => ctx.get_text(&url).await,
-        false => ctx.get_text_immutable(&url).await,
+    // The day store keeps what it parses, so a settled report is not kept a
+    // second time, in memory or on disk; a preliminary one comes round again,
+    // and is asked "changed since?" when it does.
+    let body = match kind {
+        DayReportKind::DaExAnte => ctx.get_text_immutable(&url).await,
+        DayReportKind::RtPrelim => ctx.get_text(&url).await,
+        DayReportKind::DaExPost | DayReportKind::RtFinal => ctx.get_text_uncached(&url).await,
     };
     let body = match body {
         Ok(body) => body,

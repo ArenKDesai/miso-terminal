@@ -16,6 +16,10 @@ pub struct AppConfig {
     pub theme: String,
     pub ui: UiConfig,
     pub data: DataConfig,
+    /// MISO's daily DA and RT reports kept on disk (the day store): how many
+    /// days back, and whether to download the missing days (SET's *Price
+    /// history*).
+    pub price_history: mt_miso::HistoryConfig,
     pub endpoints: MisoEndpoints,
     /// News feeds and topics (TOP, NEWS, NI): built-ins to turn off, feeds
     /// and topics to add, how long headlines are kept.
@@ -40,6 +44,7 @@ impl Default for AppConfig {
             theme: mt_theme::DEFAULT_THEME_ID.into(),
             ui: UiConfig::default(),
             data: DataConfig::default(),
+            price_history: mt_miso::HistoryConfig::default(),
             endpoints: MisoEndpoints::default(),
             news: mt_news::NewsConfig::default(),
             markets: mt_alpaca::MarketsConfig::default(),
@@ -246,6 +251,8 @@ mod tests {
         assert_eq!(cfg.ui.zoom, 1.25);
         assert_eq!(cfg.ui.price_alert, UiConfig::default().price_alert);
         assert_eq!(cfg.endpoints, MisoEndpoints::default());
+        assert_eq!(cfg.price_history.keep_days, 92, "about three months");
+        assert!(!cfg.price_history.backfill, "nothing downloads until asked");
         assert_eq!(cfg.news, mt_news::NewsConfig::default());
         assert_eq!(cfg.markets, mt_alpaca::MarketsConfig::default());
         assert_eq!(cfg.trading, mt_core::guard::Limits::default());

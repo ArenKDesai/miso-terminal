@@ -156,10 +156,43 @@ way round), and a preliminary day is still asked for again. Only live files
 that name the day asked for are kept (a replay keeps nothing: the fixtures are
 trimmed to a few nodes and stand in for any date), and a live file for the
 wrong date is an error.
-The CSVs themselves are no longer cached. The store is exempt from the size
-cap; `mt_ui::kept_cache_dirs` lists what the cap and LOG's *Clear cache* leave
-alone. Part 1 of the [analytics plan](ANALYTICS-PLAN.md) builds on it (backfill,
-then `series::node_history` reading any node from it).
+The CSVs themselves are not cached, nor held in memory for conditional
+requests (`FetchCtx::get_uncached`): a settled report lives once, in the store;
+only a preliminary RT report, which comes round again, is asked "changed
+since?". The store is exempt from the size cap; `mt_ui::kept_cache_dirs` lists
+what the cap and LOG's *Clear cache* leave alone. Part 1 of the
+[analytics plan](ANALYTICS-PLAN.md) builds on it (next, `series::node_history`
+reading any node from it).
+
+### The price history's backfill
+
+`[price_history]` (`mt_miso::HistoryConfig`) sets the store's window: `keep_days`
+back from today (three months by default; 0 for everything since 2023-01-01,
+MISO's first day of these reports) and whether to `backfill` it.
+`mt_miso::Backfill` is a worker on the data runtime, like the order desk: the
+app hands it the settings (`configure`, again on every change and while
+fetching is paused) and reads its `status` for SET, LOG and the status bar.
+
+The store is its own record of progress. Each pass lists it (`Inventory`: a
+directory walk, plus each RT file's first bytes, `DayLmpReport::peek`, to tell
+final from preliminary), removes the days before the window, plans what is
+missing (`plan`: DA through today and RT through yesterday, newest first, and
+preliminary RT days at least five days old, whose final report may be out)
+and fetches each report through `fetch_report`, the panels' own path, one at a
+time and two seconds apart. So a paused or interrupted backfill carries on
+where it stopped, a day a panel downloaded meanwhile is not downloaded again,
+and the backfill writes nothing itself (`fetch_report` keeps what it fetches). A report
+MISO answers 404 is counted as not published and asked for again on the next
+pass; one that will not parse is skipped and shown in LOG; anything else
+(network, 5xx, 429) is retried after 10 s, doubling to 10 minutes. A full
+window is looked at again every hour. The first pass after launch waits 15 s,
+so the panels' own fetches go first. A settings change interrupts the pass
+(after the report in flight) and starts a new one. With the backfill off,
+passes still list and prune the store, so SET always shows what it holds.
+
+The pacing is the backfill's own rather than a `Budget` on
+`docs.misoenergy.org`: a budget is shared by every request to the host, and
+would make a long GP window wait behind the backfill.
 
 ### Long history
 
@@ -423,7 +456,7 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 |---|---|
 | `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces; New York time across clock changes, and sessions; security and OCC parsing; option contract lists, chains by strike, the money's window, price steps and expiry cutoffs; exact decimals from broker JSON; marking positions (shorts, options, opened today), net delta, account figures, drawdowns, activity categories and merging; order requests the broker would refuse, order values, merging and day trades; every guardrail (switch, restricted list, sessions, the three caps, the collar, size, shorts, buying power, day trades); every option guardrail (levels, covered calls, cash-secured puts, flips and closes, expiry cutoffs, the quote collar, price steps, contracts per order); strategy names, net prices, payoffs and break-evens, Alpaca's spread margin and uncovered legs; every spread guardrail |
 | `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; streams against a scripted server (shared connections, subscription unions, reconnect and resubscribe, refused logins, lingering topics, pause); a real WebSocket round trip on localhost; conditional GETs, status mapping, budgets and `429`s; secrets kept out of the log; the Windows Credential Manager round trip; transports; disk cache |
-| `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive; the day store (what is kept, what is served from it, a prelim never replacing a final) |
+| `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive; the day store (what is kept, what is served from it, a prelim never replacing a final); the backfill against a fake MISO (the window filled newest first and a pace apart, nothing downloaded twice, pausing and carrying on, a final report replacing a preliminary one, retries, days before the window removed, nothing done before it is configured or in a replay) |
 | `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
 | `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions within the plan's limit (trades before quotes, halving after a `405`), refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed; option contract lists and chains against the sample chains (live in the drift job); the account, positions, equity curves, activities, option greeks, orders and order events against the sample account (reconciled to the cent) or a live recording; the order desk against a fake broker: an order (and a spread, as one `mleg` order) goes in once, a lost answer is looked up rather than resent, an order that never arrived goes again under the same id (and a late arrival is found, not duplicated), rejections, rate limits, unknown fates, cancels, replaces and the kill switch, nothing new sent while trading is off, replacements held to their approval, with keys kept out of the audit log |
 | `mt-news` | RSS 2.0, RSS 1.0 and Atom (CDATA, escaped HTML, entities, dates, Atom links, no article bodies); every built-in feed against its recording (sample text in the feed's real structure; live in the drift job via `MT_FIXTURES`); identities, merging, combining, keyword rules, config overrides, read marks |

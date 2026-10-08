@@ -9,12 +9,17 @@
 //!   failing fixture test points at the parser to fix.
 //! - [`queries`]: `mt_data::Query` implementations that tie the two together,
 //!   reached through the [`Miso`] facade.
+//!
+//! [`history`] keeps the day store to a window of days and fills it in the
+//! background ([`Backfill`]).
 
 pub mod endpoints;
+pub mod history;
 pub mod parse;
 pub mod queries;
 
 pub use endpoints::MisoEndpoints;
+pub use history::{Backfill, BackfillStatus, HistoryConfig};
 pub use queries::{
     ApiQuery, ConstraintHistoryQuery, DayReportQuery, INTERVALS_PER_DAY, LmpArchiveQuery, Miso,
     RtArchiveQuery, RtBestDayQuery, RtIntradayQuery, RtPreviousDayQuery, archive_dir,

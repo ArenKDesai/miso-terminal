@@ -70,7 +70,13 @@ wait.
   span takes about an hour and a half), shows its progress in LOG and the
   status bar, can be paused, resumes where it stopped, and replaces a
   preliminary RT day when its final report appears. Nothing downloads until
-  the user starts it, as the principles ask.
+  the user starts it, as the principles ask. *Built* (the
+  [backfill](ARCHITECTURE.md#the-price-historys-backfill)): checked live that
+  MISO's reports start on 2023-01-01 (2022 answers 404) and still parse back
+  to then; MISO sends each uncompressed, about 1.3 MB, so three months is
+  about 230 MB to download and everything about 3.6 GB. The pacing is the
+  backfill's own, one report every two seconds, rather than a `Budget` on the
+  host, which panels share and would wait behind.
 - **Readers.** `node_history` reads any node from the day store, so the 90-day
   cap applies only to days not archived, and GP, SPRD, CMP and HUBS reach back
   as far as the archive does for every node, not only the exported ones. The
