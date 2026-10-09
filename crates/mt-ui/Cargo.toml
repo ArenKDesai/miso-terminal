@@ -37,6 +37,8 @@ tracing.workspace = true
 tokio.workspace = true
 # Offscreen rendering of the real app (examples/render.rs).
 egui_kittest = { version = "0.36.2", features = ["eframe", "wgpu", "snapshot"] }
+# Fonts' character maps, for the glyph coverage test (epaint already uses it).
+skrifa = "0.44"
 
 [lints]
 workspace = true

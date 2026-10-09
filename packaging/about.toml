@@ -5,7 +5,11 @@
 #
 # CI runs it on every pull request, so a dependency under a licence missing
 # here fails there rather than at release time. Add a licence only after
-# checking that it lets the crate be shipped inside an AGPL-3.0 program.
+# checking that it lets the crate be shipped inside an AGPL-3.0 program, and
+# that it is OSI-approved (https://opensource.org/licenses): code signing
+# through SignPath Foundation requires that of every component. (That is why
+# egui's default fonts, which include Ubuntu Light under the Ubuntu Font
+# Licence, are left out; see the workspace Cargo.toml.)
 
 # In order of preference, for crates that offer a choice.
 accepted = [
@@ -20,11 +24,7 @@ accepted = [
     "Unicode-3.0",
     "Unlicense",
     "0BSD",
-    "CC0-1.0",
     "MPL-2.0",
-    # The fonts egui embeds (epaint_default_fonts).
-    "OFL-1.1",
-    "Ubuntu-font-1.0",
 ]
 # What is in the Windows executable: no build tools, no test-only crates, and
 # not the workspace's own crates (the AGPL, in LICENSE).
