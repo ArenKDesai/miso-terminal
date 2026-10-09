@@ -8,7 +8,8 @@ recipes. `docs/RELEASES.md` is the plan for releases (`v0.2.0` is out; ask
 before tagging, since a `v*` tag publishes one). `docs/MARKETS-PLAN.md` is the
 plan for news, Alpaca market data, trading and portfolio tracking: phases 0
 to 5 are built, Phase 6 (live trading) is `0.4.0`. `docs/ANALYTICS-PLAN.md` is
-the plan for `0.3.0`, before the code signing application: the terminal's own
+the plan for `0.3.0`, which code signing (SignPath Foundation, RELEASES.md's
+*Signing*) does not wait for: the terminal's own
 price history (built), studies and BETA, forecasts (FCST, crate
 `mt-forecast`) and the Claude assistant (ASK, crate `mt-ai`, read-only tools
 only); its part 2, forward fill for security prices, was dropped. Keep the
@@ -235,6 +236,12 @@ keys, and anything Aren has asked to see.
   sets `MT_VERSION` (the commit added unless `MT_RELEASE=1`), and `main`
   passes it on. Tests and examples see the plain crate version, so renders
   stay stable.
+- `docs/PRIVACY.md` and `docs/CODE-SIGNING.md` are public commitments, and
+  SignPath Foundation's conditions for signing: a change that contacts a new
+  service or sends something new updates PRIVACY.md's table in the same pull
+  request. Everything in the executable stays under OSI-approved licences
+  (`packaging/about.toml` for crates; bundled fonts in `assets/fonts/` with
+  their licences); egui's default fonts stay off.
 - Python helpers run through `uv` (inline script metadata), never global pip.
 - `rust-toolchain.toml` pins the compiler for local builds, CI and releases;
   every CI build is `--locked`. Routine maintenance moves the pin to the

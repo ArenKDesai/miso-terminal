@@ -61,6 +61,10 @@ details):
   records verbatim, and it keeps nothing.
 - Orders stay behind a ticket's *Confirm*: no command, hotkey or alert may
   send one.
+- A change that contacts a new service, or sends something new, updates the
+  [privacy policy](docs/PRIVACY.md). New dependencies and bundled files need
+  OSI-approved licences (the [Code signing policy](docs/CODE-SIGNING.md)
+  depends on it).
 
 ## Reporting a problem
 

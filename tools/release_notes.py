@@ -26,6 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 REPO = "ArenKDesai/miso-terminal"
+SITE = "https://arenkdesai.github.io/miso-terminal/"
 
 
 def section(changelog: str, name: str) -> str | None:
@@ -93,7 +94,9 @@ this one run. Or skip the script and run `miso-terminal.exe` from the folder.
 **Windows SmartScreen.** Releases are not code-signed yet, so on first launch
 Windows may say *Windows protected your PC*: choose *More info*, then *Run
 anyway*. Where Smart App Control is on, Windows blocks unsigned programs
-outright until releases are signed.
+outright until releases are signed. The [Code signing
+policy]({SITE}code-signing.html) says how they will be, and the [privacy
+policy]({SITE}privacy.html) what the terminal sends where.
 
 ## Source
 

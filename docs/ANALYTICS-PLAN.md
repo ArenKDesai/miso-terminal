@@ -1,10 +1,9 @@
 # Analytics plan: history, studies, forecasts and AI
 
-The work before MISO Terminal applies for code signing, shipping as
-**`0.3.0`**: the terminal's own price history (built), studies and BETA for
-securities, forecasts (FCST), and an assistant built on Claude (ASK). The
-application to SignPath Foundation follows `0.3.0`, and live trading (markets
-Phase 6) moves to `0.4.0`, still only once releases are signed
+The work shipping as **`0.3.0`**: the terminal's own price history (built),
+studies and BETA for securities, forecasts (FCST), and an assistant built on
+Claude (ASK). Code signing goes ahead alongside it, and live trading (markets
+Phase 6) is `0.4.0`, only once releases are signed
 ([release plan](RELEASES.md#versioning)).
 
 ## Decisions
@@ -233,7 +232,9 @@ can use Anthropic's web search tool, off by default and cited when on.
 (`miso-terminal/anthropic/api-key`), sent only to `api.anthropic.com` over
 TLS and never through a redirect. The first use says what leaves the machine:
 the question, the tools' results (public market data) and, only with its own
-switch, the paper account; never keys, the audit log or files. Each answer
+switch, the paper account; never keys, the audit log or files. The
+[privacy policy](PRIVACY.md) gains Anthropic in the same pull request, and
+that first use links it (SignPath Foundation asks for both). Each answer
 shows its tokens and cost, LOG lists each request, and the monthly cap is
 enforced from the usage the API reports. Conversations stay in memory unless
 saved. Through MCP the terminal sends nothing to Anthropic itself; the paper
@@ -275,7 +276,7 @@ release, not in CI.
 - **Library churn.** augurs and Perpetual are young; each sits behind
   `mt-forecast`'s own trait.
 - **Scope.** If `0.3.0` runs long, finished parts can ship in `0.2.x`
-  releases; the signing application waits for `0.3.0` either way.
+  releases.
 
 ## Sources
 
