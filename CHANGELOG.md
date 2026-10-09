@@ -14,6 +14,17 @@ notes are that section.
 
 ### Added
 
+- **Studies on GP for securities.** *Studies* over a security's chart adds
+  simple and exponential moving averages and Bollinger bands over the price,
+  and momentum, rate of change, RSI and MACD in panes between the price and
+  the volume. Periods can be changed in the menu, the line above the chart
+  shows each study's latest value, and *Copy CSV* includes them. Typed, they
+  follow the security: `GP XLU US 365 SMA50 SMA200 RSI14`. A chart keeps its
+  studies with the layout; *Use for new charts* saves them as `[markets]
+  studies` for every new chart. Enough earlier bars are fetched for a study to
+  have a value from the first day shown; intraday studies count bars, not
+  minutes.
+
 - **Full screen.** `F11`, `Alt+Enter` or *Full screen* (top right) puts the
   terminal in full screen, over the taskbar, and back. A popped-out window has
   its own *Full screen* button and the same keys, so a second monitor can show

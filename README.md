@@ -102,7 +102,7 @@ New to the terminal? The [tutorials](docs/TUTORIALS.md) walk through it.
 | `HUBS` | Hub statistics | The eight trading hubs over N days: averages, on- and off-peak, volatility, extremes |
 | `DAM` | Day-ahead strip | Hourly DA at the hubs for a day, with block averages, or the change from the day before |
 | `MAP` | Price map | Every mapped node over a price surface and the transmission backbone, by LMP, congestion, loss, DA or RT − DA |
-| `GP` | Graph price | A node: today at five minutes against DA, N days hourly, a heatmap (`HEAT`), duration curves (`DUR`) or past five-minute days (`5MIN`), by component. A security: today, a few days or up to ten years |
+| `GP` | Graph price | A node: today at five minutes against DA, N days hourly, a heatmap (`HEAT`), duration curves (`DUR`) or past five-minute days (`5MIN`), by component. A security: today, a few days or up to ten years, with studies (moving averages, Bollinger bands, momentum, RSI, MACD) |
 | `SPRD` | Node spread | A − B between two nodes, with GP's views; congestion gives an FTR-style view |
 | `CMP` | Compare | Up to eight nodes on one chart; with securities, their prices above the nodes and how they move together (`CMP XEL US MINN.HUB 30`) |
 | `SEAM` | Seams & interfaces | PJM's CTS forecast against MISO's price, and every interface node |
@@ -234,8 +234,6 @@ The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
 - [x] **The terminal's own price history:** every daily report kept for every
       node, filled back as far as you like from SET, read by GP, SPRD, CMP and
       HUBS for any window.
-- [ ] **Studies on GP for securities:** moving averages, Bollinger bands,
-      momentum, RSI and MACD.
 - [ ] **`BETA`:** alpha, beta and rolling beta against the S&P 500 and an
       industry benchmark.
 - [ ] **`FCST`:** forecasts for DA and RT prices and for securities, with

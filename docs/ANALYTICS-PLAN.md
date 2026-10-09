@@ -54,22 +54,18 @@ bar to the next (CMP breaks intraday lines at gaps of two hours).
 
 ## 3. Studies and BETA
 
-**Studies on GP for a security.** A *Studies* menu over the price chart:
-
-- **Overlays:** simple moving averages (20, 50 and 200 by default), an
-  exponential moving average, and Bollinger bands (20 periods, two standard
-  deviations).
-- **Lower panes,** between the price and the volume: momentum and rate of
-  change, RSI (14) and MACD (12, 26, 9).
-- Each study's periods can be edited; the chosen set is the panel's (saved
-  with the layout), and new panels start from `[markets.studies]`.
-- Enough extra bars are fetched before the window to warm the studies up, so
-  a 200-day average is defined from the first day shown.
-- Daily studies count trading days. Intraday studies count the bars there
-  are: a minute with no trade has no bar on Alpaca's feed, so in a thin name
-  "20 periods" can span more than twenty minutes, and the chart says so.
-- The maths lives in `mt_core::studies`, each study tested against values
-  worked by hand.
+**Studies on GP for a security (built).** Built on 2026-10-09 (#36, #38).
+`mt_core::studies` holds the maths (SMA, EMA, Bollinger bands, momentum, rate
+of change, Wilder's RSI, MACD), each tested against values worked by hand, and
+each study's lookback. GP's *Studies* menu adds them (averages and bands over
+the price, the rest in panes above the volume) and edits their periods. A
+chart's studies ride in its route (`GP XLU US 365 SMA50 RSI14`), so the layout
+keeps them; a chart without its own follows `[markets] studies`, which *Use
+for new charts* sets (`NOSTUDIES` marks a chart whose studies were all turned
+off). Bars back to each study's lookback, rounded up to a power of two so
+editing a period rarely fetches again, are fetched before the window, so a
+200-day average has a value from the first day shown. Intraday studies count
+bars, not minutes, and the chart says so.
 
 **`BETA XLU US`**, a new function: how a security moves with a benchmark.
 
