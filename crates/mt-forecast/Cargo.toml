@@ -1,0 +1,19 @@
+[package]
+name = "mt-forecast"
+description = "Forecasts for MISO prices and securities: baselines, smoothing, gradient-boosted trees and ridge regression, backtests and conformal bands. No I/O, no UI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+mt-core.workspace = true
+chrono.workspace = true
+# Exponential smoothing and MSTL (daily and weekly seasonality), pure Rust.
+augurs-core = "0.10.2"
+augurs-ets = { version = "0.10.2", features = ["mstl"] }
+augurs-mstl = "0.10.2"
+
+[lints]
+workspace = true

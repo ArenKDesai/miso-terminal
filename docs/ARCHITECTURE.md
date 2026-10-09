@@ -38,8 +38,9 @@ AGPL-3.0.
 ```
 
 Dependencies point downward only. `mt-core`, `mt-data`, the sources (`mt-miso`,
-`mt-nws`, `mt-eia`, `mt-news`, `mt-alpaca`) and `mt-theme` know nothing about
-egui, and CI tests them on Linux to keep them portable. A second front end (a
+`mt-nws`, `mt-eia`, `mt-news`, `mt-alpaca`), `mt-forecast` (forecasting
+maths on `mt-core`: models, backtests and bands, with no I/O) and `mt-theme`
+know nothing about egui, and CI tests them on Linux to keep them portable. A second front end (a
 TUI, a web view, a CLI exporter) could reuse them unchanged.
 
 ## Data flow
@@ -437,6 +438,7 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 | `mt-miso` | Every parser against a recording in `fixtures/` (structure and sanity, so re-recording keeps them green); the day store, the stored-prices reader and the backfill against a fake MISO |
 | `mt-nws`, `mt-eia`, `mt-news` | Parsers against recordings (news as sample text in the feeds' real structure); merging, topics and read marks |
 | `mt-alpaca` | Every dataset against recordings with synthetic prices and the made-up account; stream subscriptions within the plan's limit; the order desk against a fake broker (an order goes in once, lost answers looked up, rejections, cancels, replaces, the kill switch, nothing sent while trading is off) |
+| `mt-forecast` | Holidays, gap filling and quantiles; each model against series worked by hand (naive days, profiles, smoothing a known shape, a random walk's bands, GARCH recovering simulated parameters); backtests that see only what was known, accuracy and conformal bands scored out of sample |
 | `mt-theme` | Built-ins parse, validate and round-trip; contrast maths |
 | `mt-ui` | Commands and completion; every earlier release's `config.toml` loading; the alert engine; series maths; a **headless smoke test** rendering and tessellating every function in every theme, with and without data; the shell's commands and shortcuts; commands from outside the window opening tickets with nothing but GETs sent |
 | visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen, compared with committed images |
