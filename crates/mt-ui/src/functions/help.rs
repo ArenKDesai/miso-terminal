@@ -44,6 +44,10 @@ pub const SHORTCUTS: &[(&str, &str)] = &[
         "Zoom the panel to fill the window, and back",
     ),
     (
+        "F11 / Alt+Enter",
+        "Full screen, and back; in a popped-out window, that window (a command bound to F11 runs instead; Alt+Enter still works)",
+    ),
+    (
         "Right-click a tab",
         "Zoom, open in a new window, copy as an image, or save as PNG",
     ),

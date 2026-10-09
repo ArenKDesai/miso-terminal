@@ -955,6 +955,95 @@ fn the_headline_browser_previews_filters_and_opens() {
 }
 
 #[test]
+fn f11_and_alt_enter_toggle_full_screen() {
+    let rt = runtime();
+    let key = |key, modifiers| egui::Event::Key {
+        key,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers,
+    };
+    // Run a frame with these events; the full-screen commands it sent.
+    let frame = |app: &mut TerminalApp, ctx: &egui::Context, events| -> Vec<bool> {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1600.0, 960.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        let mut frame = eframe::Frame::_new_kittest();
+        let out = ctx.run_ui(input, |ui| app.ui(ui, &mut frame));
+        let sent = out
+            .viewport_output
+            .get(&egui::ViewportId::ROOT)
+            .map(|v| {
+                v.commands
+                    .iter()
+                    .filter_map(|c| match c {
+                        egui::ViewportCommand::Fullscreen(on) => Some(*on),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        finish_frame(ctx, out);
+        sent
+    };
+    for f11_bound in [false, true] {
+        let mut config = AppConfig::default();
+        if f11_bound {
+            config.ui.hotkeys.insert("F11".into(), "LOG".into());
+        }
+        let ctx = egui::Context::default();
+        let deps = Deps {
+            hub: hub(&rt),
+            config,
+            config_error: None,
+            paths: temp_paths(&format!("fullscreen-{f11_bound}")),
+            reset_layout: true,
+            startup_commands: Vec::new(),
+            remote: None,
+            notifier: None,
+        };
+        let mut app = TerminalApp::headless(&ctx, deps);
+        frame(&mut app, &ctx, Vec::new());
+        let f11 = frame(
+            &mut app,
+            &ctx,
+            vec![key(egui::Key::F11, egui::Modifiers::NONE)],
+        );
+        if f11_bound {
+            assert!(f11.is_empty(), "a command bound to F11 keeps the key");
+            assert!(app.workspace_mut().routes().iter().any(|r| r.code == "LOG"));
+        } else {
+            assert_eq!(f11, [true]);
+            let (msg, _) = app.last_feedback().cloned().unwrap_or_default();
+            assert_eq!(msg, "Full screen: F11 or Alt+Enter to leave");
+        }
+        let alt_enter = frame(
+            &mut app,
+            &ctx,
+            vec![key(egui::Key::Enter, egui::Modifiers::ALT)],
+        );
+        assert_eq!(alt_enter, [true], "Alt+Enter always toggles");
+        if f11_bound {
+            let (msg, _) = app.last_feedback().cloned().unwrap_or_default();
+            assert_eq!(msg, "Full screen: Alt+Enter to leave");
+        }
+        let enter = frame(
+            &mut app,
+            &ctx,
+            vec![key(egui::Key::Enter, egui::Modifiers::NONE)],
+        );
+        assert!(enter.is_empty(), "plain Enter is the command line's");
+        let _ = std::fs::remove_dir_all(app.paths.config_file.parent().unwrap());
+    }
+}
+
+#[test]
 fn double_clicking_a_tab_zooms_it() {
     let rt = runtime();
     let ctx = egui::Context::default();

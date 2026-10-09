@@ -104,6 +104,9 @@ pub struct Popped {
     /// so it reopens in the same place.
     pub pos: Option<[f32; 2]>,
     pub size: Option<[f32; 2]>,
+    /// Full screen on its monitor (and reopened so).
+    #[serde(default)]
+    pub fullscreen: bool,
 }
 
 /// The OS window showing a popped-out tab.
@@ -170,6 +173,7 @@ impl Workspace {
                 tab,
                 pos: None,
                 size: None,
+                fullscreen: false,
             });
         }
     }
@@ -535,8 +539,9 @@ pub(crate) mod tests {
         assert_eq!(ws.take_raise(), Some(map));
         assert_eq!(ws.routes().len(), before);
 
-        // Survives a save and restore (window geometry too).
+        // Survives a save and restore (window geometry and full screen too).
         ws.popped[0].pos = Some([40.0, 50.0]);
+        ws.popped[0].fullscreen = true;
         // Through eframe's own persistence, as the app saves it.
         #[derive(Default)]
         struct Memory(std::collections::HashMap<String, String>);
@@ -559,6 +564,20 @@ pub(crate) mod tests {
         let mut ws = Workspace::restore(saved);
         assert_eq!(ws.popped.len(), 1);
         assert_eq!(ws.popped[0].pos, Some([40.0, 50.0]));
+        assert!(ws.popped[0].fullscreen);
+
+        // A layout saved before full screen existed loads, windowed.
+        let saved = eframe::Storage::get_string(&storage, "workspace").unwrap();
+        let earlier = saved.replace(",fullscreen:true", "");
+        assert!(earlier.len() < saved.len(), "{saved}");
+        eframe::Storage::set_string(&mut storage, "workspace", earlier);
+        let earlier = Workspace::restore(eframe::get_value::<Workspace>(&storage, "workspace"));
+        assert_eq!(
+            earlier.popped.len(),
+            1,
+            "not replaced by the default layout"
+        );
+        assert!(!earlier.popped[0].fullscreen);
 
         ws.dock_back(map);
         assert!(ws.popped.is_empty());
