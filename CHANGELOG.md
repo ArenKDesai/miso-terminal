@@ -53,6 +53,11 @@ notes are that section.
 
 - LOG's *Clear cache* clears downloaded reports and responses only; the
   five-minute archive, the price history and saved headlines stay.
+- The terminal no longer carries egui's default fonts. Text a theme's own font
+  cannot draw falls back to IBM Plex Sans (it was Ubuntu Light), and emoji
+  still come from Noto Emoji. Everything in the program is now under
+  OSI-approved licences, which code signing through SignPath Foundation
+  requires; the font licences are in the zip's `licenses` folder.
 
 ### Removed
 

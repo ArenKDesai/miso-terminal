@@ -284,8 +284,9 @@ later version. It is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE. See [`LICENSE`](LICENSE) for the full text.
 
-The bundled fonts (IBM Plex Sans, JetBrains Mono, Space Grotesk) are under the
-SIL Open Font License 1.1; their licences are in [`assets/fonts/`](assets/fonts/).
+The bundled fonts (IBM Plex Sans, JetBrains Mono, Space Grotesk, Noto Emoji)
+are under the SIL Open Font License 1.1, and emoji-icon-font under the MIT
+licence; their licences are in [`assets/fonts/`](assets/fonts/).
 Market data comes from MISO, the National Weather Service and the EIA, and is
 subject to their terms. Stock and ETF prices come from Alpaca under each user's
 own account and its terms; the repository's recordings of them hold synthetic

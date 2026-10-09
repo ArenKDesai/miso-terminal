@@ -74,7 +74,7 @@ jobs:
           Copy-Item target/release/miso-terminal.exe, README.md, CHANGELOG.md, LICENSE, THIRD-PARTY-NOTICES.html, packaging/install.ps1 $dir
           Copy-Item -Recurse fixtures "$dir/fixtures"   # recorded data for --offline
           Remove-Item -Recurse "$dir/fixtures/compat"    # test data, not for --offline
-          Copy-Item assets/fonts/*-OFL.txt "$dir/licenses"
+          Copy-Item assets/fonts/*.txt "$dir/licenses"   # the bundled fonts' licences
           # Windows' own bsdtar: Compress-Archive (and .NET Framework's
           # ZipFile) write backslashes as path separators, which other unzip
           # tools mishandle. (On the runner, `tar` alone would be Git's.)

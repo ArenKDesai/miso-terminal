@@ -24,8 +24,11 @@ mt-theme = { path = "crates/mt-theme" }
 mt-ui = { path = "crates/mt-ui" }
 
 # UI. egui, eframe, egui_extras, egui_plot and egui_dock move in lockstep; bump them together.
-egui = "0.36"
-eframe = { version = "0.36", features = ["persistence"] }
+# Without egui's default fonts: they include Ubuntu Light, whose licence is not
+# OSI-approved (code signing through SignPath Foundation needs every component
+# to be). mt-ui's fonts module bundles the fonts the terminal uses instead.
+egui = { version = "0.36", default-features = false }
+eframe = { version = "0.36", default-features = false, features = ["accesskit", "links", "wgpu", "wayland", "x11", "persistence"] }
 egui_extras = "0.36"
 egui_plot = "0.37"
 egui_dock = { version = "0.21", features = ["serde"] }
