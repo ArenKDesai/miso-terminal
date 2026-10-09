@@ -56,8 +56,8 @@ notes are that section.
 - The terminal no longer carries egui's default fonts. Text a theme's own font
   cannot draw falls back to IBM Plex Sans (it was Ubuntu Light), and emoji
   still come from Noto Emoji. Everything in the program is now under
-  OSI-approved licences, which code signing through SignPath Foundation
-  requires; the font licences are in the zip's `licenses` folder.
+  OSI-approved licences; the font licences are in the zip's `licenses`
+  folder.
 
 ### Removed
 

@@ -63,8 +63,7 @@ maintainer's included, is a short-lived branch (`fix/gas-workbook`,
   `--version` at a prompt prints only when piped (`miso-terminal --version |
   more`).
 - **`0.3.0`** is the [analytics plan](ANALYTICS-PLAN.md) with the update
-  check; [signing](#signing) does not wait for it. **`0.4.0`** is live
-  trading (markets Phase 6), only once releases are signed. Patch releases come
+  check. **`0.4.0`** is live trading (markets Phase 6). Patch releases come
   as needed; there is no fixed calendar.
 - Release candidates are tagged `v0.3.0-rc.1`, carry that version in
   `Cargo.toml`, and are published as GitHub pre-releases.
@@ -141,44 +140,29 @@ with the next release.
 
 ## Signing
 
-Unsigned executables meet SmartScreen's warning, and Smart App Control (on by
-default on some new Windows 11 installations) blocks them outright. MISO
-Terminal is applying to **SignPath Foundation**, which signs open-source
-projects free of charge: SignPath's service signs what the release workflow
-built, with the Foundation's certificate, once the maintainer approves the
-request. The [Code signing policy](CODE-SIGNING.md) is the public side of
-it. The Foundation's [conditions](https://signpath.org/terms), and where the
-project stands:
+Releases are not code-signed, and there is no plan to sign them. Unsigned
+executables meet SmartScreen's warning, and Smart App Control (on by default
+on some new Windows 11 installations) blocks them outright; the notes explain
+the prompt. Each release's checksum and build attestation are how to check
+that a download came from this repository.
 
-- **OSI-approved licences for every component.** The AGPL, and
-  `packaging/about.toml` accepts only OSI-approved licences for the crates
-  (egui's default fonts, which include Ubuntu Light, are left out for this);
-  the bundled fonts are under the OFL and MIT.
-- **Released in the form to be signed,** with its functionality described
-  on the download page: `v0.2.0`, the README and the release notes.
-- **A code signing policy** named so on the home page and the download page
-  (the README and the release notes link it), with the team's roles and a
-  [privacy policy](PRIVACY.md).
-- **Product name and version in the executable** (`build.rs`), the same in
-  every build of a version.
-- **Multi-factor authentication** on GitHub and SignPath for everyone in a
-  role.
-- **A verifiable reputation:** the Foundation decides whether a program is
-  known well enough to sign, so a young project's application may have to
-  wait for users and downloads.
+Signing stays possible later, through one of:
 
-Once accepted, the release workflow sends the zip to SignPath before
-publishing; SignPath signs `miso-terminal.exe` and `install.ps1` inside it
-after the maintainer approves, and the signed zip is what gets checksummed,
-attested and published. Microsoft's Trusted Signing (a monthly fee and an
-identity check) and a conventional certificate are the alternatives. Until
-then the notes explain the SmartScreen prompt and how to check the checksum
-and attestation. **Signing must be in place before live trading ships.**
+- **SignPath Foundation,** free for open-source projects. Its
+  [conditions](https://signpath.org/terms) include OSI-approved licences for
+  every component, which the executable keeps to (`packaging/about.toml` for
+  the crates; egui's default fonts stay out), and a verifiable reputation,
+  which the Foundation judges with no appeal. An application from a project
+  few people know would likely be refused and could close this path for
+  good, so none is planned.
+- **Microsoft's Trusted Signing,** for a monthly fee and an identity check.
+- **A conventional certificate.**
 
 ## Installing and updating
 
 - The zip and `install.ps1` (per user, no administrator rights) stay the way
-  to install; an MSI or MSIX installer and a winget manifest follow signing.
+  to install; an MSI or MSIX installer and a winget manifest would follow
+  signing.
 - **An update check, off by default:** when turned on in SET, it asks
   GitHub's releases API at most once a day and shows a link to a newer
   release. It never downloads anything, and LOG shows the request.
@@ -193,11 +177,9 @@ A published tag is never moved or reused: the fix is always a new version.
 
 ## After v0.2.0
 
-1. **Signing,** alongside the work for `0.3.0`: the application to SignPath
-   Foundation, then signing in the release workflow once it is accepted.
-2. **`0.3.0`:** the [analytics plan](ANALYTICS-PLAN.md) (the price history is
+1. **`0.3.0`:** the [analytics plan](ANALYTICS-PLAN.md) (the price history is
    built; studies and BETA, forecasts and the assistant to come), the update
    check and the docs site deploying from releases, released with a candidate
    first.
-3. **`0.4.0`:** live trading (markets Phase 6), once releases are signed and
-   the open findings of the [security review](SECURITY-REVIEW.md) are closed.
+2. **`0.4.0`:** live trading (markets Phase 6), once the open findings of the
+   [security review](SECURITY-REVIEW.md) are closed.
