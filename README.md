@@ -122,6 +122,7 @@ New to the terminal? The [tutorials](docs/TUTORIALS.md) walk through it.
 | `OUT` | Generation outages | Planned and forced outages, ±5 days |
 | `Q` | Quote monitor | Live stock and ETF prices for a list (`Q`, `Q UTILITIES`, `Q XEL US AEE US`) |
 | `DES` | Security description | A security's profile, today's trading, 52-week range and returns |
+| `BETA` | Beta | How a security moves with the S&P 500 and its industry: beta, alpha, R², a scatter of returns and a rolling beta, from total returns over one to five years (`BETA VST US`, `BETA XEL US XLU US 2Y`) |
 | `OMON` | Option monitor | An option chain by expiry, with greeks; click a price to trade, right-click to build a spread |
 | `TOP` | Top stories | The Financial Times', Bloomberg's and the Washington Post's top stories |
 | `NEWS` | News search | Every headline, kept three weeks, by publisher or words |
@@ -234,8 +235,6 @@ The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
 - [x] **The terminal's own price history:** every daily report kept for every
       node, filled back as far as you like from SET, read by GP, SPRD, CMP and
       HUBS for any window.
-- [ ] **`BETA`:** alpha, beta and rolling beta against the S&P 500 and an
-      industry benchmark.
 - [ ] **`FCST`:** forecasts for DA and RT prices and for securities, with
       bands and a record against naive baselines.
 - [ ] **`ASK`:** a Claude assistant with read-only tools over the terminal's

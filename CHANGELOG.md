@@ -14,6 +14,23 @@ notes are that section.
 
 ### Added
 
+- **`BETA`: how a security moves with the market and its industry.**
+  `BETA XEL US` sets beta, adjusted beta (two thirds beta plus one third of
+  1), alpha a year, R², correlation, beta's standard error and the number of
+  returns against the S&P 500 (SPY) beside the same against the security's
+  industry, with a scatter of returns and the fitted line, and a rolling beta
+  against both. *1Y*, *2Y* and *5Y* windows, *Daily* or *Weekly* returns
+  (weekly from two years). Returns are total returns, from bars adjusted for
+  dividends, paired on the days both trade; alpha is over zero, not over a
+  risk-free rate. The built-in lists bring their industry benchmarks (XLU for
+  utilities and independent producers, XLE for gas producers); name another on
+  the command line (`BETA XEL US XLU US 2Y`), or a list's name for an
+  equal-weighted basket of it without the security (`BETA VST US
+  GENERATORS`). `[markets.benchmarks]` sets one per security
+  (`"VST US" = "GENERATORS"`), and a list under `[[markets.lists]]` can carry
+  its own `benchmark`.
+- **DES shows a year's beta** against the S&P 500; click it for `BETA`.
+
 - **Studies on GP for securities.** *Studies* over a security's chart adds
   simple and exponential moving averages and Bollinger bands over the price,
   and momentum, rate of change, RSI and MACD in panes between the price and

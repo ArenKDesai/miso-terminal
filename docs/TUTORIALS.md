@@ -347,6 +347,7 @@ tickers and company names, and after a security, the functions that take one
   *5D* is a few days at 15 minutes; *1M* to *10Y* are daily closes. Typed
   directly: `GP XEL US 365`.
 - `GP XEL US 365 SMA50 RSI14`: the same chart with studies (below).
+- `BETA XEL US`: how it moves with the S&P 500 and with its industry (below).
 - `DES XEL US`: what the company is, where it lists, how it trades with Alpaca,
   and its year's range and returns.
 - `CN XEL US`: Benzinga's stories about it, arriving live. `CN` alone covers
@@ -366,6 +367,29 @@ new charts* gives every new chart the same ones, saved in `config.toml` under
 `[markets]` as `studies = ["SMA50", "SMA200", "RSI14"]`. Daily studies count
 trading days. Intraday ones count bars, and a minute without a trade has no
 bar, so in a thinly traded name 20 periods can span more than twenty minutes.
+
+![BETA: Xcel Energy against the S&P 500 and the utilities ETF](screenshots/tutorials/beta.webp)
+
+**Measure beta.** `BETA XEL US` sets two columns side by side: Xcel against
+the S&P 500 (SPY) and against its industry (XLU, the utilities ETF). *Beta*
+is how far it moves, on average, when the benchmark moves 1%; hover a row's
+name for what it means. The scatter under the figures shows each day's pair of
+returns with the fitted line (*Returns against* switches benchmark), and the
+rolling beta beside it shows how the relationship has drifted. *2Y* and *5Y*
+use weekly returns unless you pick *Daily*. Returns include dividends, which
+matter for utilities. The industry comes from the built-in lists (XLU for
+utilities and independent producers, XLE for gas producers). Name another
+after the security (`BETA XEL US IDU US`), or a list's name to compare with
+an equal-weighted basket of the list without the security
+(`BETA VST US GENERATORS`). To make one stick, add to `config.toml`:
+
+```toml
+[markets.benchmarks]
+"VST US" = "GENERATORS"   # a list's name: an equal-weighted basket of it
+"AAPL US" = "XLK US"
+```
+
+`DES` shows the year's beta against the S&P 500; click it to open `BETA`.
 
 ![CMP: Xcel Energy above the Minnesota hub](screenshots/tutorials/cmp-securities.webp)
 
@@ -388,6 +412,7 @@ built-in one (`POWER`, `UTILITIES`, `GENERATORS`, `GAS`, `ETFS`) replaces it:
 name = "MINE"          # Q MINE
 title = "My utilities"
 symbols = ["XEL", "WEC", "AEE", "MGEE"]
+benchmark = "XLU US"   # BETA's industry for these (optional)
 ```
 
 ## Track your paper account

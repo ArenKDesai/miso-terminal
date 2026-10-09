@@ -52,7 +52,7 @@ and break lines between sessions, instead of drawing slopes across them.
 Dropped on 2026-10-08, to go straight to the studies. Charts still join one
 bar to the next (CMP breaks intraday lines at gaps of two hours).
 
-## 3. Studies and BETA
+## 3. Studies and BETA (built)
 
 **Studies on GP for a security (built).** Built on 2026-10-09 (#36, #38).
 `mt_core::studies` holds the maths (SMA, EMA, Bollinger bands, momentum, rate
@@ -67,30 +67,24 @@ editing a period rarely fetches again, are fetched before the window, so a
 200-day average has a value from the first day shown. Intraday studies count
 bars, not minutes, and the chart says so.
 
-**`BETA XLU US`**, a new function: how a security moves with a benchmark.
+**`BETA` (built).** Built on 2026-10-09 (#39, #40). `mt_core::beta` pairs
+total returns (bars adjusted for dividends, `adjustment=all`) on the days
+both series have, takes weekly returns from each week's last close, builds
+equal-weighted baskets rebalanced daily, and fits beta, alpha (per period and
+a year), R², correlation, beta's standard error and Blume's adjusted beta,
+plus a rolling beta (63 days or 26 weeks); each tested against values worked
+by hand. `BETA XEL US` sets the S&P 500 (SPY) beside the industry, with a
+scatter, its fitted line and the rolling betas, over one, two or five years
+(weekly from two). The industry is `[markets.benchmarks]` for the security,
+else the benchmark of the first list holding it (built in: XLU for
+UTILITIES and GENERATORS, XLE for GAS; POWER and ETFS have none), or one
+named on the command line: a security, or a list's name for a basket without
+the security. DES has a year's beta that opens BETA. One download of five and
+a half years serves every window and frequency.
 
-- Beta, alpha (annualised), R², correlation, beta's standard error and the
-  number of observations, against **the S&P 500** (`SPY US`: Alpaca carries
-  ETFs, not indexes) and against **its industry**, side by side.
-- A scatter of the security's returns against the benchmark's with the fitted
-  line, and a rolling beta.
-- Windows of one, two and five years; daily or weekly returns (weekly by
-  default from two years); raw and adjusted beta (two thirds raw plus one
-  third of 1).
-- **Total returns,** from bars adjusted for dividends as well as splits
-  (Alpaca's `adjustment=all`; the bars query asks for `split` today), since
-  utilities pay large dividends. Returns use the bars that exist, aligned on
-  the days both series have.
-- **Excess returns** over a risk-free rate if a clean public source of daily
-  Treasury bill rates passes the usual checks; until then alpha is over zero,
-  and the panel says so.
-- **The industry benchmark:** one set in config (`[markets.benchmarks]`,
-  `VST US = "XLU US"`), or an equal-weighted basket of a list
-  (`BETA VST US GENERATORS`). The built-in lists come with benchmarks; a
-  security with neither shows the S&P 500 alone, with a hint. No industry
-  lookup service (SEC EDGAR was considered and left out).
-- `BETA XLU US XLE US` names a benchmark directly. DES gains a beta tile that
-  opens BETA.
+Not done: excess returns over a risk-free rate. Alpha is over zero, and the
+panel says so; a daily Treasury bill source would be a new service (PRIVACY.md,
+the drift job), so it waits until it is worth one.
 
 ## 4. Forecasts (`FCST`)
 
@@ -256,7 +250,6 @@ release, not in CI.
   worked by hand.
 - BETA, FCST and ASK get snapshot tests against fixtures; ASK's renders a
   recorded conversation.
-- The drift job adds any rate source BETA uses.
 
 ## Risks
 

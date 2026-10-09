@@ -1,10 +1,11 @@
 //! DES: a security's description. What it is and where it lists (Alpaca's
 //! asset record: exchange, shortable, marginable, fractional), today's trading
-//! and its range and returns over the past year (from every exchange's daily
-//! bars).
+//! and its range, returns and beta over the past year (from every exchange's
+//! daily bars).
 
 use egui::{Grid, RichText, ScrollArea, Ui};
-use mt_alpaca::Timeframe;
+use mt_alpaca::{Adjustment, MARKET_BENCHMARK, Timeframe};
+use mt_core::beta;
 use mt_core::equity::{Asset, Bar};
 use mt_core::instrument::Security;
 
@@ -155,6 +156,29 @@ impl Panel for Des {
             .data()
             .map(|d| d.get(&sym).to_vec())
             .unwrap_or_default();
+        // A year's beta against the S&P 500, from total returns, as BETA has it.
+        let year_beta = (sym != MARKET_BENCHMARK)
+            .then(|| {
+                let q = cx
+                    .alpaca
+                    .bars(
+                        [sym.as_str(), MARKET_BENCHMARK],
+                        Timeframe::Day1,
+                        today - chrono::Duration::days(YEAR_DAYS),
+                        None,
+                    )
+                    .adjusted(Adjustment::All);
+                let snap = cx.hub.watch(&q);
+                let set = snap.data()?;
+                let first = today - chrono::Duration::days(365);
+                let of = |s: &str| beta::daily_closes(set.get(s));
+                let (own, market) = (of(&sym), of(MARKET_BENCHMARK));
+                beta::fit(&beta::paired_returns(
+                    beta::since(&own, first),
+                    beta::since(&market, first),
+                ))
+            })
+            .flatten();
 
         ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             match &asset {
@@ -254,6 +278,24 @@ impl Panel for Des {
                         let resp = widgets::stat_tile(ui, skin, label, &fmt::pct_opt(v), None);
                         if v.is_none() {
                             resp.on_hover_text("Not enough history");
+                        }
+                    }
+                    if sym != MARKET_BENCHMARK {
+                        let resp = widgets::stat_tile(
+                            ui,
+                            skin,
+                            "Beta, 1 year",
+                            &year_beta.map_or_else(|| fmt::DASH.to_owned(), |f| format!("{:.2}", f.beta)),
+                            Some(RichText::new("vs S&P 500 · BETA ›").color(skin.text_muted)),
+                        )
+                        .interact(egui::Sense::click())
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .on_hover_text(
+                            "Daily total returns against SPY over the past year. Click for BETA: \
+                             the industry, longer windows and the rolling beta",
+                        );
+                        if resp.clicked() {
+                            cx.open(Route::new("BETA", [sec.to_string()]));
                         }
                     }
                 });
