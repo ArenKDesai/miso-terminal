@@ -64,10 +64,9 @@ uninstalling keeps your settings and data. Or run `miso-terminal.exe` from the
 folder; an empty file named `portable` beside it keeps everything in a `data`
 folder there.
 
-Releases are not code-signed yet, so SmartScreen may warn on first launch
-(*More info*, then *Run anyway*), and Smart App Control blocks unsigned
-programs outright. The [Code signing policy](docs/CODE-SIGNING.md) says how
-releases will be signed.
+Releases are not code-signed ([signing](docs/RELEASES.md#signing)), so
+SmartScreen may warn on first launch (*More info*, then *Run anyway*), and
+Smart App Control blocks unsigned programs outright.
 
 ## Build from source (Windows)
 
@@ -230,14 +229,6 @@ this README, `docs/` and `themes/README.md`.
 What is built is in the [changelog](CHANGELOG.md); this is what is still to
 come, roughly in order within each area.
 
-### Code signing
-Through SignPath Foundation; the [release plan](docs/RELEASES.md#signing) has
-the steps, and the [Code signing policy](docs/CODE-SIGNING.md) the terms.
-- [ ] Apply to SignPath Foundation.
-- [ ] Sign `miso-terminal.exe` and `install.ps1` in the release workflow once
-      accepted, so SmartScreen and Smart App Control stop warning about
-      releases (SmartScreen as the certificate builds a reputation).
-
 ### 0.3.0: analytics
 The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
 - [x] **The terminal's own price history:** every daily report kept for every
@@ -257,9 +248,8 @@ The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
 
 ### After 0.3.0
 - [ ] **Live trading (0.4.0),** markets Phase 6: off by default, behind a typed
-      confirmation, after signing and the [security
-      review](docs/SECURITY-REVIEW.md)'s open findings.
-- [ ] A proper installer (MSI or MSIX) and a winget manifest, once signed.
+      confirmation, after the [security review](docs/SECURITY-REVIEW.md)'s
+      open findings.
 
 ### Data
 - [ ] Five-minute history for days the terminal was not running (MISO

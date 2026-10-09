@@ -60,5 +60,7 @@ before `0.4.0`, the release that carries them.
 - Findings 3 to 6 fixed, each with a test.
 - Live keys in their own credential entries, with a typed confirmation
   phrase and a restart to turn live on (the markets plan).
-- Signed releases ([release plan](RELEASES.md#signing)).
+- Releases stay unsigned ([release plan](RELEASES.md#signing)), so the
+  release notes say, beside live trading, to check the download's checksum
+  and attestation before entering live keys.
 - A second pass of this review over the Phase 6 changes, added here.

@@ -193,8 +193,7 @@ def layout(page: Page, pages: list[Page]) -> str:
   <a href="{BLOB}LICENSE">GNU AGPL v3 or later</a>.
   Not an official MISO product; for information only.
   This site is generated from <a href="{BLOB}{page.source}">{page.source}</a>.</p>
-  <p><a href="code-signing.html">Code signing policy</a> ·
-  <a href="privacy.html">Privacy policy</a></p>
+  <p><a href="privacy.html">Privacy policy</a></p>
 </footer>
 </body>
 </html>
@@ -306,7 +305,6 @@ def main() -> None:
         Page("markets-plan.html", "docs/MARKETS-PLAN.md", "Markets plan"),
         Page("analytics-plan.html", "docs/ANALYTICS-PLAN.md", "Analytics plan"),
         Page("releases.html", "docs/RELEASES.md", "Release plan"),
-        Page("code-signing.html", "docs/CODE-SIGNING.md", ""),
         Page("privacy.html", "docs/PRIVACY.md", ""),
     ]
     md = renderer()
