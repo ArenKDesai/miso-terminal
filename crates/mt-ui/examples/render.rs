@@ -14,8 +14,8 @@
 //!   --size WxH       window size in points (default 1600x960)
 //!   --scale F        pixels per point (default 1)
 //!   --fixtures DIR   recorded responses to replay (default: the repo's)
-//!   --cache DIR      a disk cache to read local data from (e.g. the long-history
-//!                    archive written by tools/export_history.py)
+//!   --cache DIR      a disk cache to read local data from (e.g. a price history,
+//!                    which GP, SPRD, CMP and HUBS read for days it holds)
 //!   --at TIME        freeze the clock at this market time (EST), e.g.
 //!                    "2026-10-02 16:55". Default: when the fixtures were
 //!                    recorded, so they look as they did live. `--at now`

@@ -149,7 +149,6 @@ impl Panel for Hubs {
             .map(|(h, hub)| {
                 history.pending = history.pending.max(h.pending);
                 history.prelim_days = history.prelim_days.max(h.prelim_days);
-                history.archived_days = history.archived_days.max(h.archived_days);
                 history.unstored_days = history.unstored_days.max(h.unstored_days);
                 HubRow::of(hub, &h.da, &h.rt)
             })

@@ -356,10 +356,11 @@ through Alpaca. See the
 ### Analytics and AI (0.3.0)
 The work before the application for code signing. See the
 [analytics plan](docs/ANALYTICS-PLAN.md) for the design and decisions; in order:
-- [ ] **The terminal's own price history:** every daily DA and RT report kept for
+- [x] **The terminal's own price history:** every daily DA and RT report kept for
       every node, with a backfill started from SET (three months by default,
-      back to 2023 if you like), replacing the
-      Energy-Pricing-Journalist export (`tools/export_history.py` goes).
+      back to 2023 if you like), which GP, SPRD, CMP and HUBS read for any
+      window. It replaces the Energy-Pricing-Journalist export, checked to agree
+      with it first.
 - [ ] **Forward fill for gaps in security prices:** charts hold the last price
       until the next trade and break between sessions, instead of drawing slopes
       across empty minutes and nights; return statistics keep using actual bars.
@@ -386,12 +387,10 @@ The work before the application for code signing. See the
       saved while the app runs, with yesterday completed from MISO's previous-day feed.
 - [ ] Backfill the five-minute archive for days the app was not running (MISO only
       publishes today and yesterday at five minutes; older days would need another source).
-- [x] **Long history from a local archive:** `uv run tools/export_history.py` exports
-      hourly DA and RT (since 2023-01-01) for the hubs, load zones and interfaces, or any
-      `--nodes`, from the Energy-Pricing-Journalist DuckDB into the terminal's cache.
-      GP, SPRD, CMP and HUBS then reach back up to about four years (`GP MINN.HUB 365`),
-      downloading only the days after the archive ends. Replaced in 0.3.0 by the
-      terminal's own archive (see *Analytics and AI*).
+- [x] **Long history:** GP, SPRD, CMP and HUBS reach back up to about four years
+      (`GP MINN.HUB 365`). Until 0.3.0 this came from an export of the
+      Energy-Pricing-Journalist DuckDB; now from the terminal's own price history
+      (see *Analytics and AI*).
 - [x] Hub **ex-ante LMPs** (next interval) on HOME.
 - [x] New MISO feeds: `ACE` and `RDT` (regional directional transfer vs limits).
 - [x] Net actual interchange (NSI) and reserve / sub-regional constraints (CONS).

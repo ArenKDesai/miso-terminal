@@ -10,7 +10,7 @@ data, trading and portfolio tracking: Phase 0 (foundations), Phase 1 (news),
 Phase 2 (market data), Phase 3 (the paper account), Phase 4 (paper trading)
 and Phase 5 (options) are built, the README's roadmap tracks the rest.
 `docs/ANALYTICS-PLAN.md` is the plan for `0.3.0`, before the code signing
-application: the terminal's own price history (retiring the
+application: the terminal's own price history (built; it replaced the
 Energy-Pricing-Journalist export), forward-filled security prices, studies and
 BETA, forecasts (FCST, crate `mt-forecast`) and the Claude assistant (ASK,
 crate `mt-ai`, read-only tools only); live trading moves to `0.4.0`.
@@ -40,7 +40,6 @@ $env:UPDATE_SNAPSHOTS=force; cargo test -p mt-ui --test snapshots           # ac
 uv run tools/screenshot.py out.png --run "GP MINN.HUB"   # PrintWindow capture of the app window only (live data)
 uv run tools/screenshot.py out.png --home some\dir --offline   # with a prepared config, no network
 uv run tools/build_map_asset.py        # rebuild assets/map/miso_map.json from ../3D-MISO-Map
-uv run tools/export_history.py         # long history from the EPJ DuckDB into the app's cache
 uv run tools/build_docs.py site        # the GitHub Pages docs site, from README.md, docs/ and themes/README.md
 cargo about generate --locked -c packaging/about.toml -o notices.html packaging/about.hbs   # third-party notices (cargo-about 0.9, --features cli)
 uv run tools/release_notes.py 0.2.0 --zip x.zip   # a release's notes from CHANGELOG.md (the release workflow runs it)

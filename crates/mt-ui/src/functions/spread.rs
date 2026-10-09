@@ -248,7 +248,6 @@ impl Spread {
         let pending = series::History {
             pending: ha.pending + hb.pending,
             prelim_days: ha.prelim_days.max(hb.prelim_days),
-            archived_days: ha.archived_days.min(hb.archived_days),
             unstored_days: ha.unstored_days.max(hb.unstored_days),
             ..series::History::default()
         };

@@ -132,14 +132,6 @@ impl Miso {
         RtArchiveQuery { day }
     }
 
-    /// A node's long hourly history from the local archive written by
-    /// `tools/export_history.py` (`None` when that node was not exported).
-    pub fn lmp_archive(&self, node: &str) -> LmpArchiveQuery {
-        LmpArchiveQuery {
-            node: node.to_ascii_uppercase(),
-        }
-    }
-
     /// Hourly prices at `nodes` for every day the day store holds from
     /// `first` on, read from disk (nothing is downloaded).
     pub fn stored_prices(&self, nodes: &[&str], first: NaiveDate) -> StoredPricesQuery {
@@ -456,52 +448,25 @@ pub fn prune_archive(cache: &DiskCache, keep_days: u32, today: NaiveDate) -> usi
         .count()
 }
 
-/// Where `tools/export_history.py` puts a node's history in the disk cache.
-pub fn lmp_archive_key(node: &str) -> String {
-    format!("local://archive/lmp/{node}")
-}
-
-/// The long-history archive's directory in `cache` (exempt from the size cap,
-/// like the five-minute archive).
-pub fn lmp_archive_dir(cache: &DiskCache) -> PathBuf {
+/// Where `tools/export_history.py` (retired in 0.3.0) wrote nodes' long
+/// history in the disk cache. The price history replaces it, and
+/// [`discard_exported_history`] removes what is left.
+fn exported_history_dir(cache: &DiskCache) -> PathBuf {
     cache
-        .path_for(&lmp_archive_key("X"))
+        .path_for("local://archive/lmp/X")
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_default()
 }
 
-/// A node's exported long history, read from disk once per run.
-#[derive(Clone, Debug)]
-pub struct LmpArchiveQuery {
-    node: String,
-}
-
-impl Query for LmpArchiveQuery {
-    type Output = Option<HourlyArchive>;
-
-    fn key(&self) -> String {
-        format!("archive/lmp/{}", self.node)
-    }
-
-    fn label(&self) -> String {
-        format!("LMP archive, {}", self.node)
-    }
-
-    fn freshness(&self, _: &Option<HourlyArchive>) -> Freshness {
-        // Exports happen outside the app; a restart picks up new files.
-        Freshness::Forever
-    }
-
-    async fn fetch(
-        &self,
-        ctx: FetchCtx,
-        _prev: Option<Arc<Option<HourlyArchive>>>,
-    ) -> Result<Option<HourlyArchive>, FetchError> {
-        Ok(ctx
-            .local_get(&lmp_archive_key(&self.node))
-            .await
-            .and_then(|b| HourlyArchive::from_bytes(&b)))
+/// Remove the files the retired `tools/export_history.py` exported, at
+/// launch. Returns how many there were. Blocking.
+pub fn discard_exported_history(cache: &DiskCache) -> usize {
+    let dir = exported_history_dir(cache);
+    let files = std::fs::read_dir(&dir).map_or(0, Iterator::count);
+    match files > 0 && std::fs::remove_dir_all(&dir).is_ok() {
+        true => files,
+        false => 0,
     }
 }
 

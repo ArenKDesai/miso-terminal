@@ -24,8 +24,7 @@ notes are that section.
   it downloads is kept for every node (about 170 KB a day per market, outside
   the cache's size cap), so a day is downloaded once and charts reopen
   without waiting. An RT day keeps its preliminary prices until the final
-  report replaces them. This is the start of history without the
-  Energy-Pricing-Journalist export.
+  report replaces them.
 - **Download the price history.** SET's new *Price history* section chooses
   how far back to keep (three months by default, up to everything since
   2023-01-01, MISO's first day) and shows what is stored. *Download now*
@@ -48,6 +47,14 @@ notes are that section.
 
 - LOG's *Clear cache* clears downloaded reports and responses only; the
   five-minute archive, the price history and saved headlines stay.
+
+### Removed
+
+- `tools/export_history.py` and reading what it exported: the price history
+  replaces the Energy-Pricing-Journalist export (compared first: they agree
+  on every settled price). Files it exported are deleted when the terminal
+  starts; *Download now* in SET (*Price history*) fetches the same days from
+  MISO.
 
 ### Fixed
 

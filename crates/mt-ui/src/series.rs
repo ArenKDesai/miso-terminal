@@ -164,8 +164,6 @@ pub struct History {
     pub pending: usize,
     /// Days whose RT is preliminary (final reports trail about a week).
     pub prelim_days: usize,
-    /// Days read from the exported archive (`tools/export_history.py`).
-    pub archived_days: usize,
     /// Days in the window the price history does not hold that are too old
     /// for a chart to download ([`DOWNLOAD_DAYS`]): SET's *Price history*
     /// fills them.
@@ -222,24 +220,6 @@ fn one_history(
     stored: &StoredPrices,
 ) -> History {
     let mut h = History::default();
-    // The exported archive (tools/export_history.py) covers days the store
-    // lacks.
-    let archive = cx.hub.watch(&cx.miso.lmp_archive(node));
-    if archive.data.is_none() && archive.error.is_none() {
-        h.pending += 1; // a local read; decides what to download
-        return h;
-    }
-    let archive = archive.data().and_then(Option::as_ref);
-    let covered = |market: Market, day: NaiveDate| {
-        archive
-            .filter(|a| day >= a.first_day() && a.last_day(market).is_some_and(|last| day <= last))
-    };
-    let pick = |rows: Vec<(NaiveDateTime, f32, f32, f32)>| -> Points {
-        rows.into_iter()
-            .map(|(t, l, c, m)| (t, f64::from(component.pick(l, c, m))))
-            .filter(|(_, v)| v.is_finite())
-            .collect()
-    };
     let from_store = |market: Market, day: NaiveDate| -> Points {
         stored
             .row(node, market, day)
@@ -250,13 +230,10 @@ fn one_history(
     let mut unstored = std::collections::BTreeSet::new();
     let mut day = first;
     while day <= today + Duration::days(1) {
-        // DA ex-post: stored, else exported, else downloaded if recent. A
-        // stored day without this node has nothing to download either.
+        // DA ex-post: stored, else downloaded if recent. A stored day without
+        // this node has nothing to download either.
         if stored.stored(Market::DayAhead, day).is_some() {
             h.da.extend(from_store(Market::DayAhead, day));
-        } else if let Some(a) = covered(Market::DayAhead, day) {
-            h.da.extend(pick(a.day(Market::DayAhead, day)));
-            h.archived_days += 1;
         } else if day >= download_from {
             let d = cx
                 .hub
@@ -272,8 +249,6 @@ fn one_history(
             let kind = stored.stored(Market::RealTime, day);
             if kind == Some(DayReportKind::RtFinal) {
                 h.rt.extend(from_store(Market::RealTime, day));
-            } else if let Some(a) = covered(Market::RealTime, day) {
-                h.rt.extend(pick(a.day(Market::RealTime, day)));
             } else if day >= download_from {
                 let r = cx.hub.watch(&cx.miso.rt_best_day(day));
                 h.pending += usize::from(r.data.is_none() && r.error.is_none());

@@ -174,9 +174,8 @@ size or modified time changed (`DiskCache::read` leaves the time alone, so a
 read is not a change), which is how a final RT report written over a
 preliminary one, or a day the backfill adds, shows up.
 `series::nodes_history` (and `node_history`, for one node) then takes each
-day from the first source that has it: the store, the exported archive (below),
-or a download, which only the last 90 days get (`DOWNLOAD_DAYS`, two reports a
-day of every node). A stored day without the node is not downloaded again,
+day from the store, else from a download, which only the last 90 days get
+(`DOWNLOAD_DAYS`, two reports a day of every node). A stored day without the node is not downloaded again,
 and a preliminary RT day recent enough to download is asked for again, since
 its final may be out. Older days the store lacks are counted (`unstored_days`)
 and the chart points to SET's *Price history*.
@@ -211,15 +210,11 @@ The pacing is the backfill's own rather than a `Budget` on
 `docs.misoenergy.org`: a budget is shared by every request to the host, and
 would make a long GP window wait behind the backfill.
 
-### Long history
-
-`tools/export_history.py` exports hourly DA and RT prices per node from the
-Energy-Pricing-Journalist DuckDB into the cache (`local://archive/lmp/<node>`,
-exempt from the size cap). `LmpArchiveQuery` reads a node's file once per run,
-and `series::node_history` takes the days the day store lacks from it. The
-DuckDB is linked by the script, not the app, which keeps a large C++ build out
-of the terminal. The day store and its backfill replace it; the export goes
-once the two have been compared.
+The store replaced an export from the Energy-Pricing-Journalist DuckDB
+(`tools/export_history.py`, until 0.3.0): compared over every node, hour and
+component of 78 DA and 77 RT days from 2023-01-01 to 2026-09-04, the two
+agree wherever both hold settled prices. At launch, `discard_exported_history`
+removes the files the export left in the cache (`archive/lmp`).
 
 ### News
 

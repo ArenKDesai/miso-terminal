@@ -15,7 +15,6 @@
 //! keyword topics are in [`news`].
 
 pub mod account;
-pub mod archive;
 pub mod constraints;
 pub mod equity;
 pub mod exchange;
@@ -34,7 +33,6 @@ pub mod seams;
 pub mod time;
 pub mod weather;
 
-pub use archive::*;
 pub use constraints::*;
 pub use fuels::*;
 pub use grid::*;

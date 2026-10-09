@@ -619,16 +619,6 @@ pub(crate) fn history_notes(
                 .color(skin.text_muted),
             );
         }
-        if h.archived_days > 0 {
-            ui.label(
-                RichText::new(format!(
-                    "{} day(s) from the local archive.",
-                    h.archived_days
-                ))
-                .small()
-                .color(skin.text_muted),
-            );
-        }
         if h.unstored_days > 0 {
             ui.label(
                 RichText::new(format!(
