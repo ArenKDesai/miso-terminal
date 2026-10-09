@@ -46,6 +46,9 @@ pub enum AppCommand {
     ToggleZoom,
     /// Fill the window with this tab (or go back to the layout with `None`).
     Zoom(Option<u64>),
+    /// Put the main window in full screen (borderless, over the taskbar),
+    /// or take it out.
+    ToggleFullscreen,
     /// Move this tab into its own OS window.
     PopOut(u64),
     /// Put a popped-out tab back in the dock.

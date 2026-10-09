@@ -14,8 +14,8 @@ confirmed on a ticket (see the [markets plan](docs/MARKETS-PLAN.md)).
 - **Command line first.** Type `LMP`, `GP MINN.HUB`, `MINN.HUB GP 14`, or just a
   node name, then press Enter. Completion covers every function and every pricing node.
 - **Tiled, tabbed workspace.** Drag tabs to split panes, zoom one to the whole
-  window (`Ctrl+M`), or pop it out onto a second monitor. Your layout is saved
-  between sessions.
+  window (`Ctrl+M`), or pop it out onto a second monitor; any window goes full
+  screen (`F11`). Your layout is saved between sessions.
 - **Live.** Real-time feeds refresh once a minute (MISO's limit). Daily market
   reports are cached on disk, so history loads instantly the second time, and an
   optional local archive reaches back to 2023. Alerts arrive as Windows notifications.
@@ -164,10 +164,13 @@ as an image or save it as a PNG (to `Pictures\MISO Terminal`).
 
 Keyboard: `Ctrl+K` or `Esc` focuses the command line, `Enter` runs it, `Tab`/`↑`/`↓`
 pick a suggestion, `F1` opens help, `F5` refreshes every open feed,
-`Ctrl+Tab` / `Ctrl+Shift+Tab` cycle tabs, `Ctrl+W` closes one, and
-`Ctrl+Shift+L` resets the layout. Function keys open functions: F2 HOME, F3 LMP,
+`Ctrl+Tab` / `Ctrl+Shift+Tab` cycle tabs, `Ctrl+W` closes one,
+`Ctrl+Shift+L` resets the layout, and `F11` or `Alt+Enter` (or *Full screen*,
+top right) puts the window in full screen and back; in a popped-out window,
+that window. Function keys open functions: F2 HOME, F3 LMP,
 F4 MAP, F6 WL, F7 HUBS, F8 WX, F9 ALRT and F10 LOG by default. Remap them, or
-bind any command (`F11 = "GP ALTE.ALTE 14"`), under `[ui.hotkeys]` in config.toml.
+bind any command (`F12 = "GP ALTE.ALTE 14"`), under `[ui.hotkeys]` in config.toml;
+a command bound to F11 takes it over from full screen (`Alt+Enter` still works).
 In a headline list (TOP, NEWS, NI), click a headline, then `↑`/`↓` move,
 `PgUp`/`PgDn`/`Home`/`End` jump, and `Enter` opens the article in your browser.
 

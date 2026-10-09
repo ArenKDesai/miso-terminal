@@ -51,6 +51,14 @@ when you close the terminal.
 - **Pop one out.** Right-click a tab title and choose *Open in new window* to
   put it on a second monitor. Close that window, or press *Dock*, to bring it
   back. It reopens where you left it next time.
+- **Full screen.** `F11`, `Alt+Enter` or *Full screen* (top right) fills the
+  monitor with the terminal, over the taskbar; the same again comes back. In
+  a popped-out window they fill that window's monitor instead (its own *Full
+  screen* button is next to *Dock*), so a second screen can show one panel
+  edge to edge. Each window reopens in full screen if you left it so. With
+  zoom (`Ctrl+M`) on top, one panel has the whole screen. If you bind a
+  command to `F11` under `[ui.hotkeys]`, the key runs it and `Alt+Enter`
+  stays for full screen.
 - **Start over.** *Reset layout* (top right, or `Ctrl+Shift+L`) restores the
   default arrangement. `--reset-layout` does the same at startup.
 
@@ -606,12 +614,13 @@ defaults. Change a line, or add one, to bind any command to a function key:
 F2 = "HOME"
 F3 = "LMP"
 F4 = "MAP MCC"     # was MAP
+F9 = "SPRD MINN.HUB ILLINOIS.HUB 7 HEAT"   # was ALRT
 # … the other defaults …
-F11 = "GP ALTE.ALTE 14"
-F12 = "SPRD MINN.HUB ILLINOIS.HUB 7 HEAT"
+F12 = "GP ALTE.ALTE 14"
 ```
 
-`F1` (help) and `F5` (refresh) are fixed. HELP lists your current bindings and
+`F1` (help) and `F5` (refresh) are fixed. `F11` is full screen until you bind
+a command to it (then `Alt+Enter` is). HELP lists your current bindings and
 runs them on a click.
 
 **Themes.** `THEME` switches, previews and contrast-checks themes.

@@ -29,8 +29,9 @@ const THEME_POLL: Duration = Duration::from_secs(2);
 const GC_EVERY: Duration = Duration::from_secs(60);
 const GC_IDLE: Duration = Duration::from_secs(15 * 60);
 const INTRADAY_SAVE_EVERY: Duration = Duration::from_secs(5 * 60);
-/// Space kept free on the right of the top bar for Functions / Theme / Reset layout.
-const MENU_BUTTONS_WIDTH: f32 = 290.0;
+/// Space kept free on the right of the top bar for Functions / Theme / Reset
+/// layout / Full screen (about 290 points, 320 when it reads *Exit full screen*).
+const MENU_BUTTONS_WIDTH: f32 = 340.0;
 
 /// What the binary hands the UI.
 pub struct Deps {
@@ -671,6 +672,14 @@ impl TerminalApp {
                 AppCommand::CloseTab => self.workspace.close_focused(),
                 AppCommand::CycleTab(forward) => self.workspace.cycle_focused(forward),
                 AppCommand::ToggleZoom => self.workspace.toggle_zoom(),
+                AppCommand::ToggleFullscreen => {
+                    let on = !is_fullscreen(ctx);
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(on));
+                    if on {
+                        let keys = self.fullscreen_keys();
+                        self.feedback(format!("Full screen: {keys} to leave"), false);
+                    }
+                }
                 AppCommand::PopOut(tab) => self.workspace.pop_out(tab),
                 AppCommand::DockBack(tab) => self.workspace.dock_back(tab),
                 AppCommand::Zoom(tab) => self.workspace.zoom(tab),
@@ -843,7 +852,27 @@ impl TerminalApp {
         }
     }
 
+    /// Whether a command is bound to F11, which then runs it rather than
+    /// toggling full screen.
+    fn f11_bound(&self) -> bool {
+        self.config
+            .ui
+            .hotkeys
+            .keys()
+            .any(|k| Key::from_name(k) == Some(Key::F11))
+    }
+
+    /// The keys that toggle full screen, as hints name them.
+    fn fullscreen_keys(&self) -> &'static str {
+        if self.f11_bound() {
+            "Alt+Enter"
+        } else {
+            "F11 or Alt+Enter"
+        }
+    }
+
     fn shortcuts(&mut self, ctx: &egui::Context, commands: &mut Vec<AppCommand>) {
+        let f11_free = !self.f11_bound();
         ctx.input_mut(|i| {
             if i.consume_key(egui::Modifiers::COMMAND, Key::K) {
                 self.cmd.focus = true;
@@ -869,6 +898,9 @@ impl TerminalApp {
                     commands.push(AppCommand::Run(command.clone()));
                 }
             }
+            if fullscreen_key(i, f11_free) {
+                commands.push(AppCommand::ToggleFullscreen);
+            }
             if i.consume_key(egui::Modifiers::NONE, Key::F5) {
                 commands.push(AppCommand::RefreshWatched);
             }
@@ -889,6 +921,7 @@ impl TerminalApp {
 
     fn top_bar(&mut self, ui: &mut Ui, commands: &mut Vec<AppCommand>) {
         let skin = self.skin.clone();
+        let fullscreen_keys = self.fullscreen_keys();
         ui.horizontal(|ui| {
             ui.label(RichText::new("MISO").heading().strong().color(skin.accent));
             ui.label(RichText::new("TERMINAL").heading().color(skin.text_muted));
@@ -931,6 +964,13 @@ impl TerminalApp {
                 {
                     commands.push(AppCommand::ResetLayout);
                 }
+                let label = match is_fullscreen(ui.ctx()) {
+                    true => "Exit full screen",
+                    false => "Full screen",
+                };
+                if ui.button(label).on_hover_text(fullscreen_keys).clicked() {
+                    commands.push(AppCommand::ToggleFullscreen);
+                }
             });
         });
         self.ticker(ui, &skin, commands);
@@ -953,7 +993,8 @@ impl TerminalApp {
             .hint_text(
                 "type a function, node or security, e.g. LMP, GP MINN.HUB, XLU US — Enter to go",
             )
-            .desired_width((ui.available_width() - 330.0).clamp(240.0, 720.0))
+            // Leaves room for the buttons and a line of feedback or usage.
+            .desired_width((ui.available_width() - MENU_BUTTONS_WIDTH - 140.0).clamp(240.0, 720.0))
             .lock_focus(true);
         let resp = ui.add(edit);
         if std::mem::take(&mut self.cmd.focus) {
@@ -1357,8 +1398,9 @@ impl eframe::App for TerminalApp {
                         .show_inside(ui, &mut Viewer { cx: &mut cx });
                 }
             });
+        let f11_free = !self.f11_bound();
         for popped in &mut self.workspace.popped {
-            if popout_window(&ctx, &mut cx, popped) {
+            if popout_window(&ctx, &mut cx, popped, f11_free) {
                 cx.send(AppCommand::DockBack(popped.tab.id));
             }
         }
@@ -1384,25 +1426,32 @@ impl eframe::App for TerminalApp {
 
 /// A popped-out tab in its own OS window (or, where the platform has no extra
 /// windows, a floating one). Returns whether it should go back in the dock.
+/// `f11_free`: no command is bound to F11, so it toggles full screen here too.
 fn popout_window(
     ctx: &egui::Context,
     cx: &mut PanelCx<'_>,
     popped: &mut crate::workspace::Popped,
+    f11_free: bool,
 ) -> bool {
     let skin = cx.skin;
     let title = popped.tab.title(cx.registry);
+    // Full screen follows `popped.fullscreen`: egui applies a change of it.
     let mut builder = egui::ViewportBuilder::default()
         .with_title(format!("{title} · MISO Terminal"))
         .with_inner_size(popped.size.unwrap_or([960.0, 640.0]))
-        .with_min_inner_size([360.0, 240.0]);
+        .with_min_inner_size([360.0, 240.0])
+        .with_fullscreen(popped.fullscreen);
     if let Some(pos) = popped.pos {
         builder = builder.with_position(pos);
     }
     let id = crate::workspace::popout_viewport(popped.tab.id);
+    let fullscreen = popped.fullscreen;
     ctx.show_viewport_immediate(id, builder, |ui, class| {
         let pad = skin.theme.style.padding;
+        let embedded = class == egui::ViewportClass::EmbeddedWindow;
+        // (dock back, toggle full screen)
         let mut body = |ui: &mut Ui| {
-            let mut dock_back = false;
+            let (mut dock_back, mut toggle) = (false, false);
             ui.horizontal(|ui| {
                 ui.label(RichText::new(&title).strong().color(skin.accent));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -1410,18 +1459,34 @@ fn popout_window(
                         .small_button("Dock")
                         .on_hover_text("Put this panel back in the main window")
                         .clicked();
+                    // A floating window inside the main one has no screen of its own.
+                    if !embedded {
+                        let label = if fullscreen {
+                            "Exit full screen"
+                        } else {
+                            "Full screen"
+                        };
+                        toggle = ui
+                            .small_button(label)
+                            .on_hover_text(if f11_free {
+                                "F11 or Alt+Enter"
+                            } else {
+                                "Alt+Enter"
+                            })
+                            .clicked();
+                    }
                 });
             });
             popped.tab.set_body_rect(ui.max_rect().expand(pad));
             crate::workspace::draw_tab(ui, cx, &mut popped.tab);
-            dock_back
+            (dock_back, toggle)
         };
-        if class == egui::ViewportClass::EmbeddedWindow {
+        if embedded {
             // Already inside a floating egui window in the main viewport, whose
             // geometry and close state are the main window's: not ours to keep.
-            return body(ui);
+            return body(ui).0;
         }
-        let dock_back = egui::CentralPanel::default()
+        let (dock_back, clicked) = egui::CentralPanel::default()
             .frame(
                 Frame::new()
                     .fill(skin.background)
@@ -1429,18 +1494,36 @@ fn popout_window(
             )
             .show(ui, |ui| body(ui))
             .inner;
-        // Remember where it is, to reopen it there.
+        if clicked || ui.ctx().input_mut(|i| fullscreen_key(i, f11_free)) {
+            popped.fullscreen = !popped.fullscreen;
+        }
+        // Remember where it is, to reopen it there (the windowed size, not
+        // the screen it fills).
         ui.ctx().input(|i| {
             let v = i.viewport();
-            if let Some(r) = v.outer_rect {
-                popped.pos = Some([r.min.x, r.min.y]);
-            }
-            if let Some(r) = v.inner_rect {
-                popped.size = Some([r.width(), r.height()]);
+            if !fullscreen && v.fullscreen != Some(true) {
+                if let Some(r) = v.outer_rect {
+                    popped.pos = Some([r.min.x, r.min.y]);
+                }
+                if let Some(r) = v.inner_rect {
+                    popped.size = Some([r.width(), r.height()]);
+                }
             }
             dock_back || v.close_requested()
         })
     })
+}
+
+/// Whether the viewport `ctx` is drawing is in full screen.
+fn is_fullscreen(ctx: &egui::Context) -> bool {
+    ctx.input(|i| i.viewport().fullscreen.unwrap_or(false))
+}
+
+/// F11 (when no command is bound to it) or Alt+Enter was pressed: toggle full
+/// screen. Consumes the key.
+fn fullscreen_key(i: &mut egui::InputState, f11_free: bool) -> bool {
+    (f11_free && i.consume_key(egui::Modifiers::NONE, Key::F11))
+        || i.consume_key(egui::Modifiers::ALT, Key::Enter)
 }
 
 /// One tab filling the window, with a strip to go back to the layout.
