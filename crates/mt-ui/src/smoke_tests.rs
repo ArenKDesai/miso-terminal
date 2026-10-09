@@ -119,6 +119,14 @@ fn routes(registry: &Registry) -> Vec<Route> {
         ));
     }
     out.push(Route::new("GP", ["XLU US", "NOSTUDIES"]));
+    // Beta: the industry from a list, a named one, a basket, weekly and
+    // daily, the S&P 500 itself, and benchmarks that resolve to nothing.
+    out.push(Route::new("BETA", ["XEL US"]));
+    out.push(Route::new("BETA", ["XLU US", "XLE US", "2Y"]));
+    out.push(Route::new("BETA", ["VST US", "GENERATORS", "5Y", "DAILY"]));
+    out.push(Route::new("BETA", ["SPY US"]));
+    out.push(Route::new("BETA", ["XEL US", "NOTALIST"]));
+    out.push(Route::new("BETA", ["NOTATICKER US"]));
     out.push(Route::new("GP", ["NOTATICKER US"]));
     out.push(Route::new("DES", ["XLU US"]));
     out.push(Route::new("DES", ["NOTATICKER US"]));

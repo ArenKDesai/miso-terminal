@@ -103,7 +103,9 @@ keys, and anything Aren has asked to see.
   `functions/security_chart.rs` is GP for a security (with its studies, whose
   maths and command-line words are in `mt-core/src/studies.rs`),
   `functions/cross_chart.rs` is CMP with securities (stocks above node
-  prices, daily correlations).
+  prices, daily correlations) and `functions/beta.rs` is BETA (maths in
+  `mt-core/src/beta.rs`; benchmarks in `mt-alpaca/src/config.rs`; total
+  returns from `BarsQuery::adjusted(Adjustment::All)`).
 - The paper account: `mt-core/src/account.rs` (types, marking, net delta),
   `mt-alpaca/src/account.rs` (account, positions, history, activities, option
   greeks), `mt-alpaca/src/trades.rs` (order events, binary frames),

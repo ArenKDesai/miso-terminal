@@ -8,6 +8,7 @@ mod act;
 mod alrt;
 mod asm;
 mod bch;
+mod beta;
 mod capacity;
 mod cn;
 mod compare;
@@ -76,6 +77,7 @@ pub fn all() -> Vec<FunctionSpec> {
         outages::SPEC,
         quote::SPEC,
         des::SPEC,
+        beta::SPEC,
         omon::SPEC,
         top::SPEC,
         news::SPEC,

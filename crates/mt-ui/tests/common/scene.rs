@@ -144,7 +144,12 @@ pub fn render(hub: &DataHub, scene: &Scene<'_>) -> Result<image::RgbaImage, Stri
         harness.step();
     }
     for label in scene.click {
-        let Some(node) = harness.query_by_label(label) else {
+        // A button first: the same text can also be a heading or a label.
+        let node = harness
+            .query_all_by_role_and_label(egui::accesskit::Role::Button, label)
+            .next()
+            .or_else(|| harness.query_all_by_label(label).next());
+        let Some(node) = node else {
             let _ = std::fs::remove_dir_all(&home);
             return Err(format!("nothing labelled {label:?} to click"));
         };

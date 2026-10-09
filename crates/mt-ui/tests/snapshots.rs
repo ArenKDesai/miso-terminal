@@ -63,6 +63,7 @@ fn the_terminal_looks_as_it_did() {
             &["GP XLU US 182 SMA50 BB20 RSI14 MACD12,26,9"][..],
         ),
         ("des", &["DES XLU US"][..]),
+        ("beta", &["BETA XEL US"][..]),
         ("cmp-security", &["CMP XLU US MINN.HUB 7"][..]),
         ("omon", &["OMON XLU US 2026-12-18"][..]),
         ("port", &["PORT"][..]),
