@@ -17,6 +17,7 @@
 //! keyword topics are in [`news`].
 
 pub mod account;
+pub mod beta;
 pub mod constraints;
 pub mod equity;
 pub mod exchange;

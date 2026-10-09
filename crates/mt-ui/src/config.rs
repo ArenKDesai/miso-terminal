@@ -327,6 +327,10 @@ url = "https://example.org/feed.xml"
 [[markets.lists]]
 name = "MINE"
 symbols = ["XEL", "WEC"]
+benchmark = "XLU US"
+
+[markets.benchmarks]
+"VST US" = "GENERATORS"
 "#,
         );
         std::fs::write(&path, src).unwrap();
@@ -336,6 +340,8 @@ symbols = ["XEL", "WEC"]
         assert_eq!(cfg.news.topics[0].name, "DATACENTERS");
         assert_eq!(cfg.news.feeds[0].id, "my-feed");
         assert_eq!(cfg.markets.lists[0].name, "MINE");
+        assert_eq!(cfg.markets.lists[0].benchmark.as_deref(), Some("XLU US"));
+        assert_eq!(cfg.markets.benchmarks["VST US"], "GENERATORS");
         // And they survive the terminal saving the file again.
         cfg.save(&path).unwrap();
         assert_eq!(AppConfig::load(&path).0, cfg);
