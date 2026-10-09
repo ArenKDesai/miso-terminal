@@ -269,6 +269,26 @@ impl BarSource {
     }
 }
 
+/// How bars are adjusted for corporate actions.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Adjustment {
+    /// For splits: prices as traded, comparable across a split. Charts use it.
+    #[default]
+    Split,
+    /// For splits and dividends: total return, as if every dividend were
+    /// reinvested. Utilities pay large ones, so BETA uses it.
+    All,
+}
+
+impl Adjustment {
+    fn param(self) -> &'static str {
+        match self {
+            Self::Split => "split",
+            Self::All => "all",
+        }
+    }
+}
+
 /// Bars per symbol, oldest first.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarSet {
@@ -293,6 +313,7 @@ pub struct BarsQuery {
     start: NaiveDate,
     end: Option<NaiveDate>,
     source: BarSource,
+    adjustment: Adjustment,
 }
 
 impl BarsQuery {
@@ -311,7 +332,14 @@ impl BarsQuery {
             start,
             end,
             source,
+            adjustment: Adjustment::Split,
         }
+    }
+
+    /// The same bars adjusted for dividends too, or only for splits again.
+    pub fn adjusted(mut self, adjustment: Adjustment) -> Self {
+        self.adjustment = adjustment;
+        self
     }
 
     pub fn source(&self) -> BarSource {
@@ -334,12 +362,13 @@ impl BarsQuery {
         // The timeframe goes first so a recording can be picked by it
         // (`bars@1Day.json`; see FixtureTransport).
         let mut url = format!(
-            "{}/v2/stocks/bars?timeframe={}&symbols={}&start={}&end={}&limit={PAGE_LIMIT}&adjustment=split&feed={}&sort=asc",
+            "{}/v2/stocks/bars?timeframe={}&symbols={}&start={}&end={}&limit={PAGE_LIMIT}&adjustment={}&feed={}&sort=asc",
             self.alpaca.endpoints.data,
             self.timeframe.param(),
             self.symbols.join(","),
             rfc3339(start),
             rfc3339(end),
+            self.adjustment.param(),
             self.source.param(),
         );
         if let Some(token) = page {
@@ -355,9 +384,10 @@ impl Query for BarsQuery {
 
     fn key(&self) -> String {
         format!(
-            "alpaca/bars/{}/{:?}/{}..{}/{}",
+            "alpaca/bars/{}/{:?}/{}/{}..{}/{}",
             self.timeframe.param(),
             self.source,
+            self.adjustment.param(),
             self.start,
             self.end.map_or_else(|| "now".into(), |e| e.to_string()),
             self.symbols.join(",")
@@ -748,6 +778,19 @@ mod tests {
         let set = q.fetch(ctx, None).await.unwrap();
         assert_eq!(set.get("XLU").len(), 1, "de-duplicated by time");
         assert_eq!(t.asked.lock().len(), 2);
+    }
+
+    #[test]
+    fn total_return_bars_ask_for_every_adjustment() {
+        let a = Alpaca::default();
+        let split = a.bars(["XLU"], Timeframe::Day1, day("2025-10-01"), None);
+        let all = split.clone().adjusted(Adjustment::All);
+        let now = parse::parse_time("2026-10-02T18:00:00Z").unwrap();
+        let (start, end) = all.window(now);
+        assert!(split.url(start, end, None).contains("&adjustment=split&"));
+        assert!(all.url(start, end, None).contains("&adjustment=all&"));
+        assert_ne!(split.key(), all.key(), "cached apart");
+        assert_eq!(all.adjusted(Adjustment::Split).key(), split.key());
     }
 
     #[test]

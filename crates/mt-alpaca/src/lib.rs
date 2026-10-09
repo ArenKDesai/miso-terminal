@@ -44,13 +44,15 @@ pub use account::{
     OptionSnapshotsQuery, PortfolioHistoryQuery, PositionsQuery,
 };
 pub use audit::AuditLog;
-pub use config::{MarketsConfig, SecurityList, builtin_lists, normalize_symbol};
+pub use config::{
+    Benchmark, MARKET_BENCHMARK, MarketsConfig, SecurityList, builtin_lists, normalize_symbol,
+};
 pub use desk::{ActionState, OrderDesk, Outcome, new_client_order_id};
 pub use options::{OptionChain, OptionChainQuery, OptionContractsQuery};
 pub use orders::{OrdersQuery, Replacement};
 pub use queries::{
-    ASSETS_KEY, AssetsQuery, BarSet, BarSource, BarsQuery, CalendarQuery, ClockQuery, NewsList,
-    NewsQuery, Snapshots, SnapshotsQuery, Timeframe, assets_from_bytes, assets_to_bytes,
+    ASSETS_KEY, Adjustment, AssetsQuery, BarSet, BarSource, BarsQuery, CalendarQuery, ClockQuery,
+    NewsList, NewsQuery, Snapshots, SnapshotsQuery, Timeframe, assets_from_bytes, assets_to_bytes,
 };
 pub use stream::{LiveMarket, LiveNews, MarketStream, NewsStream, market_topics};
 pub use trades::{LiveTrades, TRADE_UPDATES, TradeStream};
