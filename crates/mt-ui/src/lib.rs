@@ -54,14 +54,10 @@ pub fn set_version(version: &'static str) {
 }
 
 /// The disk cache's directories the app keeps on purpose (the five-minute
-/// archive, the day store, exported history, saved headlines), each with its
-/// own retention: the size cap and LOG's *Clear cache* leave them alone.
+/// archive, the day store, saved headlines), each with its own retention: the
+/// size cap and LOG's *Clear cache* leave them alone.
 pub fn kept_cache_dirs(cache: &mt_data::DiskCache) -> Vec<std::path::PathBuf> {
-    let mut keep = vec![
-        mt_miso::archive_dir(cache),
-        mt_miso::day_store_dir(cache),
-        mt_miso::lmp_archive_dir(cache),
-    ];
+    let mut keep = vec![mt_miso::archive_dir(cache), mt_miso::day_store_dir(cache)];
     keep.extend(mt_news::archive_dirs(cache));
     keep
 }

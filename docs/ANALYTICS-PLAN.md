@@ -89,10 +89,17 @@ wait.
   their docs (the tutorial's *Reach back years*, ARCHITECTURE's *Long history*,
   the README's roadmap item, `CLAUDE.md`) go. Files an earlier version
   exported are discarded at first launch, and the changelog says so; the
-  backfill rebuilds the same history from MISO.
+  backfill rebuilds the same history from MISO. *Done* (2026-10-08).
 - **Checked once against the old source.** Before the export goes, a one-off
   comparison of the day store with the DuckDB for a sample of nodes and days,
   so the switch changes where the numbers come from, not what they are.
+  *Done* (2026-10-08), over every node rather than a sample: 78 DA and 77 RT
+  days (65 recent days and 12 from 2023 to 2026, fetched through the
+  terminal's own path), 28.9 million values (LMP, MCC and MLC per node and
+  hour). Every DA day and 75 RT days agree to the cent. The other two are
+  days the DuckDB loaded from MISO's preliminary RT report and the store holds
+  the final one (on 2026-09-01 the final adds 75 node-hours, on 2026-09-02
+  about 2,600 values settle by up to $5.94): the store is the more current.
 
 Unchanged: MISO publishes five-minute prices only for today and yesterday, so
 the five-minute archive still covers only days the terminal ran (the README's

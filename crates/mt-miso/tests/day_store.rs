@@ -11,7 +11,9 @@ use mt_data::{
     BoxFuture, DiskCache, EventLog, FetchCtx, FetchCtxOptions, FetchError, FixtureTransport, Query,
     Request, Response, Transport,
 };
-use mt_miso::{Miso, MisoEndpoints, day_store_dir, day_store_key, read_day_store};
+use mt_miso::{
+    Miso, MisoEndpoints, day_store_dir, day_store_key, discard_exported_history, read_day_store,
+};
 
 /// The fixtures posing as MISO itself, so what they return is kept.
 struct Live(FixtureTransport);
@@ -42,6 +44,27 @@ fn ctx(fixtures: &Path, cache: &DiskCache, live: bool) -> FetchCtx {
 
 fn date(s: &str) -> NaiveDate {
     s.parse().expect("a date")
+}
+
+#[test]
+fn files_the_retired_export_wrote_are_discarded() {
+    let dir = std::env::temp_dir().join(format!("mt-exported-{}", std::process::id()));
+    let cache = DiskCache::new(&dir);
+    assert_eq!(discard_exported_history(&cache), 0, "nothing to discard");
+    cache
+        .put("local://archive/lmp/MINN.HUB", b"MTAH1\0")
+        .unwrap();
+    cache
+        .put("local://archive/lmp/ALTE.ALTE", b"MTAH1\0")
+        .unwrap();
+    let day = date("2026-10-01");
+    let kept = day_store_key(Market::DayAhead, day);
+    cache.put(&kept, b"stays").unwrap();
+    assert_eq!(discard_exported_history(&cache), 2);
+    assert!(cache.get("local://archive/lmp/MINN.HUB").is_none());
+    assert!(cache.get(&kept).is_some(), "the day store stays");
+    assert_eq!(discard_exported_history(&cache), 0);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[tokio::test]

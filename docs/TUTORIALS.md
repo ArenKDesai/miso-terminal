@@ -168,19 +168,6 @@ where it stopped, after a restart too. Once done it keeps the window filled
 every day, and swaps preliminary RT days for MISO's final prices when they
 come out (five or six days later). Days before the window are removed.
 
-For years of history at once, the terminal can also read an archive exported from the
-[Energy-Pricing-Journalist](https://github.com/ArenKDesai/Energy-Pricing-Journalist)
-DuckDB, which holds hourly DA and RT nodal prices since 2023:
-
-```powershell
-uv run tools/export_history.py                          # hubs, load zones and interfaces
-uv run tools/export_history.py --nodes ALTE.ALTE MGE.AZ # any nodes you like
-uv run tools/export_history.py --home D:\miso-portable  # a portable install
-```
-
-Restart the terminal, and charts take the days the price history lacks from
-the archive.
-
 Five-minute history is different: MISO publishes only today and yesterday at
 five minutes, so the terminal keeps its own archive of every day it runs (90
 days by default; *Five-minute archive* in `SET`). `GP <node> 7 5MIN` and

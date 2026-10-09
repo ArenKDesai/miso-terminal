@@ -21,8 +21,7 @@ pub mod queries;
 pub use endpoints::MisoEndpoints;
 pub use history::{Backfill, BackfillStatus, HistoryConfig, StoredPrices, StoredPricesQuery};
 pub use queries::{
-    ApiQuery, ConstraintHistoryQuery, DayReportQuery, INTERVALS_PER_DAY, LmpArchiveQuery, Miso,
-    RtArchiveQuery, RtBestDayQuery, RtIntradayQuery, RtPreviousDayQuery, archive_dir,
-    day_store_dir, day_store_key, intraday_archive_key, lmp_archive_dir, lmp_archive_key,
-    prune_archive, read_day_store,
+    ApiQuery, ConstraintHistoryQuery, DayReportQuery, INTERVALS_PER_DAY, Miso, RtArchiveQuery,
+    RtBestDayQuery, RtIntradayQuery, RtPreviousDayQuery, archive_dir, day_store_dir, day_store_key,
+    discard_exported_history, intraday_archive_key, prune_archive, read_day_store,
 };

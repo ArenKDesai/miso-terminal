@@ -279,6 +279,13 @@ fn main() -> Result<()> {
         let archive_days = config.data.archive_days;
         let news_days = config.news.keep_days;
         runtime.spawn_blocking(move || {
+            let exported = mt_miso::discard_exported_history(&cache);
+            if exported > 0 {
+                tracing::info!(
+                    "removed {exported} files tools/export_history.py exported; the price \
+                     history (SET) replaces them"
+                );
+            }
             let keep = mt_ui::kept_cache_dirs(&cache);
             let (files, bytes) = cache.prune(max, &keep);
             if files > 0 {
