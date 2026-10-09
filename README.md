@@ -1,32 +1,28 @@
 # MISO Terminal
 
-A Bloomberg-style information terminal for the Midcontinent ISO, written in Rust.
-It covers prices, load, generation, interchange, constraints, the seams, gas,
-weather, the news, and the energy stocks and options beside them in one
-keyboard-driven, tiled workspace. It is read-only for MISO: it shows MISO's
-public data (plus EIA gas prices, NWS forecasts, publishers' headline feeds and
-Alpaca's stock, ETF and option prices) and never submits anything to MISO. Trading goes only through Alpaca, on
-a paper account for now, and every order is checked against your limits and
-confirmed on a ticket (see the [markets plan](docs/MARKETS-PLAN.md)).
+A Bloomberg-style information terminal for the Midcontinent ISO, written in
+Rust: prices, load, generation, interchange, constraints, the seams, gas,
+weather, the news, and the energy stocks and options beside them, in one
+keyboard-driven, tiled workspace. It is read-only for MISO. Trading goes only
+through Alpaca, on a paper account for now, and every order is checked against
+your limits and confirmed on a ticket.
 
 ![MISO Terminal in its default theme](docs/screenshots/home-default.png)
 
-- **Command line first.** Type `LMP`, `GP MINN.HUB`, `MINN.HUB GP 14`, or just a
-  node name, then press Enter. Completion covers every function and every pricing node.
-- **Tiled, tabbed workspace.** Drag tabs to split panes, zoom one to the whole
-  window (`Ctrl+M`), or pop it out onto a second monitor; any window goes full
-  screen (`F11`). Your layout is saved between sessions.
-- **Live.** Real-time feeds refresh once a minute (MISO's limit). Daily market
-  reports are cached on disk, so history loads instantly the second time, and an
-  optional local archive reaches back to 2023. Alerts arrive as Windows notifications.
-- **Themed.** Ships with **Default** (the trading-desk look: black, orange
-  labels, white figures), Default Light and High Contrast. Install more from the
-  [gallery](themes/README.md#gallery) in one click inside `THEME`: Catppuccin,
-  Everforge, Gruvbox, Monokai, Rosé Pine and Tokyo Night. Drop a TOML file into
-  the themes folder to add your own; it hot-reloads while you edit it.
-- **Built for Windows.** A single `.exe` with a native window, Windows certificate
-  store TLS (corporate proxies work), a per-user or portable data layout and an
-  embedded icon. The data, MISO and theme crates also build and test on Linux.
+- **Command line first.** Type `LMP`, `GP MINN.HUB` or `MINN.HUB GP 14`, or
+  just a node name, and press Enter. Completion covers every function, node and
+  ticker.
+- **Tiled, tabbed workspace.** Split panes, zoom one panel (`Ctrl+M`), pop one
+  out onto a second monitor, or go full screen (`F11`). The layout is saved.
+- **Live, with history.** Real-time feeds refresh once a minute (MISO's limit).
+  Daily reports are kept on disk, and SET can fill the price history back to
+  2023. Alerts arrive as Windows notifications.
+- **Themed.** Default (the trading-desk look), Default Light and High Contrast
+  built in, more in one click from the [gallery](themes/README.md#gallery), and
+  your own as a TOML file that reloads as you edit it.
+- **Built for Windows.** One `.exe`, TLS through the Windows certificate store
+  (corporate proxies work), per-user or portable data. The non-UI crates also
+  build and test on Linux.
 
 | | |
 |---|---|
@@ -39,22 +35,20 @@ confirmed on a ticket (see the [markets plan](docs/MARKETS-PLAN.md)).
 MISO Terminal is a community project, and these hold for every change:
 
 - **Your data stays yours.** No telemetry, no accounts with us, nothing sent
-  anywhere but the sources you ask for. Keys and credentials live in Windows
-  Credential Manager, never in plain files or logs.
-- **Good citizens of the web.** Every source's robots.txt, terms of use and
-  rate limits are respected (MISO asks for at most one request a minute per
-  feed, and gets it). No scraping around paywalls or limits.
-- **Free and open, and kept that way.** Everything here is free, open source
-  and shareable. The AGPL-3.0 licence makes sure it stays so: anyone who
-  distributes or serves a modified version must share their source too.
+  anywhere but the sources you ask for. Keys live in Windows Credential
+  Manager, never in files or logs.
+- **Good citizens of the web.** Every source's robots.txt, terms and rate
+  limits are respected (MISO asks for at most one request a minute per feed,
+  and gets it). No scraping around paywalls or limits.
+- **Free and open, and kept that way.** The AGPL-3.0 licence makes anyone who
+  distributes or serves a modified version share their source too.
 
 ## Install (Windows)
 
 Download `miso-terminal-<version>-windows-x64.zip` from the
-[Releases page](https://github.com/ArenKDesai/miso-terminal/releases). Each
-release's notes give the zip's SHA-256 and a one-line PowerShell check, and
-how to verify, with the GitHub CLI, that this repository's workflow built it.
-Unzip it, and in the folder it makes, run:
+[Releases page](https://github.com/ArenKDesai/miso-terminal/releases); its
+notes give the SHA-256 and how to verify that this repository built it. Unzip
+it, and in that folder (*Open in Terminal* from its right-click menu) run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1           # Start Menu shortcut
@@ -62,450 +56,222 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Desktop  # plus a deskto
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall
 ```
 
-(In File Explorer, right-click inside the folder and choose *Open in
-Terminal*.) Run it this way rather than double-clicking it, choosing *Run with
-PowerShell* or typing `.\install.ps1` alone: the script is not signed yet, so
-wherever PowerShell runs only signed scripts those stop with *is not digitally
-signed*. `-ExecutionPolicy Bypass` lifts that for this one run only.
-
-It installs for the current user only (no administrator rights needed) to
-`%LOCALAPPDATA%\Programs\MISO Terminal`, with the licences. Uninstalling keeps
-your settings, cache and order audit log. Or skip the script and run
-`miso-terminal.exe` straight from the folder; put an empty file named
-`portable` beside it to keep its settings and data in a `data` folder there.
+The script is not signed yet, so run it this way: where PowerShell runs only
+signed scripts, double-clicking it fails. It installs for the current user (no
+administrator rights) to `%LOCALAPPDATA%\Programs\MISO Terminal`, and
+uninstalling keeps your settings and data. Or run `miso-terminal.exe` from the
+folder; an empty file named `portable` beside it keeps everything in a `data`
+folder there.
 
 Releases are not code-signed yet ([signing](docs/RELEASES.md#signing) is
-planned), so on first launch Windows SmartScreen may say *Windows protected
-your PC*: choose *More info*, then *Run anyway*. Where Smart App Control is on,
-Windows blocks unsigned programs outright until releases are signed.
+planned), so SmartScreen may warn on first launch (*More info*, then *Run
+anyway*), and Smart App Control blocks unsigned programs outright.
 
 ## Build from source (Windows)
 
 ```powershell
-# Rust through rustup (https://rustup.rs) and the MSVC build tools are required;
-# rustup installs the compiler version rust-toolchain.toml names on first use.
+# Needs Rust (https://rustup.rs) and the MSVC build tools; rustup fetches the
+# compiler version rust-toolchain.toml names.
 git clone https://github.com/ArenKDesai/miso-terminal
 cd miso-terminal
 cargo run --release
 ```
 
-Useful flags:
-
 | Flag | What it does |
 |---|---|
-| `--offline [DIR]` | Replay the recorded responses in `fixtures/` instead of calling MISO. Use it for demos, UI work, or when MISO is down. |
-| `--home DIR` | Portable mode: keep everything in `DIR`. Also enabled by `MISO_TERMINAL_HOME`, or a file named `portable` next to the exe. |
-| `--run "CMD"` | Run a command at startup (repeatable), e.g. a desktop shortcut with `--run "GP ALTE.ALTE"`. If the terminal is already open, the command runs in that window instead. |
-| `--reset-layout` | Start from the default layout. |
-| `--reset-config` | Start from the default settings. `config.toml` is replaced and the old file kept as `config.toml.bak`; API keys and the layout stay. `SET` → *Reset to defaults…* does the same while the terminal runs. |
-| `--new-instance` | Open a second window anyway. Normally there is one live window per home, so MISO is polled once. |
+| `--offline [DIR]` | Replay the recorded responses in `fixtures/` instead of calling MISO: demos, UI work, or MISO down |
+| `--home DIR` | Portable mode: everything in `DIR` (also `MISO_TERMINAL_HOME`, or a `portable` file beside the exe) |
+| `--run "CMD"` | Run a command at startup (repeatable), e.g. from a desktop shortcut; if the terminal is open, it runs there |
+| `--reset-layout` | Start from the default layout |
+| `--reset-config` | Start from the default settings; the old `config.toml` is kept as `config.toml.bak` |
+| `--new-instance` | Open a second window anyway (normally one per home, so MISO is polled once) |
 
-Files live in `%APPDATA%\MISO Terminal\config` (config, themes, fonts: these roam)
-and `%LOCALAPPDATA%\MISO Terminal` (report cache, logs, the order audit log, window and layout state).
-The `LOG` function shows the exact paths and has buttons to open them.
+Settings, themes and fonts live in `%APPDATA%\MISO Terminal\config`; the cache,
+logs, order audit log and layout in `%LOCALAPPDATA%\MISO Terminal`. `LOG` shows
+the paths and opens them.
 
 ## Functions
 
-New to the terminal? The [tutorials](docs/TUTORIALS.md) walk through the command
-line, the workspace, prices and spreads, alerts, the news, stocks, paper trading
-and themes.
+New to the terminal? The [tutorials](docs/TUTORIALS.md) walk through it.
 
 | Code | Name | What it shows |
 |---|---|---|
-| `HOME` | Launchpad | Demand, marginal energy cost, interchange, generation, hub prices (RT, next-interval ex-ante, DA) with 5-min sparklines, fuel mix, top constraints, weather and the top stories; with Alpaca keys, the paper account's equity and today's P&L |
-| `LMP` | LMP monitor | ~300 key nodes with RT 5-min, RT hourly, DA ex-ante and ex-post, DART, MCC and MLC. Sortable, and filterable by name, region and node type (hub, load zone, interface, generator). `LMP ALL` lists all ~2,600 CP nodes with this hour's DA and RT − DA |
-| `HUBS` | Hub statistics | All eight trading hubs over N days: DA, RT and DART averages, on-peak and off-peak blocks, RT volatility, extremes and how often RT beat DA |
-| `DAM` | Day-ahead strip | Hourly DA prices at the eight hubs for one day (tomorrow once posted, else today), with on-peak, off-peak and all-hours averages, by component, or as the change from the day before (`DAM TOMORROW`) |
-| `MAP` | Price map | Every node MISO plots, over an interpolated price surface of the footprint and the 230 kV-and-up transmission backbone, coloured by RT LMP, congestion, loss, DA or RT − DA. Hover for the breakdown, click to graph |
-| `GP` | Graph price | One node: today's 5-min RT vs the DA staircase (plus tomorrow's DA once posted), N days of hourly DA vs RT with stats, an hour × day heatmap (`GP MINN.HUB 14 HEAT`), price duration curves (`… DUR`), or five-minute RT over past days from the local archive (`… 5MIN`). Switch between LMP, energy, congestion and loss. For a security, the latest session minute by minute against the previous close (`GP XLU US`), a few days at 15 minutes (`GP XLU US 5`) or daily closes for up to ten years (`GP XLU US 365`), with volume, in New York time |
-| `SPRD` | Node spread | A − B between any two nodes: today at 5 minutes, hourly DA and RT spreads over N days with stats, or five-minute spreads from the archive. Use the congestion component for an FTR-style view |
-| `CMP` | Compare | Up to eight nodes on one chart: today's 5-minute RT, or hourly RT or DA over N days, with a latest/average/range row each (`CMP MINN.HUB MICHIGAN.HUB 7`). With securities, their prices (or % change, for several) above the nodes' on one time axis in market time, and how each moved with each node day by day (`CMP XEL US MINN.HUB 30`) |
-| `SEAM` | Seams & interfaces | PJM's CTS forecast at the PJM interface against MISO's price there (with the spread and which way it favours flows), and RT and DA prices at all 22 interface nodes (PJM, SPP, TVA, Ontario…) |
-| `WL` | Watchlist | Your favourite nodes (RT vs DA, 5-min change, today's sparkline) and securities (last, change, volume, today's chart). Add from here, with `WL <node>` or `WL XLU US`, or with ☆ in GP. Saved to config |
-| `ASM` | Ancillary MCPs | Regulation, spinning, supplemental, short-term reserve and ramp MCPs by zone |
-| `LOAD` | System load | 5-min actual vs MTLF forecast vs DA cleared, with forecast error |
-| `CAP` | Capacity & headroom | Committed capacity vs demand, forecasts, available capacity, real-time RSG commitments and tomorrow's short-term reserve requirement |
-| `FUEL` | Fuel mix | Generation by fuel now, plus a stacked chart of the day |
-| `GAS` | Natural gas | Henry Hub spot (EIA, no key needed) with its recent change and range, and for each hub the market heat rate and spark spread its DA on-peak price implies (`HH`) |
-| `RENEW` | Wind & solar | Hourly forecast vs actual for today and tomorrow, with forecast bias |
-| `NSI` | Interchange | Net scheduled interchange by neighbour, actual (metered) interchange and the inadvertent gap, plus 5-min history |
-| `RDT` | Regional transfer | North-South regional directional transfer over the last day against its limits, with utilisation |
-| `ACE` | Area control error | 30-second ACE over the last two hours: how far generation is from balancing load |
-| `WX` | Weather | Now, today's and tomorrow's high/low, dew point, wind and the 48-hour trend for a city in each MISO zone (National Weather Service); hourly chart for all or one |
-| `CONS` | Binding constraints | RT binding constraints, shadow prices and how long each has bound; reserve and sub-regional constraints |
-| `BCH` | Constraint history | A day's binding constraints in DA and RT side by side, matched by MISO's constraint ID: hours bound, cost ($/MW) and peak shadow price, sortable and filterable, with the selected constraint's DA and RT shadow prices through the day (`BCH 2026-09-30`) |
-| `OUT` | Generation outages | Planned, unplanned, forced and derated MW for ±5 days |
-| `Q` | Quote monitor | Live prices for a list of stocks and ETFs (Alpaca): last, change, bid and ask, volume, the day's range and today's chart, with every trade streaming (the free plan allows 30 trade and quote subscriptions). `Q` is the Power & gas list (utilities in MISO's footprint, independent generators, energy ETFs, gas producers); also `Q UTILITIES`, `Q GAS`, `Q WL` (your watchlist) or any securities (`Q XEL US AEE US`) |
-| `DES` | Security description | What a stock or ETF is and where it lists, how it trades with Alpaca (shortable, marginable, fractional), today's prices, and its 52-week range and returns (`DES XLU US`) |
-| `OMON` | Option monitor | An option chain from Alpaca: calls and puts by strike for one expiry (a tab per expiry, the monthly ones in bold), with bid, ask, last and its change, volume, open interest, implied volatility and delta (gamma, theta and vega on request), in-the-money contracts shaded and a line at the stock's price; the strikes nearest the money, or all (`OMON XLU US`, `OMON XLU US 2026-12-18 ALL`). An OCC symbol typed alone opens its chain. Click a bid or ask for a ticket at that price; right-click a contract to trade it, add it to a spread, or build a spread from its strike (verticals, a straddle, a strangle, an iron condor, butterflies) for `MLEG`. On the free plan prices are Alpaca's indicative feed (quotes derived from OPRA's, trades 15 minutes late), re-read every minute |
-| `TOP` | Top stories | The newest top stories from the Financial Times, Bloomberg and the Washington Post in one list. Click one for its summary; Enter or a double-click opens the article in your browser, where you are signed in |
-| `NEWS` | News search | Every headline from every feed, kept for three weeks so search reaches back across restarts: by publisher (`NEWS FT`, `NEWS BBG`, `NEWS WP`), by words (`NEWS natural gas`), unread only, and mark read |
-| `NI` | News by topic | Headlines on a topic from keyword rules: `NI ENERGY`, `POWER`, `GRID`, `GAS`, `OIL`, `UTILITIES`, `POLICY`, `CLIMATE`, `MACRO`. `NI` alone lists the topics with today's counts. Change them or add your own in config |
-| `CN` | Company news | Stories about a stock or ETF (Benzinga's, through Alpaca), new ones as they are published, in the same browser as TOP and NEWS (`CN XLU US`; `CN` alone covers your watchlist's securities) |
-| `PORT` | Portfolio | The Alpaca paper account's positions: quantity, average cost, last price, market value, weight, and the day's and unrealized P&L, moving with the quote stream between Alpaca's minute re-reads; equity, cash and buying power; options grouped by underlying with each group's net delta in shares |
-| `ACCT` | Account | The paper account's status and any restrictions, balances, buying power, margin (initial, maintenance, excess equity), the pattern-day-trader flag with day trades used, and the options level. The account number is masked |
-| `PNL` | Profit and loss | The paper account's equity curve: today at five minutes, a week hourly, or one, three or twelve months daily, with the change, high, low and deepest drawdown (`PNL 1M`) |
-| `ACT` | Account activity | Fills, dividends, fees, transfers and option exercises, assignments and expiries, newest first, by kind or symbol (`ACT FILLS`, `ACT DIV`), with order events as they stream |
-| `BUY` | Buy ticket | An order ticket for the paper account, filled in from the command (`BUY XLU US 10 LMT 44.50 DAY`; also `MKT`, `STP 80`, `STPLMT 80 79.50`, `GTC`, `IOC`, `FOK`, `OPG`, `CLS`, `EXT` for extended hours): the latest prices, the cost, buying power and position afterwards, and every guardrail's verdict. Warnings must be ticked off; only its **Confirm** button sends the order. For an option contract, by its OCC symbol (`BUY XLU261218C00046000 2 LMT 1.16`): whole contracts, `DAY` or `GTC`, the quote and greeks, the premium and options buying power, whether it opens or closes a position, and what it pays at expiry |
-| `SELL` | Sell ticket | The same ticket to sell, or sell short (`SELL XLU US 200`); for options, to close a position, or to write a covered call or a cash-secured put (Alpaca allows no uncovered options). PORT's right-click menu opens one to close a position, and OMON opens one at a bid or ask you click |
-| `MLEG` | Spread ticket | An options strategy of two to four legs sent as one order (`MLEG +XLU261218C00045000 -XLU261218C00047000 2 LMT 0.85`: `+` buys a leg, `-` sells it, `2*` gives it a ratio, a negative limit or `CREDIT 0.40` is a credit), usually built in OMON. Each leg's quote and whether it opens or closes a position; the natural, mid and far net prices; the premium, the margin Alpaca holds and buying power; what it can make and lose at expiry, with a chart; and every guardrail. Only its **Confirm** button sends the order |
-| `ORD` | Orders | The paper account's orders, kept current by the order stream: open, filled, cancelled (`ORD ALL`); cancel or replace open ones; the **kill switch** (cancel every open order, optionally close every position, and turn trading off until you turn it back on); where the order audit log is |
-| `ALRT` | Alerts | Alerts on RT price (any node), spreads, constraints, N–S transfer vs limit, load vs forecast, ACE and headlines (`MISO, PJM, power prices`): add rules, see which hold, and what fired. A firing rule flashes the taskbar, shows a ⚠ badge, and (when the terminal is in the background) a Windows notification; a burst becomes one summary |
-| `LOG` | Data feeds & log | Every feed's freshness and errors, live streams and request budgets (when a source uses them), the price history's download, fetch activity, cache and file locations |
-| `SET` | Settings | Zoom, price highlighting thresholds, history length, cache cap, request limits, the price history (how far back MISO's daily prices are kept, and *Download now* to fill it in the background), news feeds, the stock price feed, trading limits (caps, price collar, fat-finger check, oldest price to trade on, restricted list) and MISO endpoints, saved to config.toml; API keys, kept in Windows Credential Manager, with a check that Alpaca accepts them. *Reset to defaults…* starts over, keeping the old file as config.toml.bak |
-| `THEME` | Themes | Switch, preview and contrast-check themes, or copy one to edit |
-| `HELP` | Help | Functions, keyboard shortcuts, data notes |
+| `HOME` | Launchpad | Demand, marginal energy, interchange, generation, hub prices with sparklines, fuel mix, constraints, weather, top stories and the paper account's equity |
+| `LMP` | LMP monitor | ~300 key nodes (`LMP ALL`: all ~2,600) with RT, DA, RT − DA, congestion and loss; sort and filter |
+| `HUBS` | Hub statistics | The eight trading hubs over N days: averages, on- and off-peak, volatility, extremes |
+| `DAM` | Day-ahead strip | Hourly DA at the hubs for a day, with block averages, or the change from the day before |
+| `MAP` | Price map | Every mapped node over a price surface and the transmission backbone, by LMP, congestion, loss, DA or RT − DA |
+| `GP` | Graph price | A node: today at five minutes against DA, N days hourly, a heatmap (`HEAT`), duration curves (`DUR`) or past five-minute days (`5MIN`), by component. A security: today, a few days or up to ten years |
+| `SPRD` | Node spread | A − B between two nodes, with GP's views; congestion gives an FTR-style view |
+| `CMP` | Compare | Up to eight nodes on one chart; with securities, their prices above the nodes and how they move together (`CMP XEL US MINN.HUB 30`) |
+| `SEAM` | Seams & interfaces | PJM's CTS forecast against MISO's price, and every interface node |
+| `WL` | Watchlist | Your nodes and securities, with today's sparklines |
+| `ASM` | Ancillary MCPs | Regulation and reserve MCPs by zone |
+| `LOAD` | System load | Actual against MISO's forecast and DA cleared |
+| `CAP` | Capacity & headroom | Committed capacity against demand, RSG commitments, tomorrow's reserve requirement |
+| `FUEL` | Fuel mix | Generation by fuel, now and through the day |
+| `GAS` | Natural gas | Henry Hub spot (EIA), and each hub's implied heat rate and spark spread |
+| `RENEW` | Wind & solar | Forecast against actual, today and tomorrow |
+| `NSI` | Interchange | Scheduled and actual interchange by neighbour |
+| `RDT` | Regional transfer | North-South transfer against its limits |
+| `ACE` | Area control error | ACE over the last two hours |
+| `WX` | Weather | National Weather Service forecasts for a city in each MISO zone |
+| `CONS` | Binding constraints | RT binding constraints and shadow prices; reserve and sub-regional ones |
+| `BCH` | Constraint history | A day's DA and RT binding constraints side by side (`BCH 2026-09-30`) |
+| `OUT` | Generation outages | Planned and forced outages, ±5 days |
+| `Q` | Quote monitor | Live stock and ETF prices for a list (`Q`, `Q UTILITIES`, `Q XEL US AEE US`) |
+| `DES` | Security description | A security's profile, today's trading, 52-week range and returns |
+| `OMON` | Option monitor | An option chain by expiry, with greeks; click a price to trade, right-click to build a spread |
+| `TOP` | Top stories | The Financial Times', Bloomberg's and the Washington Post's top stories |
+| `NEWS` | News search | Every headline, kept three weeks, by publisher or words |
+| `NI` | News by topic | Headlines by keyword topic (`NI POWER`); add your own in config |
+| `CN` | Company news | Benzinga's stories on a security, as they arrive |
+| `PORT` | Portfolio | The paper account's positions and P&L; options by underlying with net delta |
+| `ACCT` | Account | Balances, buying power, margin, day trades and options level |
+| `PNL` | Profit and loss | The equity curve, from a day to a year |
+| `ACT` | Account activity | Fills, dividends, fees and option events |
+| `BUY` | Buy ticket | A stock or option order filled in from the command (`BUY XLU US 10 LMT 44.50`); only its *Confirm* sends it |
+| `SELL` | Sell ticket | The same to sell or sell short, or to write a covered call or cash-secured put |
+| `MLEG` | Spread ticket | An option spread of two to four legs as one order, with its payoff at expiry |
+| `ORD` | Orders | The paper account's orders: cancel, replace, and the kill switch |
+| `ALRT` | Alerts | Rules on prices, spreads, constraints, transfers, load, ACE and headlines, with Windows notifications |
+| `LOG` | Data feeds & log | Every feed's health, streams, request budgets, the price history's download and file locations |
+| `SET` | Settings | Display, data, the price history, news feeds, market data, trading limits, endpoints and API keys |
+| `THEME` | Themes | Switch, install, preview and copy themes |
+| `HELP` | Help | Functions and keyboard shortcuts |
 
-Double-click a tab title (or press `Ctrl+M`) to zoom that panel to the whole
-window; `Esc` or `Ctrl+M` brings the layout back. Right-click a tab title to
-open the panel in its own window (for a second monitor; close it or press
-*Dock* to put it back, and it reopens where you left it), or to copy the panel
-as an image or save it as a PNG (to `Pictures\MISO Terminal`).
+**Keys.** `Ctrl+K` or `Esc` goes to the command line, `F1` is help, `F5`
+refreshes, `Ctrl+Tab` and `Ctrl+W` move between and close tabs, `Ctrl+M`
+zooms a panel, `F11` (or `Alt+Enter`) goes full screen, and `F2` to `F10` open
+functions; rebind any under `[ui.hotkeys]` in config.toml. Right-click a tab
+to open it in its own window, copy it as an image or save it as a PNG. HELP
+lists every shortcut.
 
-Keyboard: `Ctrl+K` or `Esc` focuses the command line, `Enter` runs it, `Tab`/`↑`/`↓`
-pick a suggestion, `F1` opens help, `F5` refreshes every open feed,
-`Ctrl+Tab` / `Ctrl+Shift+Tab` cycle tabs, `Ctrl+W` closes one,
-`Ctrl+Shift+L` resets the layout, and `F11` or `Alt+Enter` (or *Full screen*,
-top right) puts the window in full screen and back; in a popped-out window,
-that window. Function keys open functions: F2 HOME, F3 LMP,
-F4 MAP, F6 WL, F7 HUBS, F8 WX, F9 ALRT and F10 LOG by default. Remap them, or
-bind any command (`F12 = "GP ALTE.ALTE 14"`), under `[ui.hotkeys]` in config.toml;
-a command bound to F11 takes it over from full screen (`Alt+Enter` still works).
-In a headline list (TOP, NEWS, NI), click a headline, then `↑`/`↓` move,
-`PgUp`/`PgDn`/`Home`/`End` jump, and `Enter` opens the article in your browser.
+**Securities** are written ticker then market code (`XLU US`) and options by
+OCC symbol (`XLU261218C00082500`), so they never clash with node names such as
+`AECI`. Type one alone to chart it (an option opens its chain).
 
-Securities are written Bloomberg-style, ticker then market code (`XLU US`; options
-by OCC symbol, `XLU261218C00082500`), so they never clash with node names like
-`AECI` or `TVA`. Put the security first or after the code (`XLU US GP 30` or
-`GP XLU US 30`), or type it alone to chart it. Completion offers tickers and
-company names from Alpaca's asset list, and after a security, the functions that
-take one (`XLU US D…` → `DES`). An option symbol typed alone opens its chain in `OMON`.
-
-Orders: `BUY`, `SELL` and `MLEG` open a ticket and nothing else, whoever asks (the
-command line, `--run`, a hotkey or another launch of the terminal): only a click
-on the ticket's **Confirm** sends an order. Before that, the ticket checks the
-order against Alpaca's rules and your limits under `[trading]` in config.toml (or
-SET): per-order, daily and per-position caps in dollars, a collar keeping limit
-and stop prices near the last trade, a fat-finger check, a restricted list, no
-market orders outside the regular session, a recent price for an order that
-would trade at once, buying power and day trades. Option
-orders also check the account's options level, that a sold call is covered by
-shares and a sold put by buying power, the contract's expiry (Alpaca takes no
-orders for contracts expiring that day after 15:15 New York time), a limit
-against the bid or ask, the exchanges' price steps and the contracts per order;
-a restricted stock's options are restricted too. A spread needs options level 3,
-every sold leg covered by a bought one in the same order and expiry, and buying
-power for the margin Alpaca holds plus the net premium. The kill
-switch in `ORD` cancels everything and turns trading off. Every order request and
-answer is appended to `orders-YYYY-MM.jsonl` in `%LOCALAPPDATA%\MISO Terminal\audit`.
+**Orders.** `BUY`, `SELL` and `MLEG` only open a ticket, whoever asks (the
+command line, `--run`, a hotkey); only a click on its *Confirm* sends an
+order, after it passes Alpaca's rules and your limits under `[trading]` (also
+in SET). `ORD`'s kill switch cancels every order and turns trading off, and
+every request and answer goes to an audit log. [Trade on
+paper](docs/TUTORIALS.md#trade-on-paper) walks through it.
 
 ## Data
 
-Market data comes from MISO's public sources:
+- **MISO:** the [real-time data API](https://public-api.misoenergy.org/),
+  polled at most once a minute per feed, and the daily market reports at
+  `docs.misoenergy.org/marketreports`, kept in the price history. RT final
+  reports trail by about a week; until then charts show the preliminary ones
+  and say so.
+- **News:** the public RSS feeds of the Financial Times, Bloomberg and the
+  Washington Post. Headlines and summaries only, attributed and linked;
+  articles open in your browser, where your subscriptions apply.
+- **Alpaca,** with your own free account's keys: stock and ETF prices (real
+  time from IEX, or every exchange fifteen minutes late), option chains
+  (Alpaca's indicative feed), company news (Benzinga) and the paper account.
+  Every price says which feed it came from.
+- **Also:** Henry Hub gas from the EIA and weather from the National Weather
+  Service.
 
-- The **real-time data API** at <https://public-api.misoenergy.org/>, which
-  replaced the old `MISORTWDDataBroker` feeds on 2025-12-12. MISO asks that each
-  link be polled at most once a minute; the terminal refreshes every 60 s and
-  enforces a per-URL minimum interval on top.
-- The **daily market reports** at `docs.misoenergy.org/marketreports`
-  (`<yyyymmdd>_da_expost_lmp.csv`, `_rt_lmp_final.csv`, `_rt_lmp_prelim.csv`).
-  The final RT report trails by about a week; until it lands, GP uses the
-  preliminary one and says so.
-
-News comes from the public RSS headline feeds of the **Financial Times**, **Bloomberg**
-and the **Washington Post** (13 sections between them), checked every 5 minutes, or
-less often when a feed asks (FT's ask for 15). The terminal keeps headlines and
-summaries only, always with the publisher's name and link; articles open in your
-own browser, where your subscriptions apply, and their text is never fetched. Turn
-feeds off in `SET`, or add any RSS or Atom feed under `[[news.feeds]]` in config.toml.
-
-Stock and ETF prices come from **Alpaca** with your own free account's keys (stored
-in `SET`, in Windows Credential Manager): on the free plan, real time from the IEX
-exchange alone (a few percent of US volume, so thinly traded names can lag) or every
-exchange fifteen minutes late; daily history always from every exchange. Every figure
-says which. Snapshots refresh each minute and a stream adds every trade (and quotes while
-room remains: the free plan allows 30 trade and quote subscriptions in all) and
-minute bars for the rest, within Alpaca's 200 requests a minute. Company news is Benzinga's, through Alpaca: headlines and
-summaries only, linked to the article. Option chains come from Alpaca too: on the free
-plan its indicative feed (quotes derived from OPRA's and sampled, trades fifteen minutes
-late, greeks and implied volatility computed by Alpaca), re-read every minute while the
-market trades, since Alpaca streams options only in MessagePack.
-
-The **paper account** behind the same keys is traded only through confirmed tickets:
-balances, positions, orders, the equity curve and activities are re-read every minute and
-at once after each order event (Alpaca's account stream), and stock positions move with
-the quote stream in between. An order that gets no answer is looked up by its own id
-before anything is sent again, so it can never go in twice. A band across the bottom of
-the window says PAPER whenever an account is connected (and when trading is off); it
-never shows a balance, and ACCT masks the account number, so screenshots carry neither.
-
-All MISO times are **market time, EST all year** (UTC-5, no daylight saving);
-securities are shown in **New York time** (EDT in summer), as their exchanges keep it.
-Five-minute intervals are stamped by their start (00:00 through 23:55).
+MISO times are market time, EST all year; securities are shown in New York
+time.
 
 > For information only. This is not an official MISO product and is not meant
 > for operational or settlement decisions.
 
 ## Themes
 
-Themes are TOML files with semantic slots: background, surface, text, accent,
-positive, negative, chart series, fuel colours, fonts and spacing. Panels only
-use those slots, so any theme works with any panel. See [`themes/README.md`](themes/README.md)
-for the format.
-
-- **Built-in:** `default`, `default-light`, `high-contrast`.
-- **Gallery:** `catppuccin-mocha`, `everforge-dark`, `everforge-light`,
-  `gruvbox-dark`, `monokai`, `rose-pine` and `tokyo-night`. Install, update or
-  remove them in `THEME` (*Gallery*), or download them from the
-  [docs site](themes/README.md#gallery). Their files are in `themes/gallery/`.
-- **Yours:** run `THEME`, click *Copy to edit*, then edit the file in the themes
-  folder. It reloads every time you save. A theme whose `id` matches a built-in
-  replaces it. Validation flags unreadable contrast.
-- **Fonts:** IBM Plex Sans, JetBrains Mono and Space Grotesk (all SIL OFL) are
-  bundled, so the gallery themes work without installing anything. Themes can
-  name any installed font, or a font file dropped into the fonts folder.
-- **Everforge stays in sync with its tokens.** The two Everforge gallery themes
-  are generated from the Everforge design tokens:
-  `cargo run -p mt-theme --example sync_everforge -- ..\everforge`
+Themes are TOML files of semantic slots (background, accent, positive, chart
+series, fonts and so on), so any theme works with any panel. Three are built
+in; the [gallery](themes/README.md#gallery) has Catppuccin, Everforge,
+Gruvbox, Monokai, Rosé Pine and Tokyo Night, installed from `THEME`. *Copy to
+edit* there starts your own. The [theme guide](themes/README.md) describes
+the format.
 
 ## Development
 
 ```powershell
 cargo test --workspace            # unit, parser-fixture, UI smoke and visual regression tests
-cargo clippy --workspace --all-targets
-cargo fmt --all
+cargo clippy --workspace --all-targets -- -D warnings
 cargo run -- --offline            # UI work without touching MISO
-cargo run -p mt-miso --example capture_fixtures   # re-record fixtures from live MISO
-cargo run -p mt-alpaca --example capture_alpaca   # re-record Alpaca (needs keys; prices made synthetic)
-# Render the app offscreen against the fixtures (docs screenshots, reviews):
-cargo run -p mt-ui --example render -- docs/screenshots/x.png --run "GP MINN.HUB 7" --zoom
-# After an intended visual change, accept the new reference images:
-$env:UPDATE_SNAPSHOTS=force; cargo test -p mt-ui --test snapshots
+cargo run -p mt-ui --example render -- out.png --run "GP MINN.HUB 7" --zoom   # offscreen render
 ```
-
-The workspace is layered so that each part can change without touching the others:
 
 ```
 crates/
-  mt-core       domain model: prices, load, fuel, constraints, market time, securities,
-                money, accounts, orders, options and the guardrails (no I/O)
-  mt-data       source-agnostic data hub: queries, cache, refresh, transports
-  mt-miso       MISO endpoints, response parsers (fixture-tested), queries
-  mt-nws        National Weather Service forecasts (the template for non-MISO sources)
-  mt-eia        EIA Henry Hub gas spot prices
-  mt-news       news headlines: RSS and Atom feeds, de-duplication, topics, a local archive
-  mt-alpaca     Alpaca: stock, ETF and option data, live streams, company news, the
-                paper account and the order desk
-  mt-theme      theme model, TOML loading, validation, built-ins (no UI toolkit)
+  mt-core       domain model: prices, grid data, market time, securities, money,
+                accounts, orders, options and the guardrails (no I/O)
+  mt-data       source-agnostic data hub: queries, streams, caches, transports
+  mt-miso       MISO endpoints, parsers, queries, the price history
+  mt-nws        National Weather Service forecasts
+  mt-eia        EIA Henry Hub gas prices
+  mt-news       news headlines: RSS and Atom, topics, an archive
+  mt-alpaca     Alpaca: market data, streams, the paper account, the order desk
+  mt-theme      themes: model, loading, validation (no UI toolkit)
   mt-ui         egui front end: shell, command line, workspace, functions
   miso-terminal the binary: paths, logging, runtime, window
 ```
 
-Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how data flows and why,
-and [`docs/EXTENDING.md`](docs/EXTENDING.md) for step-by-step recipes: adding a
-function, a dataset, a non-MISO source, a guardrail, or a theme. Every change
-lands through a pull request ([`CONTRIBUTING.md`](CONTRIBUTING.md) says how),
-and CI runs on each one: fmt, clippy, tests and a
-release build on Windows, and the non-UI crates' tests on Linux. A weekly job
-re-records MISO's feeds (and the weather, gas, news and Alpaca sources) and runs
-the parsers against them. Pushing a `v*` tag builds a Windows zip release; the
-[release plan](docs/RELEASES.md) says how releases will be made (none yet).
-
-The documentation site, <https://arenkdesai.github.io/miso-terminal/>, is built
-from this README, `docs/` (user [tutorials](docs/TUTORIALS.md) included) and `themes/README.md` (`uv run tools/build_docs.py site`)
-and deployed by `docs.yml` on every push to main that touches them.
+[ARCHITECTURE](docs/ARCHITECTURE.md) explains how data flows and why, and
+[EXTENDING](docs/EXTENDING.md) has recipes for adding a function, a dataset, a
+source, a guardrail or a theme. Every change lands through a pull request
+([CONTRIBUTING](CONTRIBUTING.md)); CI runs the tests on Windows and Linux and
+builds the docs, and a weekly job checks every parser against live sources.
+The [release plan](docs/RELEASES.md) covers versions and releases. The
+[documentation site](https://arenkdesai.github.io/miso-terminal/) is built from
+this README, `docs/` and `themes/README.md`.
 
 ## TODO
 
-Roughly in priority order within each area. The architecture docs explain where
-each piece plugs in.
+What is built is in the [changelog](CHANGELOG.md); this is what is still to
+come, roughly in order within each area.
 
-### Markets, news and trading
-News headlines, stock and options data, paper trading and portfolio tracking
-through Alpaca. See the
-[markets plan](docs/MARKETS-PLAN.md) for the design, decisions and sources.
-- [x] **Phase 0, foundations:** requests with any method, headers and body (secret
-      headers redacted in logs), per-host request budgets, conditional GETs and
-      hub-owned WebSocket streams (one connection per endpoint, reconnect and
-      resubscribe) in `mt-data`; API keys in Windows Credential Manager, entered
-      in SET; instrument syntax (`XLU US`, OCC options) on the command line; New
-      York exchange time; exact decimals for money. Streams and budgets show in LOG.
-- [x] **Phase 1, news:** FT, Bloomberg and Washington Post headlines (RSS, 13
-      feeds) in `TOP`, `NEWS` and `NI`, a top-stories tile on HOME, opening in your
-      signed-in browser; read marks, three weeks of headlines kept for search,
-      keyword topics, headline alerts, feed health in LOG and the weekly drift job.
-- [x] **Phase 2, market data:** Alpaca stocks and ETFs (free plan: IEX real time,
-      or every exchange 15 minutes late) in `Q`, `GP XLU US`, `DES` and WL, the
-      market's session in the status bar, a "Power & gas" list, ticker completion
-      from Alpaca's asset list, and company news (`CN XLU US`), with live trades,
-      quotes and news over Alpaca's streams.
-- [x] **Phase 3, account and portfolio:** `PORT` (positions kept live by the quote
-      stream, options by underlying with net delta), `ACCT` (balances, margin, day
-      trades, options level), `PNL` (the equity curve) and `ACT` (fills, dividends,
-      fees, option events) on the paper account, re-read every minute and after each
-      order event; an equity tile on HOME and a PAPER band above the status bar.
-- [x] **Phase 4, paper trading:** `BUY` and `SELL` tickets that only a click on
-      Confirm can send, the `ORD` blotter (cancel, replace), order ids that cannot
-      go in twice, guardrails (caps, collar, fat-finger check, restricted list,
-      sessions, buying power, day trades), a kill switch and an order audit log.
-- [x] **Phase 5, options:** `OMON` chains with greeks and implied volatility from
-      Alpaca's indicative feed; single-contract tickets (`BUY`/`SELL` with an OCC
-      symbol: covered calls, cash-secured puts, opening and closing) and multi-leg
-      spreads (`MLEG`, built from OMON's chain, with payoff at expiry), with the
-      option guardrails: levels, cover, expiry-day cutoffs, quote collars.
-- [ ] **Phase 6, live trading (0.4.0):** off by default, behind a typed confirmation,
-      signed releases and a security review, after paper trading has run cleanly.
+### 0.3.0: analytics
+The work before code signing; the [analytics plan](docs/ANALYTICS-PLAN.md)
+has the design.
+- [x] **The terminal's own price history:** every daily report kept for every
+      node, filled back as far as you like from SET, read by GP, SPRD, CMP and
+      HUBS for any window.
+- [ ] **Studies on GP for securities:** moving averages, Bollinger bands,
+      momentum, RSI and MACD.
+- [ ] **`BETA`:** alpha, beta and rolling beta against the S&P 500 and an
+      industry benchmark.
+- [ ] **`FCST`:** forecasts for DA and RT prices and for securities, with
+      bands and a record against naive baselines.
+- [ ] **`ASK`:** a Claude assistant with read-only tools over the terminal's
+      data, through Claude Desktop or Claude Code (the terminal as an MCP
+      server) or in the terminal with an API key.
+- [ ] An update check, off by default (a link, never a download).
+- [ ] The docs site deploys from published releases, not from `main`.
 
-### Analytics and AI (0.3.0)
-The work before the application for code signing. See the
-[analytics plan](docs/ANALYTICS-PLAN.md) for the design and decisions; in order:
-- [x] **The terminal's own price history:** every daily DA and RT report kept for
-      every node, with a backfill started from SET (three months by default,
-      back to 2023 if you like), which GP, SPRD, CMP and HUBS read for any
-      window. It replaces the Energy-Pricing-Journalist export, checked to agree
-      with it first.
-- [ ] **Forward fill for gaps in security prices:** charts hold the last price
-      until the next trade and break between sessions, instead of drawing slopes
-      across empty minutes and nights; return statistics keep using actual bars.
-- [ ] **Studies on GP for securities:** simple and exponential moving averages,
-      Bollinger bands, momentum and rate of change, RSI and MACD.
-- [ ] **`BETA`:** alpha, beta, R² and rolling beta against the S&P 500 (`SPY US`)
-      and against the security's industry (a configured benchmark or a list
-      basket), on total returns.
-- [ ] **`FCST`:** forecasts for DA and RT LMPs, DART and securities: statistical
-      baselines (seasonal naive, ETS, MSTL, volatility cones) and gradient-boosted
-      models, with bands and a backtest record against naive.
-- [ ] **`ASK`:** a Claude assistant whose read-only tools reach the terminal's
-      prices, constraints, reserves, system conditions, weather, gas, news and
-      forecasts, so it can answer "why did RT spike yesterday" or "what will DA
-      be tomorrow in Indiana" from the data. Use it from Claude Desktop or Claude
-      Code on your Claude plan (the terminal as an MCP server), or inside the
-      terminal with an API key (low effort, $0 monthly cap until you raise it).
+### After 0.3.0
+- [ ] **Code signing** through SignPath Foundation; unsigned executables trip
+      SmartScreen and Smart App Control.
+- [ ] **Live trading (0.4.0),** markets Phase 6: off by default, behind a typed
+      confirmation, after signing and the [security
+      review](docs/SECURITY-REVIEW.md)'s open findings.
+- [ ] A proper installer (MSI or MSIX) and a winget manifest, once signed.
 
 ### Data
-- [x] Yesterday's five-minute RT alongside today's in GP (MISO's `Previous` feed, on demand).
-- [x] Keep today's five-minute prices across restarts (sparklines in seconds instead
-      of waiting up to a minute for MISO's rolling feed).
-- [x] A five-minute archive over many days (`GP <node> 7 5MIN`), built from the daily stores
-      saved while the app runs, with yesterday completed from MISO's previous-day feed.
-- [ ] Backfill the five-minute archive for days the app was not running (MISO only
-      publishes today and yesterday at five minutes; older days would need another source).
-- [x] **Long history:** GP, SPRD, CMP and HUBS reach back up to about four years
-      (`GP MINN.HUB 365`). Until 0.3.0 this came from an export of the
-      Energy-Pricing-Journalist DuckDB; now from the terminal's own price history
-      (see *Analytics and AI*).
-- [x] Hub **ex-ante LMPs** (next interval) on HOME.
-- [x] New MISO feeds: `ACE` and `RDT` (regional directional transfer vs limits).
-- [x] Net actual interchange (NSI) and reserve / sub-regional constraints (CONS).
-- [x] More MISO feeds: RSG commitments and the next-day STR requirement (CAP), CTS (SEAM).
-- [x] DA/RT binding-constraint history (`BCH`, from MISO's daily `.xls` reports).
+- [ ] Five-minute history for days the terminal was not running (MISO
+      publishes only today and yesterday at five minutes).
 - [ ] More market reports: DA ex-ante LMPs, MCP history, load-zone summaries.
-- [x] Node types for every CP node (hub, load zone, interface, generator), from the DA report, in LMP.
-- [ ] More node metadata: zone and LBA for every CP node (MISO publishes no feed for it;
-      `geo.rs` carries positions for the 317 mapped ones).
-- [x] Weather by MISO zone (`WX`, National Weather Service): the first non-MISO source (`mt-nws`).
-- [x] Prices at the seams: every interface node, and PJM's CTS forecast at the PJM interface (`SEAM`).
-- [x] Gas prices: Henry Hub daily spot from EIA's public workbook (`GAS`, `mt-eia`).
-- [ ] Neighbouring ISOs' own prices (SPP's public marketplace files; PJM Data Miner
-      needs a key), and delivered gas at MISO hubs (Chicago, MichCon) if a free source exists.
-- [x] Disk-cache size cap with least-recently-used pruning (`data.cache_max_mb`); the
-      five-minute archive is exempt and kept for `data.archive_days` (default 90).
+- [ ] Zone and LBA for every node (MISO publishes no feed for it).
+- [ ] Neighbouring ISOs' prices (SPP's public files; PJM needs a key), and
+      delivered gas at MISO hubs if a free source exists.
+- [ ] MISO's operational notifications (Max Gen, capacity advisories), which
+      have no clean public source today.
 - [ ] An in-app switch between live data and offline replay.
-- [ ] MISO's operational notifications (Max Gen, capacity advisories, conservative
-      operations). Not in the public API, and misoenergy.org serves them behind a
-      browser challenge, so there is no clean source today.
 
-### Functions and UI
-- [x] `MAP`: node price map (LMP, congestion, loss, DA, DART) built from MISO's own node positions; click to GP.
-- [x] MAP: an interpolated price surface over the footprint.
-- [x] MAP: the transmission backbone (HIFLD, 230 kV and up, simplified to ~1.5 km).
-- [x] `SPRD A B`: node-to-node spreads (today at 5 minutes, hourly history, by component).
-- [x] Hour × day heatmap for a node or a spread (`GP <node> 14 HEAT`, `SPRD A B 14 HEAT`).
-- [x] Price duration curves for a node or spread (`GP <node> 30 DUR`).
-- [x] **Alerts** (`ALRT`): per-node price thresholds and constraint conditions,
-      edge-triggered, with a taskbar flash and an in-app badge.
-- [x] More alert kinds: spreads, RDT near its limit, load above forecast, ACE.
-- [x] Windows toast notifications for alerts (toggle and a test button in ALRT).
-- [x] `WL` watchlist of favourite nodes, editable in-app (☆ in GP) and saved to config.
-- [x] Pop a tab out into its own OS window for multi-monitor desks (saved with the
-      layout, position included).
-- [x] Copy tables as CSV (LMP, WL, GP, SPRD, CMP, DAM, BCH, GAS, SEAM, Q, OMON and
-      the account's PORT, ORD, ACT and PNL).
-- [x] Copy a panel to the clipboard as an image, or save it as PNG (right-click its tab).
-- [x] `SET`: edit `config.toml` values in-app.
-- [x] Command line: usage hints, fuzzy matching, and configurable function keys.
-- [x] Contain panel panics to their tab (logged, with a *Reload panel* button).
-
-### Themes
-- [x] Follow the Windows light/dark setting with a chosen light/dark pair (`THEME`).
-- [x] Everforge's chamfered corners (`cut-md`) on hero tiles (a theme `chamfer` value).
+### UI and themes
+- [ ] Light gallery themes (Catppuccin Latte, Gruvbox Light, Rosé Pine Dawn,
+      Tokyo Night Day).
 - [ ] The chamfer on the active tab (needs custom tab painting in egui_dock).
-- [x] A high-contrast accessibility theme (`high-contrast`).
-- [x] A `default` theme in the Bloomberg Terminal's style; Everforge moves to a
-      downloadable theme gallery on the docs site (`themes/gallery/`).
-- [x] Browse, install, update and remove gallery themes inside `THEME`, from an
-      index the docs site publishes (`themes/index.json`).
-- [x] `default-light`, a built-in light theme for *Follow Windows light/dark*.
-- [x] Gallery themes: Catppuccin Mocha, Gruvbox Dark, Monokai, Rosé Pine and
-      Tokyo Night (Amber Terminal retired).
-- [ ] Light variants in the gallery (Catppuccin Latte, Gruvbox Light, Rosé Pine
-      Dawn, Tokyo Night Day).
-- [ ] Optionally make `miso-terminal` a target in Everforge's own `build.py`
-      (per its port policy) instead of the sync example here.
-
-### Releases
-v0.2.0 was released on 2026-10-07. The [release plan](docs/RELEASES.md) sets out
-how changes land, versioning, the changelog, the checklist, verification and
-signing, and [what comes after v0.2.0](docs/RELEASES.md#after-v020) orders the next steps.
-- [x] A release workflow: a `v*` tag builds the Windows zip and attaches it to a
-      GitHub release.
-- [x] **Pull requests for every change:** squash merges, auto-merge, rulesets
-      protecting `main` and `v*` tags with no bypass, immutable releases.
-- [x] [`CONTRIBUTING.md`](CONTRIBUTING.md), and [`CHANGELOG.md`](CHANGELOG.md)
-      kept under *Unreleased* by each pull request.
-- [x] CI to match: a required *Docs* check (the docs build checks its links),
-      `--locked` builds with a pinned toolchain, third-party notices checked on
-      every pull request, Dependabot, and drift failures opening issues.
-- [x] One workspace version shown in `--version`, HELP and LOG (with the commit
-      outside releases), and a test that every release's `config.toml` still
-      loads (`fixtures/compat/`).
-- [x] Release workflow hardening: tag must match the version, release
-      candidates as pre-releases, `--locked` builds, `SHA256SUMS.txt`, a build
-      provenance attestation, third-party licence notices (`cargo-about`), notes
-      from the changelog with a link to the source, draft-then-publish for
-      immutable releases, and a dry run on the pull requests that change it.
-- [ ] The docs site deploys from published releases, not from `main`.
-- [x] **The first release, v0.2.0:** MISO functions, themes, news, Alpaca
-      market data, the paper account and paper trading in stocks and options
-      (markets phases 0 to 5). The analytics plan follows in 0.3.0, and live
-      trading (Phase 6) in 0.4.0, once releases are signed.
-- [ ] **Code signing** (SignPath Foundation, free for open source, applied for
-      once 0.3.0 is released). Unsigned executables trip SmartScreen and Smart
-      App Control; signing is required before live trading.
-- [ ] An update check against GitHub releases, off by default (a setting in SET;
-      it shows a link, never downloads anything).
-
-### Windows distribution
-- [x] Per-user install script in the release zip (`packaging/install.ps1`).
-- [ ] A proper installer (MSI via `cargo-wix`, or MSIX), and a winget manifest,
-      once releases are signed.
-- [x] Single instance: a second launch hands its `--run` commands to the open window.
 - [ ] Jump-list entries for favourite functions (taskbar right-click).
-
-### Engineering
-- [x] Offscreen rendering of the real app to PNG (`cargo run -p mt-ui --example render`),
-      with egui_kittest and wgpu: no window, real input and rendering.
-- [x] Visual regression tests (`tests/snapshots.rs`): the layout in every built-in
-      theme plus zoomed MAP, DAM, SEAM, GP, the news, the securities, the account,
-      the tickets, OMON and MLEG, rendered with the clock frozen at the fixtures'
-      recording time and compared with committed images.
-- [x] A weekly CI job (`drift.yml`) that records live responses and runs every
-      parser against them, to catch MISO format changes early.
-- [x] A rolling-feed benchmark (`cargo run --release -p mt-miso --example bench_rolling`): a full
-      day (29 MB, 530k rows) parses in ~0.4 s and builds in ~50 ms; the download dominates.
-- [x] Public GitHub repository with CI on every push.
-- [x] A documentation site (GitHub Pages) generated from this README and `docs/`.
-- [x] Licence: AGPL-3.0-or-later (see [Licence](#licence)).
+- [ ] Make `miso-terminal` a target in Everforge's own `build.py` instead of
+      the sync example here.
 
 ## Licence
 
@@ -521,7 +287,8 @@ FITNESS FOR A PARTICULAR PURPOSE. See [`LICENSE`](LICENSE) for the full text.
 The bundled fonts (IBM Plex Sans, JetBrains Mono, Space Grotesk) are under the
 SIL Open Font License 1.1; their licences are in [`assets/fonts/`](assets/fonts/).
 Market data comes from MISO, the National Weather Service and the EIA, and is
-subject to their terms. Stock and ETF prices come from Alpaca under each user's own
-account and its terms; the repository's recordings of them hold synthetic prices.
-Headlines belong to their publishers (the Financial Times, Bloomberg, the Washington
-Post, Benzinga), are shown with their names and links, and are subject to their terms.
+subject to their terms. Stock and ETF prices come from Alpaca under each user's
+own account and its terms; the repository's recordings of them hold synthetic
+prices. Headlines belong to their publishers (the Financial Times, Bloomberg,
+the Washington Post, Benzinga), are shown with their names and links, and are
+subject to their terms.
