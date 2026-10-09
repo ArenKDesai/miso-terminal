@@ -52,13 +52,9 @@ when you close the terminal.
   put it on a second monitor. Close that window, or press *Dock*, to bring it
   back. It reopens where you left it next time.
 - **Full screen.** `F11`, `Alt+Enter` or *Full screen* (top right) fills the
-  monitor with the terminal, over the taskbar; the same again comes back. In
-  a popped-out window they fill that window's monitor instead (its own *Full
-  screen* button is next to *Dock*), so a second screen can show one panel
-  edge to edge. Each window reopens in full screen if you left it so. With
-  zoom (`Ctrl+M`) on top, one panel has the whole screen. If you bind a
-  command to `F11` under `[ui.hotkeys]`, the key runs it and `Alt+Enter`
-  stays for full screen.
+  monitor, over the taskbar; the same again comes back. In a popped-out
+  window they fill that window's monitor, so a second screen can show one
+  panel edge to edge. Add zoom (`Ctrl+M`) and one panel has the whole screen.
 - **Start over.** *Reset layout* (top right, or `Ctrl+Shift+L`) restores the
   default arrangement. `--reset-layout` does the same at startup.
 
@@ -120,10 +116,9 @@ Next to the views:
 - **Components.** *LMP*, *Energy*, *Congestion* and *Loss* chart that part of
   the price. Congestion is where nodes differ from one another; energy is
   nearly the same everywhere.
-- **Days.** *3d* to *1y*. History comes from MISO's daily market reports and is
-  cached on disk, so a window loads instantly the second time. Until MISO's
-  final RT report lands (about a week), GP uses the preliminary one and says
-  so.
+- **Days.** *3d* to *1y*. Past days are read from the price history on disk
+  (see [Reach back years](#reach-back-years)). Until MISO's final RT report
+  lands (about a week), GP uses the preliminary one and says so.
 - **Other nodes.** Type in *change node…*, or click one of your favourites
   listed beside it (the eight hubs by default).
 - **☆ Watch** adds the node to your watchlist; it turns to *★ Watching*.
@@ -158,28 +153,24 @@ before* shows how each hour moved.
 ## Reach back years
 
 Every daily report the terminal downloads is kept on disk for every node (the
-price history), so a day is downloaded once and charts read it from disk
-afterwards. A chart downloads the days it is missing from the last 90 days,
-a day at a time (the first long window takes a while); older days it shows
-from the price history. `GP MINN.HUB 365`, `SPRD`, `CMP` and `HUBS 365` reach
-back as far as the price history goes, and say how many older days it lacks,
-with a *Price history…* button that opens `SET`.
+**price history**), so a day is downloaded once. Charts download the days they
+lack from the last 90; older days they show only from the price history.
+`GP MINN.HUB 365`, `SPRD`, `CMP` and `HUBS 365` reach back as far as it goes,
+and say how many older days it lacks, with a *Price history…* button.
 
 **Fill it in ahead of time.** `SET` → *Price history* chooses how far back to
-keep (*3 months* by default, up to *Everything since 2023-01-01*, the first
-day MISO publishes) and shows what is stored. *Download now* fetches the
-missing days in the background, newest first, one report every two seconds:
-three months is about 230 MB to download and 30 MB on disk, and takes about
-eight minutes. Keep working meanwhile; the status bar counts the reports
-(click it for `SET`) and `LOG` lists them. *Pause* stops it, and it carries on
-where it stopped, after a restart too. Once done it keeps the window filled
-every day, and swaps preliminary RT days for MISO's final prices when they
-come out (five or six days later). Days before the window are removed.
+keep (*3 months* by default, up to *Everything since 2023-01-01*, MISO's first
+day) and shows what is stored. *Download now* fetches the missing days in the
+background, newest first: three months is about 230 MB to download, 30 MB on
+disk and eight minutes. The status bar counts the reports, and *Pause* stops
+it; it carries on where it stopped, after a restart too. Once done it keeps
+the window filled and swaps preliminary RT days for final ones when MISO
+publishes them. Days before the window are removed.
 
 Five-minute history is different: MISO publishes only today and yesterday at
-five minutes, so the terminal keeps its own archive of every day it runs (90
-days by default; *Five-minute archive* in `SET`). `GP <node> 7 5MIN` and
-`SPRD A B 7 5MIN` read it.
+five minutes, so the terminal keeps every day it runs (90 days by default;
+*Five-minute archive* in `SET`). `GP <node> 7 5MIN` and `SPRD A B 7 5MIN`
+read it.
 
 ## Build a watchlist
 
@@ -476,18 +467,14 @@ restricted = ["MGEE"]       # never trade these, nor their options
 ```
 
 A cap of 0 turns it off. Some rules always hold: market orders only in the
-regular session (09:30 to 16:00 New York time; use a limit order, with *Extended
-hours* to trade before or after), enough buying power for what the order opens,
-no order that turns a long position short (or a short one long) in one go, no
-selling shares that open orders already hold, and Alpaca's limit of three day
-trades in five business days below $25,000 of equity.
-
-When an order would trade as soon as it arrives (in the regular session, or
-before and after it with *Extended hours*), the price the caps and the collar
-use must be recent: older than `max_price_age_secs`, a market order is refused
-and any other order needs the tick box. A stream that has stopped, an option
-chain that has not refreshed, or the 15-minute-delayed feed all show up here;
-for a spread, the oldest leg's quote counts. 0 turns the check off.
+regular session (09:30 to 16:00 New York time; otherwise a limit order with
+*Extended hours*), enough buying power, no order that flips a long position
+short (or a short one long) in one go, no selling shares that open orders
+already hold, and Alpaca's limit of three day trades in five business days
+below $25,000 of equity. An order that would trade at once needs a recent
+price (`max_price_age_secs`): a stale one refuses a market order and makes
+any other need the tick box, which catches a stopped stream or the delayed
+feed.
 
 **The kill switch.** *Kill switch…* at the top right of `ORD` cancels every open
 order and, if you tick the box, closes every position at the market. It also
@@ -678,9 +665,7 @@ A few things to know:
 - **MISO down, or no network?** `--offline` replays the recorded data, so you
   can still learn the terminal or demo it.
 - **Edited `config.toml` and now the settings are gone?** A file that will not
-  load is ignored: the terminal runs on the defaults and `LOG` shows the line
-  at fault. Fix it, or start over with *Reset to defaults…* in `SET` (the
-  broken file is kept as `config.toml.bak`). Files written by older versions
-  hold empty lists such as `alerts = []` or `feeds = []`; if you add
-  `[[alerts]]` or `[[news.feeds]]` tables to one of those, delete the matching
-  empty line, since a key can appear only once.
+  load is ignored: the terminal runs on the defaults (without touching your
+  price history) and `LOG` shows the line at fault. Fix it, or start over with
+  *Reset to defaults…* in `SET` (the broken file is kept as
+  `config.toml.bak`).

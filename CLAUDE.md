@@ -4,16 +4,16 @@ A Bloomberg-style terminal for MISO market data. It is read-only for MISO;
 trading goes only through Alpaca, on the paper account, through confirmed tickets. It is a
 Rust workspace with an egui UI, and Windows is the primary platform. Read
 `docs/ARCHITECTURE.md` before structural changes and `docs/EXTENDING.md` for
-recipes. `docs/RELEASES.md` is the plan for releases (the first is `v0.2.0`; ask
-before tagging, since a `v*` tag publishes one). `docs/MARKETS-PLAN.md` is the agreed plan for news, Alpaca market
-data, trading and portfolio tracking: Phase 0 (foundations), Phase 1 (news),
-Phase 2 (market data), Phase 3 (the paper account), Phase 4 (paper trading)
-and Phase 5 (options) are built, the README's roadmap tracks the rest.
-`docs/ANALYTICS-PLAN.md` is the plan for `0.3.0`, before the code signing
-application: the terminal's own price history (built; it replaced the
-Energy-Pricing-Journalist export), forward-filled security prices, studies and
-BETA, forecasts (FCST, crate `mt-forecast`) and the Claude assistant (ASK,
-crate `mt-ai`, read-only tools only); live trading moves to `0.4.0`.
+recipes. `docs/RELEASES.md` is the plan for releases (`v0.2.0` is out; ask
+before tagging, since a `v*` tag publishes one). `docs/MARKETS-PLAN.md` is the
+plan for news, Alpaca market data, trading and portfolio tracking: phases 0
+to 5 are built, Phase 6 (live trading) is `0.4.0`. `docs/ANALYTICS-PLAN.md` is
+the plan for `0.3.0`, before the code signing application: the terminal's own
+price history (built), studies and BETA, forecasts (FCST, crate
+`mt-forecast`) and the Claude assistant (ASK, crate `mt-ai`, read-only tools
+only); its part 2, forward fill for security prices, was dropped. Keep the
+docs lean: the README's roadmap lists only open work (the changelog records
+what is built), and a finished plan step shrinks to a short summary.
 `docs/SECURITY-REVIEW.md` lists what the order path review found and what is
 still open before live trading (Phase 6); update its status column when a
 finding is fixed.

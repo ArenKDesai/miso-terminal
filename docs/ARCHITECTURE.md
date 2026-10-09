@@ -57,8 +57,8 @@ TUI, a web view, a CLI exporter) could reuse them unchanged.
    rule even when a user hammers F5); **conditional GETs** (a URL whose server
    sent an `ETag` or `Last-Modified` is asked "changed since?", so an unchanged
    feed costs a `304`); **request budgets** per host (below); an **on-disk gzip
-   cache** for immutable files (settled market reports, apart from the LMP
-   reports the [day store](#the-day-store) keeps); and an event log.
+   cache** for immutable files (the LMP reports go to the
+   [day store](#the-day-store) instead); and an event log.
 4. `FetchCtx` sends a `Request` (method, URL, headers, body) through a
    `Transport`: `HttpTransport` (reqwest with native-tls, so SChannel and the
    Windows certificate store) or `FixtureTransport` (recorded files, used by
@@ -148,73 +148,50 @@ keeps `data.archive_days` days instead.
 
 Every DA ex-post and RT daily report the terminal parses is kept whole under
 `local://archive/report/<da|rt>/<date>`: every node's hourly LMP, MCC and MLC
-(`DayLmpReport::to_bytes`: whole cents as `i32`, split into byte planes, about
-170 KB a day gzipped against 280 KB for the CSV). `fetch_report` answers from
-it before downloading, so a settled day costs one download ever; an RT day
-keeps its preliminary report until the final one replaces it (never the other
-way round), and a preliminary day is still asked for again. Only live files
-that name the day asked for are kept (a replay keeps nothing: the fixtures are
-trimmed to a few nodes and stand in for any date), and a live file for the
-wrong date is an error.
-The CSVs themselves are not cached, nor held in memory for conditional
-requests (`FetchCtx::get_uncached`): a settled report lives once, in the store;
-only a preliminary RT report, which comes round again, is asked "changed
-since?". The store is exempt from the size cap; `mt_ui::kept_cache_dirs` lists
-what the cap and LOG's *Clear cache* leave alone. Part 1 of the
-[analytics plan](ANALYTICS-PLAN.md) builds on it.
+as whole cents in byte planes (`DayLmpReport::to_bytes`, about 170 KB a day
+gzipped). `fetch_report` answers from it before downloading, so a settled day
+is downloaded once; an RT day keeps its preliminary report until the final
+one replaces it, never the other way round. Only live files naming the day
+asked for are kept (a replay keeps nothing). The CSVs are not cached as well,
+in memory or on disk (`FetchCtx::get_uncached`). The store is exempt from the
+size cap, like everything in `mt_ui::kept_cache_dirs`.
 
-Charts read the store a node at a time, not a day at a time: a whole day of
-every node is about 1 MB in memory, so a year of them for one chart would be
-most of a gigabyte. `StoredPricesQuery` (`Miso::stored_prices(nodes, first)`)
-lists the store from the window's first day and reads only the asked-for
-nodes' rows from each file (`DayLmpReport::rows_from_bytes`, which decodes no
-other row); HUBS asks for its eight hubs at once, so each day is decompressed
-once for all of them. It refreshes every minute, re-reading only files whose
-size or modified time changed (`DiskCache::read` leaves the time alone, so a
-read is not a change), which is how a final RT report written over a
-preliminary one, or a day the backfill adds, shows up.
-`series::nodes_history` (and `node_history`, for one node) then takes each
-day from the store, else from a download, which only the last 90 days get
-(`DOWNLOAD_DAYS`, two reports a day of every node). A stored day without the node is not downloaded again,
-and a preliminary RT day recent enough to download is asked for again, since
-its final may be out. Older days the store lacks are counted (`unstored_days`)
-and the chart points to SET's *Price history*.
+Charts read the store a node at a time: a whole day of every node is about
+1 MB in memory, so a year of days would be most of a gigabyte.
+`StoredPricesQuery` (`Miso::stored_prices(nodes, first)`) reads only the
+asked-for nodes' rows from each file (`DayLmpReport::rows_from_bytes`), all of
+a panel's nodes at once (HUBS reads its eight hubs in one pass), and refreshes
+every minute, re-reading only files whose size or modified time changed
+(`DiskCache::read` does not touch the time). `series::nodes_history` takes
+each day from the store, else from a download, which only the last 90 days get
+(`DOWNLOAD_DAYS`); older days the store lacks are counted, and the chart
+points to SET.
 
 ### The price history's backfill
 
-`[price_history]` (`mt_miso::HistoryConfig`) sets the store's window: `keep_days`
-back from today (three months by default; 0 for everything since 2023-01-01,
-MISO's first day of these reports) and whether to `backfill` it.
-`mt_miso::Backfill` is a worker on the data runtime, like the order desk: the
-app hands it the settings (`configure`, again on every change and while
-fetching is paused) and reads its `status` for SET, LOG and the status bar.
+`[price_history]` (`mt_miso::HistoryConfig`) sets the store's window
+(`keep_days`: three months by default, 0 for everything since 2023-01-01) and
+whether to `backfill` it. `mt_miso::Backfill` is a worker on the data
+runtime, like the order desk: the app hands it the settings (`configure`) and
+reads its `status` for SET, LOG and the status bar.
 
-The store is its own record of progress. Each pass lists it (`Inventory`: a
-directory walk, plus each RT file's first bytes, `DayLmpReport::peek`, to tell
-final from preliminary), removes the days before the window, plans what is
-missing (`plan`: DA through today and RT through yesterday, newest first, and
-preliminary RT days at least five days old, whose final report may be out)
-and fetches each report through `fetch_report`, the panels' own path, one at a
-time and two seconds apart. So a paused or interrupted backfill carries on
-where it stopped, a day a panel downloaded meanwhile is not downloaded again,
-and the backfill writes nothing itself (`fetch_report` keeps what it fetches). A report
-MISO answers 404 is counted as not published and asked for again on the next
-pass; one that will not parse is skipped and shown in LOG; anything else
-(network, 5xx, 429) is retried after 10 s, doubling to 10 minutes. A full
-window is looked at again every hour. The first pass after launch waits 15 s,
-so the panels' own fetches go first. A settings change interrupts the pass
-(after the report in flight) and starts a new one. With the backfill off,
-passes still list and prune the store, so SET always shows what it holds.
+The store is its own record of progress. Each pass lists it (`Inventory`,
+peeking at each RT file's header for final or preliminary), removes days
+before the window, plans what is missing (`plan`: newest first, plus
+preliminary RT days old enough for their final) and fetches each report
+through `fetch_report`, the panels' own path, one at a time and two seconds
+apart. A pause, a restart or a day a panel downloaded meanwhile therefore
+costs nothing extra. A 404 is asked for again next pass, a report that will
+not parse is skipped and shown in LOG, and anything else is retried after 10 s,
+doubling to 10 minutes. A full window is looked at again hourly; the first
+pass after launch waits 15 s for the panels' own fetches; a settings change
+starts a new pass. The pacing is the backfill's own rather than a `Budget`,
+which every panel request to the host would share.
 
-The pacing is the backfill's own rather than a `Budget` on
-`docs.misoenergy.org`: a budget is shared by every request to the host, and
-would make a long GP window wait behind the backfill.
-
-The store replaced an export from the Energy-Pricing-Journalist DuckDB
-(`tools/export_history.py`, until 0.3.0): compared over every node, hour and
-component of 78 DA and 77 RT days from 2023-01-01 to 2026-09-04, the two
-agree wherever both hold settled prices. At launch, `discard_exported_history`
-removes the files the export left in the cache (`archive/lmp`).
+The store replaced an export from the Energy-Pricing-Journalist DuckDB, after
+a comparison over every value of 155 days (they agree wherever both hold
+settled prices); `discard_exported_history` removes what the export left in
+the cache.
 
 ### News
 
@@ -327,45 +304,33 @@ through the same path. Every request body and answer is appended to
 `orders-YYYY-MM.jsonl` (`AuditLog`); keys travel only in headers, which are
 never written.
 
-A spread is one order (`OrderRequest::legs`, sent as Alpaca's `mleg` class
-with each leg's ratio, side and intent); its answer and the order list carry
-the legs nested under it (`Order::legs`, read with `nested=true`). Before the
-desk is asked, a ticket runs `mt_core::guard::review` (for an option contract
-`review_option`, against an `OptionContext` that
-`mt_ui::trading::OptionMarket` builds from the account, positions, contract
-list and chain; for a spread `review_spread`, with each leg's quote, which
-also returns the net prices, Alpaca's margin and the payoff at expiry): pure
-rules over the request, the account, the position, the latest prices, the
-exchange session, today's order value (`order::day_value`) and whether it
-would be a day trade (`order::is_day_trade`), each a pass, a warning the user
-must acknowledge, or a block. `Limits` (`[trading]`) holds the caps, the collar,
-the restricted list and the switch the kill switch turns off.
+A spread is one order (`OrderRequest::legs`, sent as Alpaca's `mleg` class);
+its legs come back nested under it (`Order::legs`, read with `nested=true`).
 
-The desk does not take the tickets' word for any of this. `submit` and
-`replace` take a `guard::Approved`, which only `Review::approve` makes (a
-review with no block, its warnings acknowledged) and which carries the very
-request that was reviewed; a replacement must match its approval change for
-change. The desk also holds its own copy of the switch
-(`OrderDesk::set_enabled`, kept equal to `[trading] enabled` by the app and
-cleared by `kill` before its cancels go out), and sends nothing new while it
-is off; cancels always go. `Approved::unreviewed` exists only with
-`mt-core`'s `unreviewed-orders` feature, which `mt-alpaca` enables as a
-dev-dependency for the desk's tests and the live checks in its examples; the
-binary refuses to compile a release build that has it. The order list
-(`OrdersQuery`) is re-read after every order event and reconnect, as the
-account is, and the trade stream keeps each order as its latest event left it
-(`LiveTrades::orders`), merged over the list by last change
-(`order::merge_orders`).
+Before the desk is asked, a ticket runs `mt_core::guard::review`
+(`review_option` for a contract, `review_spread` for a spread, which also
+returns the net prices, Alpaca's margin and the payoff): pure rules over the
+request, the account, the position, the latest prices, the session, today's
+order value and day trades, each a pass, a warning to acknowledge, or a
+block. `Limits` (`[trading]`) holds the caps, the collar, the restricted list
+and the switch.
+
+The desk does not take the tickets' word for it. `submit` and `replace` take a
+`guard::Approved`, which only `Review::approve` makes and which carries the
+very request reviewed; a replacement must match its approval. The desk keeps
+its own copy of the switch (`set_enabled`, cleared by `kill` before its
+cancels go out) and sends nothing new while it is off. `Approved::unreviewed`
+exists only with `mt-core`'s `unreviewed-orders` feature, for the desk's
+tests and live checks; a release build with it does not compile. The order
+list is re-read after every order event and reconnect, and the trade stream's
+latest state of each order is merged over it (`order::merge_orders`).
 
 In the UI, `mt_ui::trading` is what the tickets (`BUY`, `SELL`, `MLEG`) and
-the blotter (`ORD`) share: the merged orders, verdicts and outcomes drawn alike. A
-ticket keeps its fields as text and builds an `OrderRequest` each frame; its
-*Confirm* is the only call to `OrderDesk::submit`, and the app holds the one
-desk (`PanelCx::desk`). The desk's generation counter moves when an operation
-finishes, and the app then re-reads the account, positions and orders. The
-kill switch also sets `[trading] enabled = false` through
-`AppCommand::SetTradingEnabled`, so trading stays off across restarts. Ticket
-tabs are closed rather than restored at launch.
+`ORD` share. A ticket's *Confirm* is the only call to `OrderDesk::submit`; the
+app holds the one desk (`PanelCx::desk`) and re-reads the account whenever
+the desk's generation moves. The kill switch also sets `[trading] enabled =
+false`, so trading stays off across restarts. Tickets are not restored at
+launch.
 
 ### Feeds with memory
 
@@ -397,8 +362,9 @@ so `WL ALTE.ALTE` adds to the open watchlist instead of opening a second one.
 
 Shared panel machinery lives outside the functions so panels stay small:
 `series` assembles a node's prices from whichever feeds cover each span
-(five-minute today, daily reports before, yesterday's full five-minute day on
-demand), and computes spreads, stats, percentiles and the on-peak block.
+(five-minute today, the price history or daily reports before, the
+five-minute archive on demand), and computes spreads, stats, percentiles and
+the on-peak block.
 `alerts` is a pure, edge-triggered rule engine the shell evaluates every
 frame, watching only the feeds active rules need. `capture` turns a tab's
 area into a clipboard image or PNG via egui's window screenshot.
@@ -466,15 +432,14 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 
 | Layer | Tests |
 |---|---|
-| `mt-core` | Time parsing for every MISO spelling, EST invariants, intraday store merging and round-trips, map masks and surfaces; New York time across clock changes, and sessions; security and OCC parsing; option contract lists, chains by strike, the money's window, price steps and expiry cutoffs; exact decimals from broker JSON; marking positions (shorts, options, opened today), net delta, account figures, drawdowns, activity categories and merging; order requests the broker would refuse, order values, merging and day trades; every guardrail (switch, restricted list, sessions, the three caps, the collar, size, shorts, buying power, day trades); every option guardrail (levels, covered calls, cash-secured puts, flips and closes, expiry cutoffs, the quote collar, price steps, contracts per order); strategy names, net prices, payoffs and break-evens, Alpaca's spread margin and uncovered legs; every spread guardrail |
-| `mt-data` | Hub dedupe, refresh, `prev` threading, error backoff, pause, GC, notify; streams against a scripted server (shared connections, subscription unions, reconnect and resubscribe, refused logins, lingering topics, pause); a real WebSocket round trip on localhost; conditional GETs, status mapping, budgets and `429`s; secrets kept out of the log; the Windows Credential Manager round trip; transports; disk cache |
-| `mt-miso` | Every parser against a recorded response in `fixtures/` (structure and sanity, not exact values, so re-recording keeps them green); the previous-day feed filling the archive; the day store (what is kept, what is served from it, a prelim never replacing a final); the backfill against a fake MISO (the window filled newest first and a pace apart, nothing downloaded twice, pausing and carrying on, a final report replacing a preliminary one, retries, days before the window removed, nothing done before it is configured or in a replay) |
-| `mt-nws` | Weather parsers against recordings for every city; the same `MT_FIXTURES` override |
-| `mt-alpaca` | Snapshots, bars (paging, windows, the delayed tape's end), assets, clock, calendar and news against recordings with synthetic prices (live in the drift job); stream logins, subscriptions within the plan's limit (trades before quotes, halving after a `405`), refused keys and price merging; replays of recorded stream sessions, including Alpaca's test feed; option contract lists and chains against the sample chains (live in the drift job); the account, positions, equity curves, activities, option greeks, orders and order events against the sample account (reconciled to the cent) or a live recording; the order desk against a fake broker: an order (and a spread, as one `mleg` order) goes in once, a lost answer is looked up rather than resent, an order that never arrived goes again under the same id (and a late arrival is found, not duplicated), rejections, rate limits, unknown fates, cancels, replaces and the kill switch, nothing new sent while trading is off, replacements held to their approval, with keys kept out of the audit log |
-| `mt-news` | RSS 2.0, RSS 1.0 and Atom (CDATA, escaped HTML, entities, dates, Atom links, no article bodies); every built-in feed against its recording (sample text in the feed's real structure; live in the drift job via `MT_FIXTURES`); identities, merging, combining, keyword rules, config overrides, read marks |
-| `mt-theme` | Built-ins parse, validate and round-trip; user overrides; contrast maths |
-| `mt-ui` | Command parsing, completion and hints; every earlier version's `config.toml` (`fixtures/compat/`) loading strictly; alert engine (headline alerts included); series maths; the headline browser and archived headlines and read marks across a restart; **headless smoke test**: every function × every theme, with no data and with all fixtures loaded, rendering *and tessellating* real frames; the app shell running startup commands, alerts firing and tab shortcuts; a panicking panel contained; today's prices restored after a restart; ticket commands parsed and round-tripped; commands from outside the window (`--run`, a forwarded launch, a hotkey) opening tickets against fixtures posing as the live network, with nothing but GETs sent |
-| visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen at their recording time, compared with committed images: every built-in theme's layout and zoomed panels across the app (the account's four, the stock and option tickets, ORD, OMON and MLEG among them) |
+| `mt-core` | Market and New York time, intraday stores, the day store's format, map geometry, instruments, exact money, account figures, orders, and every guardrail for stocks, options and spreads, against values worked by hand |
+| `mt-data` | The hub (dedupe, refresh, backoff, pause, GC), streams against a scripted server and a real local WebSocket, conditional GETs, budgets and `429`s, secrets kept out of the log, the disk cache |
+| `mt-miso` | Every parser against a recording in `fixtures/` (structure and sanity, so re-recording keeps them green); the day store, the stored-prices reader and the backfill against a fake MISO |
+| `mt-nws`, `mt-eia`, `mt-news` | Parsers against recordings (news as sample text in the feeds' real structure); merging, topics and read marks |
+| `mt-alpaca` | Every dataset against recordings with synthetic prices and the made-up account; stream subscriptions within the plan's limit; the order desk against a fake broker (an order goes in once, lost answers looked up, rejections, cancels, replaces, the kill switch, nothing sent while trading is off) |
+| `mt-theme` | Built-ins parse, validate and round-trip; contrast maths |
+| `mt-ui` | Commands and completion; every earlier release's `config.toml` loading; the alert engine; series maths; a **headless smoke test** rendering and tessellating every function in every theme, with and without data; the shell's commands and shortcuts; commands from outside the window opening tickets with nothing but GETs sent |
+| visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen, compared with committed images |
 
 The smoke test iterates the registry, so a new function gets coverage without
 writing a test. It also checks that every feed any panel requests loads from
