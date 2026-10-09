@@ -36,7 +36,8 @@ MISO Terminal is a community project, and these hold for every change:
 
 - **Your data stays yours.** No telemetry, no accounts with us, nothing sent
   anywhere but the sources you ask for. Keys live in Windows Credential
-  Manager, never in files or logs.
+  Manager, never in files or logs. The [privacy policy](docs/PRIVACY.md)
+  lists every service the terminal contacts.
 - **Good citizens of the web.** Every source's robots.txt, terms and rate
   limits are respected (MISO asks for at most one request a minute per feed,
   and gets it). No scraping around paywalls or limits.
@@ -63,9 +64,10 @@ uninstalling keeps your settings and data. Or run `miso-terminal.exe` from the
 folder; an empty file named `portable` beside it keeps everything in a `data`
 folder there.
 
-Releases are not code-signed yet ([signing](docs/RELEASES.md#signing) is
-planned), so SmartScreen may warn on first launch (*More info*, then *Run
-anyway*), and Smart App Control blocks unsigned programs outright.
+Releases are not code-signed yet, so SmartScreen may warn on first launch
+(*More info*, then *Run anyway*), and Smart App Control blocks unsigned
+programs outright. The [Code signing policy](docs/CODE-SIGNING.md) says how
+releases will be signed.
 
 ## Build from source (Windows)
 
@@ -228,9 +230,16 @@ this README, `docs/` and `themes/README.md`.
 What is built is in the [changelog](CHANGELOG.md); this is what is still to
 come, roughly in order within each area.
 
+### Code signing
+Through SignPath Foundation; the [release plan](docs/RELEASES.md#signing) has
+the steps, and the [Code signing policy](docs/CODE-SIGNING.md) the terms.
+- [ ] Apply to SignPath Foundation.
+- [ ] Sign `miso-terminal.exe` and `install.ps1` in the release workflow once
+      accepted, so SmartScreen and Smart App Control stop warning about
+      releases (SmartScreen as the certificate builds a reputation).
+
 ### 0.3.0: analytics
-The work before code signing; the [analytics plan](docs/ANALYTICS-PLAN.md)
-has the design.
+The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
 - [x] **The terminal's own price history:** every daily report kept for every
       node, filled back as far as you like from SET, read by GP, SPRD, CMP and
       HUBS for any window.
@@ -247,8 +256,6 @@ has the design.
 - [ ] The docs site deploys from published releases, not from `main`.
 
 ### After 0.3.0
-- [ ] **Code signing** through SignPath Foundation; unsigned executables trip
-      SmartScreen and Smart App Control.
 - [ ] **Live trading (0.4.0),** markets Phase 6: off by default, behind a typed
       confirmation, after signing and the [security
       review](docs/SECURITY-REVIEW.md)'s open findings.

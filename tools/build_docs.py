@@ -50,7 +50,7 @@ FIXTURE = ROOT / "fixtures/arenkdesai.github.io/miso-terminal/themes/index.json"
 class Page:
     slug: str  # output file
     source: str  # repo path of the Markdown
-    nav: str  # label in the top bar
+    nav: str  # label in the top bar ("" for a page linked from the footer only)
     markdown: str = ""
     html: str = ""
     title: str = ""
@@ -162,7 +162,7 @@ def inline_md(text: str) -> str:
 
 def layout(page: Page, pages: list[Page]) -> str:
     current = ' aria-current="page"'
-    nav = "\n".join(f'<a href="{p.slug}"{current if p is page else ""}>{p.nav}</a>' for p in pages)
+    nav = "\n".join(f'<a href="{p.slug}"{current if p is page else ""}>{p.nav}</a>' for p in pages if p.nav)
     toc = "\n".join(f'<li><a href="#{a}">{inline_md(t)}</a></li>' for a, t in page.toc)
     aside = f'<aside class="toc"><p class="label">On this page</p><ul>{toc}</ul></aside>' if toc else ""
     title = "MISO Terminal" if page.slug == "index.html" else f"{page.title} · MISO Terminal"
@@ -193,6 +193,8 @@ def layout(page: Page, pages: list[Page]) -> str:
   <a href="{BLOB}LICENSE">GNU AGPL v3 or later</a>.
   Not an official MISO product; for information only.
   This site is generated from <a href="{BLOB}{page.source}">{page.source}</a>.</p>
+  <p><a href="code-signing.html">Code signing policy</a> ·
+  <a href="privacy.html">Privacy policy</a></p>
 </footer>
 </body>
 </html>
@@ -304,6 +306,8 @@ def main() -> None:
         Page("markets-plan.html", "docs/MARKETS-PLAN.md", "Markets plan"),
         Page("analytics-plan.html", "docs/ANALYTICS-PLAN.md", "Analytics plan"),
         Page("releases.html", "docs/RELEASES.md", "Release plan"),
+        Page("code-signing.html", "docs/CODE-SIGNING.md", ""),
+        Page("privacy.html", "docs/PRIVACY.md", ""),
     ]
     md = renderer()
     for p in pages:
