@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v7
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --locked -p mt-core -p mt-data -p mt-miso -p mt-nws -p mt-eia -p mt-news -p mt-alpaca -p mt-theme
+      - run: cargo test --locked -p mt-core -p mt-data -p mt-miso -p mt-nws -p mt-eia -p mt-news -p mt-alpaca -p mt-forecast -p mt-theme
       # The release zip's third-party notices: a dependency under a licence
       # packaging/about.toml does not accept fails here, not at release time.
       - uses: taiki-e/install-action@v2
