@@ -411,7 +411,10 @@ impl TerminalApp {
     /// Swap in a whole configuration, rebuild what depends on it, and save.
     fn replace_config(&mut self, ctx: &egui::Context, config: AppConfig) {
         let endpoints_changed = config.endpoints != self.config.endpoints;
-        let markets_changed = config.markets != self.config.markets;
+        // Only the feed and the stream limit make a new client (lists and
+        // studies are read where they are used).
+        let markets_changed = config.markets.feed != self.config.markets.feed
+            || config.markets.stream_limit() != self.config.markets.stream_limit();
         let theme_changed = config.theme != self.config.theme
             || config.ui.follow_system_theme != self.config.ui.follow_system_theme
             || config.ui.light_theme != self.config.ui.light_theme

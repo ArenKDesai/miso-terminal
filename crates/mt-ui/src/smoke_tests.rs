@@ -104,6 +104,21 @@ fn routes(registry: &Registry) -> Vec<Route> {
     out.push(Route::new("GP", ["XLU US"]));
     out.push(Route::new("GP", ["XLU US", "5"]));
     out.push(Route::new("GP", ["XLU US", "365"]));
+    // Every study: daily with a full warm-up, fifteen-minute, and the latest
+    // session (whose recording has no earlier bars to warm up from).
+    let every: Vec<String> = mt_core::studies::Study::PRESETS
+        .iter()
+        .map(mt_core::studies::Study::token)
+        .collect();
+    for days in ["182", "5", "0"] {
+        out.push(Route::new(
+            "GP",
+            ["XLU US".to_owned(), days.to_owned()]
+                .into_iter()
+                .chain(every.iter().cloned()),
+        ));
+    }
+    out.push(Route::new("GP", ["XLU US", "NOSTUDIES"]));
     out.push(Route::new("GP", ["NOTATICKER US"]));
     out.push(Route::new("DES", ["XLU US"]));
     out.push(Route::new("DES", ["NOTATICKER US"]));
@@ -373,6 +388,32 @@ fn every_function_renders_in_every_theme_with_and_without_data() {
 }
 
 #[test]
+fn security_charts_follow_the_default_studies_until_given_their_own() {
+    let rt = runtime();
+    let mut h = Harness::new(hub(&rt));
+    h.hub.set_paused(true);
+    h.config.markets.studies = vec!["SMA50".into(), "RSI14".into()];
+    let skin = Skin::new(mt_theme::builtin().remove(0));
+    h.apply(&skin);
+    let registry = Registry::builtin();
+    // Following `[markets] studies`, the route leaves them out, so a changed
+    // default reaches the chart after a restart too.
+    for (opened, route) in [
+        ("GP XLU US 182", "GP XLU US 182"),
+        ("GP XLU US 182 EMA20", "GP XLU US 182 EMA20"),
+        ("GP XLU US NOSTUDIES", "GP XLU US NOSTUDIES"),
+    ] {
+        let args: Vec<&str> = opened.split(' ').skip(1).collect();
+        let args = [format!("{} {}", args[0], args[1])]
+            .into_iter()
+            .chain(args[2..].iter().map(|a| (*a).to_owned()));
+        let mut panel = registry.open(&Route::new("GP", args)).unwrap();
+        h.draw(&skin, panel.as_mut());
+        assert_eq!(panel.route().to_string(), route);
+    }
+}
+
+#[test]
 fn routes_round_trip_through_panels() {
     let registry = Registry::builtin();
     for route in routes(&registry) {
@@ -486,8 +527,13 @@ fn app_shell_runs_frames_and_executes_commands() {
     // WL absorbs `WL <node>` into the open watchlist (the default layout has one).
     app.apply_commands(&ctx, vec![AppCommand::Run("WL ALTE.ALTE".into())]);
     assert_eq!(app.workspace_mut().routes().len(), before + 1);
-    // Securities: `XLU US GP 30` charts one, and so does a bare security.
-    for (cmd, opens) in [("XLU US GP 30", "GP XLU US 30"), ("xlu us", "GP XLU US")] {
+    // Securities: `XLU US GP 30` charts one, and so does a bare security;
+    // studies follow the days.
+    for (cmd, opens) in [
+        ("XLU US GP 30", "GP XLU US 30"),
+        ("xlu us", "GP XLU US"),
+        ("XLU US GP 182 SMA50 RSI14", "GP XLU US 182 SMA50 RSI14"),
+    ] {
         app.apply_commands(&ctx, vec![AppCommand::Run(cmd.into())]);
         let (msg, error) = app.last_feedback().cloned().unwrap_or_default();
         assert!(!error && msg == opens, "{cmd}: {msg}");
@@ -508,11 +554,11 @@ fn app_shell_runs_frames_and_executes_commands() {
         let (msg, error) = app.last_feedback().cloned().unwrap_or_default();
         assert!(error && msg.contains(says), "{cmd}: {msg}");
     }
-    assert_eq!(app.workspace_mut().routes().len(), before + 3);
+    assert_eq!(app.workspace_mut().routes().len(), before + 4);
     app.apply_commands(&ctx, vec![AppCommand::Run("XLU261218C00045000".into())]);
     let (msg, error) = app.last_feedback().cloned().unwrap_or_default();
     assert!(!error && msg == "OMON XLU261218C00045000", "{msg}");
-    assert_eq!(app.workspace_mut().routes().len(), before + 4);
+    assert_eq!(app.workspace_mut().routes().len(), before + 5);
     // A security on the watchlist goes to its own list.
     app.apply_commands(&ctx, vec![AppCommand::AddFavorite("xel us".into())]);
     assert!(

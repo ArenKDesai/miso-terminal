@@ -4,6 +4,7 @@
 
 use mt_core::equity::Feed;
 use mt_core::instrument::{Security, is_ticker};
+use mt_core::studies::Study;
 use serde::{Deserialize, Serialize};
 
 /// What the free plan allows: 30 trade and quote subscriptions in all (a
@@ -25,6 +26,11 @@ pub struct MarketsConfig {
     /// first, then quotes while room remains; the rest update with minute
     /// bars and snapshots. The free plan allows 30 in all.
     pub stream_limit: usize,
+    /// The studies a new GP chart of a security starts with, written as on
+    /// the command line: `["SMA50", "SMA200", "RSI14"]`. GP's Studies menu
+    /// sets it (*Use for new charts*). Left out of the file when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub studies: Vec<String>,
     /// Lists for `Q`, as `[[markets.lists]]` (name, title, symbols). A
     /// built-in list's name replaces it. Left out of the file when empty, so
     /// a hand-written `[[markets.lists]]` never clashes with `lists = []`.
@@ -37,6 +43,7 @@ impl Default for MarketsConfig {
         Self {
             feed: Feed::Iex,
             stream_limit: FREE_PLAN_STREAM_LIMIT,
+            studies: Vec::new(),
             lists: Vec::new(),
         }
     }
@@ -146,6 +153,18 @@ impl MarketsConfig {
             .find(|l| l.name.eq_ignore_ascii_case(name.trim()))
     }
 
+    /// The studies new GP charts start with, in order, without repeats or
+    /// anything that does not read as a study.
+    pub fn studies(&self) -> Vec<Study> {
+        let mut out: Vec<Study> = Vec::new();
+        for s in self.studies.iter().filter_map(|s| Study::parse(s)) {
+            if !out.contains(&s) {
+                out.push(s);
+            }
+        }
+        out
+    }
+
     /// The stream limit, never zero.
     pub fn stream_limit(&self) -> usize {
         self.stream_limit.max(1)
@@ -155,6 +174,24 @@ impl MarketsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn studies_read_as_on_the_command_line() {
+        let cfg: MarketsConfig =
+            serde_json::from_str(r#"{"studies":["sma50","SMA 50","BB20,2.5","nonsense","RSI"]}"#)
+                .unwrap();
+        assert_eq!(
+            cfg.studies(),
+            [
+                Study::Sma { period: 50 },
+                Study::Bollinger {
+                    period: 20,
+                    width: 2.5
+                },
+                Study::Rsi { period: 14 }
+            ]
+        );
+    }
 
     #[test]
     fn lists_are_built_in_and_replaceable() {
@@ -179,6 +216,7 @@ mod tests {
             "every trade streams for the whole default list"
         );
         assert_eq!(normalize_symbol("brk.b"), Some("BRK.B".into()));
+        assert!(cfg.studies().is_empty());
         assert_eq!(normalize_symbol("XLU US Equity"), Some("XLU".into()));
         assert_eq!(normalize_symbol(""), None);
     }

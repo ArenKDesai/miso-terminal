@@ -8,6 +8,8 @@
 //! Options:
 //!   --run CMD        run a command first (repeatable)
 //!   --zoom           zoom the focused panel (as Ctrl+M does)
+//!   --click LABEL    then click the widget with this label (repeatable), e.g.
+//!                    "Studies · 2" to show GP's Studies menu
 //!   --theme ID       theme id, e.g. default-light
 //!   --theme-file F   install a theme file first (repeatable), e.g.
 //!                    themes/gallery/everforge-light.toml with --theme everforge-light
@@ -35,11 +37,13 @@ fn main() -> Result<()> {
         ((1600.0, 960.0), 1.0, scene::fixtures_dir(), None::<String>);
     let mut cache: Option<PathBuf> = None;
     let mut theme_files: Vec<PathBuf> = Vec::new();
+    let mut click: Vec<String> = Vec::new();
     while let Some(a) = it.next() {
         let mut value = || it.next().with_context(|| format!("{a} needs a value"));
         match a.as_str() {
             "--run" => run.push(value()?),
             "--zoom" => zoom = true,
+            "--click" => click.push(value()?),
             "--theme" => theme = Some(value()?),
             "--theme-file" => theme_files.push(value()?.into()),
             "--size" => {
@@ -57,7 +61,7 @@ fn main() -> Result<()> {
     }
     if out.as_os_str().is_empty() {
         bail!(
-            "usage: render OUT.png [--run CMD]... [--zoom] [--theme ID] [--theme-file F]... [--size WxH] [--at TIME]"
+            "usage: render OUT.png [--run CMD]... [--zoom] [--click LABEL]... [--theme ID] [--theme-file F]... [--size WxH] [--at TIME]"
         );
     }
 
@@ -80,11 +84,13 @@ fn main() -> Result<()> {
         .build()?;
     let hub = scene::offline_hub_with_cache(&runtime, &fixtures, cache.as_deref());
     let run: Vec<&str> = run.iter().map(String::as_str).collect();
+    let click: Vec<&str> = click.iter().map(String::as_str).collect();
     let image = scene::render(
         &hub,
         &scene::Scene {
             run: &run,
             zoom,
+            click: &click,
             theme: theme.as_deref(),
             theme_files: &theme_files,
             size,

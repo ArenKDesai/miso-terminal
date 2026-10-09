@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
 use mt_data::{DataHub, EventLog, FetchCtx, FetchCtxOptions, FixtureTransport};
 use mt_ui::{AppConfig, AppPaths, Deps, TerminalApp};
 
@@ -18,6 +19,8 @@ pub struct Scene<'a> {
     pub run: &'a [&'a str],
     /// Zoom the focused panel (as Ctrl+M does).
     pub zoom: bool,
+    /// Then click the widgets with these labels, in turn (to open a menu).
+    pub click: &'a [&'a str],
     pub theme: Option<&'a str>,
     /// Theme files to install in the user themes folder first (e.g. a gallery theme).
     pub theme_files: &'a [PathBuf],
@@ -31,6 +34,7 @@ impl Default for Scene<'_> {
         Self {
             run: &[],
             zoom: false,
+            click: &[],
             theme: None,
             theme_files: &[],
             size: (1600.0, 960.0),
@@ -138,6 +142,16 @@ pub fn render(hub: &DataHub, scene: &Scene<'_>) -> Result<image::RgbaImage, Stri
     // A few more frames for layout (tables size their columns on the first pass).
     for _ in 0..5 {
         harness.step();
+    }
+    for label in scene.click {
+        let Some(node) = harness.query_by_label(label) else {
+            let _ = std::fs::remove_dir_all(&home);
+            return Err(format!("nothing labelled {label:?} to click"));
+        };
+        node.click();
+        for _ in 0..5 {
+            harness.step();
+        }
     }
     let image = harness.render();
     let _ = std::fs::remove_dir_all(&home);

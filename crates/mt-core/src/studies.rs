@@ -13,6 +13,16 @@
 //! population standard deviation, exponential averages start from the simple
 //! average of their first period, and RSI uses Wilder's smoothing (an
 //! exponential average weighted 1 / period).
+//!
+//! A study is written as one word on the command line, in a route and in
+//! `config.toml` ([`Study::token`], [`Study::parse`]): `SMA50`, `BB20,2`,
+//! `MACD12,26,9`.
+
+/// The longest period a study may have, in bars.
+pub const MAX_PERIOD: usize = 500;
+
+/// The widest Bollinger band, in standard deviations.
+pub const MAX_WIDTH: f64 = 10.0;
 
 /// A study and its periods (in bars).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -40,12 +50,135 @@ pub enum Study {
 }
 
 impl Study {
+    /// Each study with its usual periods: what GP's Studies menu offers.
+    pub const PRESETS: [Study; 9] = [
+        Study::Sma { period: 20 },
+        Study::Sma { period: 50 },
+        Study::Sma { period: 200 },
+        Study::Ema { period: 20 },
+        Study::Bollinger {
+            period: 20,
+            width: 2.0,
+        },
+        Study::Momentum { period: 10 },
+        Study::RateOfChange { period: 10 },
+        Study::Rsi { period: 14 },
+        Study::Macd {
+            fast: 12,
+            slow: 26,
+            signal: 9,
+        },
+    ];
+
+    /// The study as one word, for a command, a route or `config.toml`:
+    /// `SMA50`, `BB20,2`, `MACD12,26,9`. [`Study::parse`] reads it back.
+    pub fn token(&self) -> String {
+        match *self {
+            Study::Sma { period } => format!("SMA{period}"),
+            Study::Ema { period } => format!("EMA{period}"),
+            Study::Bollinger { period, width } => format!("BB{period},{width}"),
+            Study::Momentum { period } => format!("MOM{period}"),
+            Study::RateOfChange { period } => format!("ROC{period}"),
+            Study::Rsi { period } => format!("RSI{period}"),
+            Study::Macd { fast, slow, signal } => format!("MACD{fast},{slow},{signal}"),
+        }
+    }
+
+    /// Reads a study's name and periods, ignoring case: `SMA50`, `bb20,2.5`,
+    /// `MACD 12 26 9` (commas, spaces or slashes between the numbers). Periods
+    /// left out take their usual values, so `RSI` is `RSI14` and `BB20` is
+    /// `BB20,2`. `None` for anything else, or a period outside 1 to
+    /// [`MAX_PERIOD`], or a band width outside (0, [`MAX_WIDTH`]].
+    pub fn parse(s: &str) -> Option<Study> {
+        let s = s.trim().to_ascii_uppercase();
+        let at = s
+            .find(|c: char| !c.is_ascii_alphabetic())
+            .unwrap_or(s.len());
+        let (name, rest) = s.split_at(at);
+        let numbers: Vec<&str> = rest
+            .split([',', ' ', '/'])
+            .filter(|n| !n.is_empty())
+            .collect();
+        let period = |i: usize, usual: usize| match numbers.get(i) {
+            None => Some(usual),
+            Some(n) => n
+                .parse::<usize>()
+                .ok()
+                .filter(|p| (1..=MAX_PERIOD).contains(p)),
+        };
+        let study = match name {
+            "SMA" => Study::Sma {
+                period: period(0, 20)?,
+            },
+            "EMA" => Study::Ema {
+                period: period(0, 20)?,
+            },
+            "BB" => Study::Bollinger {
+                period: period(0, 20)?,
+                width: match numbers.get(1) {
+                    None => 2.0,
+                    Some(w) => w
+                        .parse::<f64>()
+                        .ok()
+                        .filter(|w| *w > 0.0 && *w <= MAX_WIDTH)?,
+                },
+            },
+            "MOM" => Study::Momentum {
+                period: period(0, 10)?,
+            },
+            "ROC" => Study::RateOfChange {
+                period: period(0, 10)?,
+            },
+            "RSI" => Study::Rsi {
+                period: period(0, 14)?,
+            },
+            "MACD" => Study::Macd {
+                fast: period(0, 12)?,
+                slow: period(1, 26)?,
+                signal: period(2, 9)?,
+            },
+            _ => return None,
+        };
+        let takes = match study {
+            Study::Bollinger { .. } => 2,
+            Study::Macd { .. } => 3,
+            _ => 1,
+        };
+        (numbers.len() <= takes).then_some(study)
+    }
+
+    /// The study over `closes`, one value per close (see the module notes).
+    pub fn values(&self, closes: &[f64]) -> Values {
+        match *self {
+            Study::Sma { period } => Values::Line(sma(closes, period)),
+            Study::Ema { period } => Values::Line(ema(closes, period)),
+            Study::Bollinger { period, width } => Values::Bands(bollinger(closes, period, width)),
+            Study::Momentum { period } => Values::Line(momentum(closes, period)),
+            Study::RateOfChange { period } => Values::Line(rate_of_change(closes, period)),
+            Study::Rsi { period } => Values::Line(rsi(closes, period)),
+            Study::Macd { fast, slow, signal } => Values::Macd(macd(closes, fast, slow, signal)),
+        }
+    }
+
     /// Drawn over the price, rather than in a pane of its own below it.
     pub fn is_overlay(&self) -> bool {
         matches!(
             self,
             Study::Sma { .. } | Study::Ema { .. } | Study::Bollinger { .. }
         )
+    }
+
+    /// The study's name without its periods: `SMA`, `Bollinger`.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Study::Sma { .. } => "SMA",
+            Study::Ema { .. } => "EMA",
+            Study::Bollinger { .. } => "Bollinger",
+            Study::Momentum { .. } => "Momentum",
+            Study::RateOfChange { .. } => "Rate of change",
+            Study::Rsi { .. } => "RSI",
+            Study::Macd { .. } => "MACD",
+        }
     }
 
     /// A short label for legends: `SMA 20`, `BB 20 2`, `MACD 12 26 9`.
@@ -74,6 +207,29 @@ impl Study {
             Study::Ema { period } => ema(period),
             Study::Rsi { period } => period + settle(1.0 / period.max(1) as f64),
             Study::Macd { fast, slow, signal } => ema(fast.max(slow)) + ema(signal),
+        }
+    }
+}
+
+/// A study's values, one per close, shaped by the study.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Values {
+    /// Averages, momentum, rate of change and RSI.
+    Line(Vec<Option<f64>>),
+    Bands(Vec<Option<Band>>),
+    Macd(Vec<Option<MacdValue>>),
+}
+
+impl Values {
+    /// Whether the study has its whole value at bar `i`: for MACD, the
+    /// signal line too.
+    pub fn is_defined(&self, i: usize) -> bool {
+        match self {
+            Values::Line(v) => v.get(i).is_some_and(Option::is_some),
+            Values::Bands(v) => v.get(i).is_some_and(Option::is_some),
+            Values::Macd(v) => v
+                .get(i)
+                .is_some_and(|m| m.is_some_and(|m| m.signal.is_some())),
         }
     }
 }
@@ -518,6 +674,117 @@ mod tests {
             .unwrap_or_default();
         assert_eq!(short, 1.0);
         assert!((short - long).abs() < SETTLED, "{long}");
+    }
+
+    #[test]
+    fn tokens_read_back() {
+        for study in Study::PRESETS {
+            assert_eq!(
+                Study::parse(&study.token()),
+                Some(study),
+                "{}",
+                study.token()
+            );
+            // A legend's label reads back too.
+            assert_eq!(
+                Study::parse(&study.label()),
+                Some(study),
+                "{}",
+                study.label()
+            );
+        }
+        let bb = Study::Bollinger {
+            period: 20,
+            width: 2.5,
+        };
+        assert_eq!(bb.token(), "BB20,2.5");
+        assert_eq!(Study::parse("bb20/2.5"), Some(bb));
+        assert_eq!(
+            Study::Macd {
+                fast: 12,
+                slow: 26,
+                signal: 9
+            }
+            .token(),
+            "MACD12,26,9"
+        );
+    }
+
+    #[test]
+    fn parse_fills_in_usual_periods_and_refuses_the_rest() {
+        assert_eq!(Study::parse(" rsi "), Some(Study::Rsi { period: 14 }));
+        assert_eq!(Study::parse("SMA"), Some(Study::Sma { period: 20 }));
+        assert_eq!(
+            Study::parse("BB10"),
+            Some(Study::Bollinger {
+                period: 10,
+                width: 2.0
+            })
+        );
+        assert_eq!(
+            Study::parse("MACD5,35"),
+            Some(Study::Macd {
+                fast: 5,
+                slow: 35,
+                signal: 9
+            })
+        );
+        assert_eq!(
+            Study::parse("SMA500"),
+            Some(Study::Sma { period: MAX_PERIOD })
+        );
+        for bad in [
+            "",
+            "50",
+            "SMA0",
+            "SMA501",
+            "SMA-5",
+            "SMA5X",
+            "SMA20,2",
+            "RSI14,3",
+            "BB20,0",
+            "BB20,11",
+            "BB20,NAN",
+            "BB20,2,1",
+            "MACD1,2,3,4",
+            "VWAP",
+            "XLU",
+        ] {
+            assert_eq!(Study::parse(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn values_match_the_functions() {
+        let closes: Vec<f64> = (0..60).map(|i| 50.0 + (i as f64 * 0.3).sin()).collect();
+        for study in Study::PRESETS {
+            let values = study.values(&closes);
+            let first = (0..closes.len()).find(|i| values.is_defined(*i));
+            match (study, &values) {
+                (Study::Sma { period }, Values::Line(v)) => assert_eq!(*v, sma(&closes, period)),
+                (Study::Ema { period }, Values::Line(v)) => assert_eq!(*v, ema(&closes, period)),
+                (Study::Bollinger { period, width }, Values::Bands(v)) => {
+                    assert_eq!(*v, bollinger(&closes, period, width));
+                }
+                (Study::Momentum { period }, Values::Line(v)) => {
+                    assert_eq!(*v, momentum(&closes, period));
+                }
+                (Study::RateOfChange { period }, Values::Line(v)) => {
+                    assert_eq!(*v, rate_of_change(&closes, period));
+                }
+                (Study::Rsi { period }, Values::Line(v)) => assert_eq!(*v, rsi(&closes, period)),
+                (Study::Macd { fast, slow, signal }, Values::Macd(v)) => {
+                    assert_eq!(*v, macd(&closes, fast, slow, signal));
+                    // The MACD line starts before its signal does.
+                    assert_eq!(first, Some(slow - 1 + signal - 1));
+                }
+                _ => panic!("{} has the wrong shape", study.label()),
+            }
+        }
+        // Sixty closes are too few for a 200-bar average.
+        assert!(!Study::Sma { period: 200 }.values(&closes).is_defined(59));
+        assert!(Study::Sma { period: 20 }.values(&closes).is_defined(19));
+        assert!(!Study::Sma { period: 20 }.values(&closes).is_defined(60));
     }
 
     #[test]

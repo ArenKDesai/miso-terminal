@@ -54,7 +54,8 @@ recording time; route any new "now" through `mt_core::time::now_utc`.
 
 Prefer the `render` example for reviewing UI changes: it drives the real app
 offscreen (egui_kittest + wgpu), so it never touches the desktop and can reach
-states like a zoomed panel or a theme. Use the screenshot tool for live data.
+states like a zoomed panel, a theme or an open menu (`--click "Studies · 2"`
+clicks the widget with that label first). Use the screenshot tool for live data.
 The screenshot tool runs the app in portable mode under a throwaway home (or
 `--home`), so your real config and layout are untouched. It closes the app
 with WM_CLOSE, which lets it save.
@@ -99,8 +100,10 @@ keys, and anything Aren has asked to see.
   the free plan's 30 trade and quote subscriptions: trades first), snapshot + stream merging (`board.rs`) and the
   `[markets]` config and built-in lists (`config.rs`). `mt-ui/src/market.rs`
   holds what the securities panels share (status, board, formats, picker);
-  `functions/security_chart.rs` is GP for a security, `functions/cross_chart.rs`
-  is CMP with securities (stocks above node prices, daily correlations).
+  `functions/security_chart.rs` is GP for a security (with its studies, whose
+  maths and command-line words are in `mt-core/src/studies.rs`),
+  `functions/cross_chart.rs` is CMP with securities (stocks above node
+  prices, daily correlations).
 - The paper account: `mt-core/src/account.rs` (types, marking, net delta),
   `mt-alpaca/src/account.rs` (account, positions, history, activities, option
   greeks), `mt-alpaca/src/trades.rs` (order events, binary frames),

@@ -26,7 +26,7 @@ first tutorial) and the numbers will match.
    style: `MINN.HUB GP` does the same. A bare node, `MINN.HUB`, graphs it too.
 5. **Add arguments.** `GP MINN.HUB 14` asks for fourteen days of history
    instead of today. As you type a code, the line to the right of the box
-   shows its usage (`GP <node|security> [days] [HEAT|DUR|5MIN]`).
+   shows its usage (`GP <node|security> [days] [HEAT|DUR|5MIN] [studies]`).
 6. **Let completion type for you.** Start typing (`gp mi`) and suggestions
    appear: functions, all ~2,600 pricing nodes and, with Alpaca keys, tickers.
    `Tab` or `↑`/`↓` pick one, `Enter` runs it. Matching is forgiving: `michub`
@@ -346,11 +346,26 @@ tickers and company names, and after a security, the functions that take one
 - `GP XEL US`: today's session minute by minute against the previous close.
   *5D* is a few days at 15 minutes; *1M* to *10Y* are daily closes. Typed
   directly: `GP XEL US 365`.
+- `GP XEL US 365 SMA50 RSI14`: the same chart with studies (below).
 - `DES XEL US`: what the company is, where it lists, how it trades with Alpaca,
   and its year's range and returns.
 - `CN XEL US`: Benzinga's stories about it, arriving live. `CN` alone covers
   your watchlist's securities.
 - `WL XEL US`: adds it to your watchlist.
+
+![GP with studies: moving averages and Bollinger bands over the price, RSI and MACD below it](screenshots/tutorials/gp-studies.webp)
+
+**Add studies.** On a security's `GP`, *Studies* opens a menu. The buttons
+add moving averages (*SMA*, *EMA*) and Bollinger bands (*BB*) over the price,
+or momentum (*MOM*), rate of change (*ROC*), *RSI* and *MACD* in panes between
+the price and the volume. Each study's periods can be changed in the menu, and
+the line above the chart shows its latest value. Typed, they follow the
+security: `GP XEL US 365 SMA50 SMA200 RSI14` (also `EMA20`, `BB20,2`, `MOM10`,
+`ROC10`, `MACD12,26,9`). The chart keeps its studies with the layout. *Use for
+new charts* gives every new chart the same ones, saved in `config.toml` under
+`[markets]` as `studies = ["SMA50", "SMA200", "RSI14"]`. Daily studies count
+trading days. Intraday ones count bars, and a minute without a trade has no
+bar, so in a thinly traded name 20 periods can span more than twenty minutes.
 
 ![CMP: Xcel Energy above the Minnesota hub](screenshots/tutorials/cmp-securities.webp)
 
