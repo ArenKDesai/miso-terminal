@@ -8,8 +8,10 @@
 //! MISO data runs on fixed EST ([`time`]); securities run on New York time
 //! ([`exchange`]), are named `XLU US` ([`instrument`]), are quoted as trades,
 //! quotes and bars ([`equity`]) and are priced in exact decimals ([`money`])
-//! wherever an order is involved. Options contracts, chains and the price steps
-//! they trade in are in [`options`]. A brokerage account's balances, positions,
+//! wherever an order is involved; the studies charts draw over them (moving
+//! averages, Bollinger bands, RSI, MACD) are in [`studies`]. Options
+//! contracts, chains and the price steps they trade in are in [`options`]. A
+//! brokerage account's balances, positions,
 //! equity curve and activities are in [`account`]; orders are in [`order`], and
 //! the guardrails every order ticket passes in [`guard`]. News headlines and
 //! keyword topics are in [`news`].
@@ -30,6 +32,7 @@ pub mod options;
 pub mod order;
 pub mod prices;
 pub mod seams;
+pub mod studies;
 pub mod time;
 pub mod weather;
 
