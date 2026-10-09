@@ -127,6 +127,12 @@ keys, and anything Aren has asked to see.
   expiries the option functions share), `trading::OptionMarket` (what option
   tickets are checked against) and the functions `omon.rs`, `ticket.rs` (for a
   contract) and `mleg.rs`.
+- `crates/mt-forecast`: FCST's maths, no I/O: `models.rs` (a day's 24
+  hours: naive, profile, smoothing), `evaluate.rs` (backtests from what was
+  known at the time, accuracy, conformal bands), `securities.rs` (a close's
+  distribution: random walk, drift, volatility cone, GARCH), `calendar.rs`
+  (NERC holidays) and `hourly.rs` (series with gaps). A model never sees data
+  from after its forecast was made: the backtest cuts the series off.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.
@@ -136,8 +142,8 @@ keys, and anything Aren has asked to see.
 ## Conventions
 
 - Crate boundaries are load-bearing. `mt-core`, `mt-data`, `mt-miso`,
-  `mt-nws`, `mt-eia`, `mt-news`, `mt-alpaca` and `mt-theme` must not depend on
-  egui; CI tests them on Linux.
+  `mt-nws`, `mt-eia`, `mt-news`, `mt-alpaca`, `mt-forecast` and `mt-theme`
+  must not depend on egui; CI tests them on Linux.
 - New panel = new file in `crates/mt-ui/src/functions/` + one line in
   `functions/mod.rs` + a README row (a test checks the README). Add any
   argument variants to `routes()` in `smoke_tests.rs`.

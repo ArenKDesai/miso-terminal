@@ -18,6 +18,7 @@ mt-data = { path = "crates/mt-data" }
 mt-miso = { path = "crates/mt-miso" }
 mt-nws = { path = "crates/mt-nws" }
 mt-eia = { path = "crates/mt-eia" }
+mt-forecast = { path = "crates/mt-forecast" }
 mt-news = { path = "crates/mt-news" }
 mt-alpaca = { path = "crates/mt-alpaca" }
 mt-theme = { path = "crates/mt-theme" }
