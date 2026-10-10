@@ -393,3 +393,34 @@ fn binding_constraint_history() {
     assert!(s.windows(2).all(|w| w[0].total >= w[1].total));
     assert!(s[0].hours > 0.0 && s[0].max > 0.0);
 }
+
+#[test]
+fn load_forecast_report() {
+    // Published on its file date, covering the day before to five days after.
+    let (file_day, bytes) = latest_report("_df_al.xls");
+    let r = parse_load_forecast_report(&bytes).unwrap();
+    assert_eq!(r.published, file_day);
+    assert_eq!(r.zones.last().map(String::as_str), Some("MISO"));
+    assert!(r.zones.iter().any(|z| z == "LRZ1"), "{:?}", r.zones);
+    assert_eq!(r.hours.len(), 7 * 24, "seven days of hours");
+    let first = r.hours[0].0;
+    assert_eq!(
+        first,
+        (file_day - chrono::Duration::days(1))
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+    );
+    assert!(
+        r.hours
+            .windows(2)
+            .all(|w| w[1].0 - w[0].0 == chrono::Duration::hours(1))
+    );
+    // System load in a plausible range, and the zones adding up to about it.
+    for (t, v) in &r.hours {
+        let miso = v.last().copied().flatten().unwrap();
+        assert!((40_000.0..140_000.0).contains(&miso), "{t}: {miso}");
+        let zones: f64 = v[..v.len() - 1].iter().flatten().sum();
+        assert!((zones / miso - 1.0).abs() < 0.05, "{t}: {zones} vs {miso}");
+    }
+    assert!(parse_load_forecast_report(b"not a workbook").is_err());
+}

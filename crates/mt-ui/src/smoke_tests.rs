@@ -213,6 +213,7 @@ struct Harness {
     alpaca: mt_alpaca::Alpaca,
     desk: mt_alpaca::OrderDesk,
     backfill: mt_miso::Backfill,
+    collector: mt_data::issued::Collector,
     config: AppConfig,
     paths: AppPaths,
     registry: Registry,
@@ -235,6 +236,7 @@ impl Harness {
             ),
             // A replay: SET and LOG show it as unavailable.
             backfill: mt_miso::Backfill::new(hub.ctx().clone(), hub.runtime()),
+            collector: mt_data::issued::Collector::new(hub.ctx().clone(), hub.runtime()),
             hub,
             miso: Miso::default(),
             nws: mt_nws::Nws::default(),
@@ -295,6 +297,7 @@ impl Harness {
                     alpaca: &self.alpaca,
                     desk: &self.desk,
                     backfill: &self.backfill,
+                    collector: &self.collector,
                     skin,
                     config: &self.config,
                     paths: &self.paths,

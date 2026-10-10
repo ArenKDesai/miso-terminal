@@ -194,6 +194,24 @@ a comparison over every value of 155 days (they agree wherever both hold
 settled prices); `discard_exported_history` removes what the export left in
 the cache.
 
+### Forecasts kept as issued
+
+FCST's models must learn from forecasts as they stood when a price forecast
+would have been made, so `mt_data::issued` keeps them as issued: one file per
+kind per day of issue, `local://archive/issued/<kind>/<date>` (gzipped
+tab-separated text: a `series` line, then `issued  target  value…`), a value
+stored only when it differs from the last one for the same hour. The
+`Collector` is a worker on the data runtime beside the backfill, configured
+from `[forecasts]` (`IssuedConfig`) with `Source`s: MISO's daily load
+forecast report (`df_al.xls`, MTLF by zone; today's polled hourly until it
+appears, the past year filled a report every two seconds, a day never
+published marked by an empty file), wind and solar forecasts (hourly) and
+the outage schedule (every three hours) from `mt_miso::issued`, and the
+NWS's hourly temperatures for each zone's city (every three hours) from
+`mt_nws::issued`. It runs only over a live transport, removes days past the
+window daily, and reports per-source status to SET and LOG. Reports count as
+issued at 06:00 on their date; MISO posts them at about 01:20 EST.
+
 ### News
 
 `mt-news` reads publishers' RSS and Atom feeds: one `FeedQuery` per feed, so
