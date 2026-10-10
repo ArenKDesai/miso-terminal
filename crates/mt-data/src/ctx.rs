@@ -233,6 +233,17 @@ impl FetchCtx {
         Ok(body)
     }
 
+    /// Run CPU-heavy work (training a model, reading many files) on a
+    /// blocking thread, off the async workers that serve requests.
+    pub async fn blocking<T: Send + 'static>(
+        &self,
+        work: impl FnOnce() -> T + Send + 'static,
+    ) -> Result<T, FetchError> {
+        tokio::task::spawn_blocking(work)
+            .await
+            .map_err(|e| FetchError::Other(format!("the work stopped: {e}")))
+    }
+
     /// Read something the app stored itself (e.g. `local://intraday/<day>`)
     /// from the disk cache, off the async workers. `None` without a cache.
     pub async fn local_get(&self, key: &str) -> Option<Bytes> {

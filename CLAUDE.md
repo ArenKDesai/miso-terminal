@@ -127,6 +127,12 @@ keys, and anything Aren has asked to see.
   expiries the option functions share), `trading::OptionMarket` (what option
   tickets are checked against) and the functions `omon.rs`, `ticket.rs` (for a
   contract) and `mleg.rs`.
+- FCST: `functions/fcst.rs` (the panel) and `mt-ui/src/forecast.rs` (its
+  data: a node's inputs from the price history, gas and the forecasts kept
+  as issued, complete days only; the forecasts as hub queries trained on a
+  blocking thread through `FetchCtx::blocking`, keyed by a fingerprint of
+  their inputs and cached under `local://models/` with `MODEL_VERSION`,
+  which a change to models or features bumps).
 - `crates/mt-forecast`: FCST's maths, no I/O: `models.rs` (a day's 24
   hours: naive, profile, smoothing), `evaluate.rs` (backtests from what was
   known at the time, accuracy, conformal bands), `securities.rs` (a close's

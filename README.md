@@ -103,6 +103,7 @@ New to the terminal? The [tutorials](docs/TUTORIALS.md) walk through it.
 | `DAM` | Day-ahead strip | Hourly DA at the hubs for a day, with block averages, or the change from the day before |
 | `MAP` | Price map | Every mapped node over a price surface and the transmission backbone, by LMP, congestion, loss, DA or RT − DA |
 | `GP` | Graph price | A node: today at five minutes against DA, N days hourly, a heatmap (`HEAT`), duration curves (`DUR`) or past five-minute days (`5MIN`), by component. A security: today, a few days or up to ten years, with studies (moving averages, Bollinger bands, momentum, RSI, MACD) |
+| `FCST` | Forecast | Tomorrow's DA or RT price at a node (or RT − DA) as a fan chart with 50% and 80% bands, an hourly table and each model's record against repeating a recent day; for a security, the range its close may take over twenty trading days (`FCST MINN.HUB RT`, `FCST XLU US`) |
 | `SPRD` | Node spread | A − B between two nodes, with GP's views; congestion gives an FTR-style view |
 | `CMP` | Compare | Up to eight nodes on one chart; with securities, their prices above the nodes and how they move together (`CMP XEL US MINN.HUB 30`) |
 | `SEAM` | Seams & interfaces | PJM's CTS forecast against MISO's price, and every interface node |

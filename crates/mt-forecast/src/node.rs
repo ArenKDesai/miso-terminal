@@ -4,6 +4,7 @@
 //! week of the backtest, each time on the days whose outcome was known then.
 
 use chrono::{Duration, NaiveDate};
+use serde::{Deserialize, Serialize};
 
 use crate::evaluate::{self, Accuracy, Bands, Outcome, Record};
 use crate::features::{self, Columns, NodeInputs, Target};
@@ -127,9 +128,9 @@ impl Trained {
 }
 
 /// One model's part in a forecast.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ModelForecast {
-    pub name: &'static str,
+    pub name: String,
     /// The target day's 24 hours, if the model could forecast it.
     pub hours: Option<Day>,
     pub record: Record,
@@ -141,7 +142,7 @@ pub struct ModelForecast {
 }
 
 /// Every model's forecast of one node's price for `day`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NodeForecast {
     pub target: Target,
     pub day: NaiveDate,
@@ -225,14 +226,9 @@ pub fn forecast(
     }
 }
 
-fn finish(
-    name: &'static str,
-    hours: Option<Day>,
-    record: Record,
-    features: Vec<String>,
-) -> ModelForecast {
+fn finish(name: &str, hours: Option<Day>, record: Record, features: Vec<String>) -> ModelForecast {
     ModelForecast {
-        name,
+        name: name.to_owned(),
         hours,
         accuracy: evaluate::accuracy(&record),
         bands: Bands::from_record(&record),
@@ -252,7 +248,7 @@ fn backtest_learned(
 ) -> Record {
     let series = target.series(inputs);
     let mut record = Record {
-        model: learner.name(),
+        model: learner.name().to_owned(),
         days: Vec::new(),
     };
     for block in days.chunks(settings.refit_days.max(1)) {
@@ -326,7 +322,7 @@ mod tests {
         let day: NaiveDate = "2026-07-28".parse().unwrap();
         for target in [Target::DayAhead, Target::RealTime] {
             let f = forecast(&inputs, target, day, &settings);
-            let names: Vec<&str> = f.models.iter().map(|m| m.name).collect();
+            let names: Vec<&str> = f.models.iter().map(|m| m.name.as_str()).collect();
             assert_eq!(
                 names,
                 [
@@ -349,12 +345,44 @@ mod tests {
             // The learned models know RT's evening premium over tomorrow's DA,
             // and the gas trend; they should beat repeating a past day.
             assert_eq!(f.beats_naive(), Some(true), "{}", target.label());
-            let chosen = f.chosen().unwrap().name;
+            let chosen = f.chosen().unwrap().name.as_str();
             assert!(
                 chosen == "Gradient-boosted trees" || chosen == "Ridge regression",
                 "{} {chosen}",
                 target.label()
             );
+        }
+    }
+
+    #[test]
+    fn a_forecast_survives_the_disk_cache() {
+        let f = forecast(
+            &inputs(60),
+            Target::RealTime,
+            "2026-04-30".parse().unwrap(),
+            &Settings {
+                backtest_days: 14,
+                ..Settings::default()
+            },
+        );
+        let json = serde_json::to_string(&f).unwrap();
+        let back: NodeForecast = serde_json::from_str(&json).unwrap();
+        // JSON may round the last bit of a float; nothing more.
+        assert_eq!(
+            (back.target, back.day, back.best),
+            (f.target, f.day, f.best)
+        );
+        for (b, m) in back.models.iter().zip(&f.models) {
+            assert_eq!(b.name, m.name);
+            assert_eq!(b.features, m.features);
+            assert_eq!(b.record.days.len(), m.record.days.len());
+            let close = |x: f64, y: f64| (x - y).abs() <= 1e-9 * y.abs().max(1.0);
+            for (x, y) in b.hours.iter().flatten().zip(m.hours.iter().flatten()) {
+                assert!(close(*x, *y));
+            }
+            if let (Some(x), Some(y)) = (b.accuracy, m.accuracy) {
+                assert!(close(x.mae, y.mae));
+            }
         }
     }
 
@@ -390,12 +418,12 @@ mod timing {
                 "{}: {:?}, best {:?}, trees {:?}",
                 target.label(),
                 t.elapsed(),
-                f.chosen().map(|m| m.name),
+                f.chosen().map(|m| m.name.clone()),
                 f.models
                     .iter()
                     .map(|m| m
                         .accuracy
-                        .map(|a| (m.name, (a.mae * 100.0).round() / 100.0)))
+                        .map(|a| (m.name.clone(), (a.mae * 100.0).round() / 100.0)))
                     .collect::<Vec<_>>()
             );
         }

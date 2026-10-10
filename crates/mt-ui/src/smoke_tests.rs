@@ -119,6 +119,14 @@ fn routes(registry: &Registry) -> Vec<Route> {
         ));
     }
     out.push(Route::new("GP", ["XLU US", "NOSTUDIES"]));
+    // Forecasts: a node's three views and its skill, a security's, and a
+    // node the fixtures do not have.
+    out.push(Route::new("FCST", ["MINN.HUB"]));
+    out.push(Route::new("FCST", ["MINN.HUB", "RT"]));
+    out.push(Route::new("FCST", ["MINN.HUB", "DART", "SKILL"]));
+    out.push(Route::new("FCST", ["NOT.A.NODE"]));
+    out.push(Route::new("FCST", ["XLU US"]));
+    out.push(Route::new("FCST", ["XLU US", "SKILL"]));
     // Beta: the industry from a list, a named one, a basket, weekly and
     // daily, the S&P 500 itself, and benchmarks that resolve to nothing.
     out.push(Route::new("BETA", ["XEL US"]));

@@ -14,6 +14,25 @@ notes are that section.
 
 ### Added
 
+- **`FCST`: forecasts.** `FCST MINN.HUB` forecasts tomorrow's DA price at a
+  node, `FCST MINN.HUB RT` tomorrow's RT, and `DART` the spread between them
+  once tomorrow's DA is posted: a fan chart after the last week (the median
+  with 50% and 80% bands), tiles, an hourly table, and *Skill*, where every
+  model's record over the last eight weeks sits beside repeating a recent
+  day. Six models are tried: the same hour on the last day known and a week
+  earlier, an hour-by-day profile, exponential smoothing with daily and
+  weekly seasonality, gradient-boosted trees and ridge regression (on recent
+  prices, congestion, Henry Hub gas, the calendar and, once sixty days are
+  kept, the forecasts kept as issued). The one with the lowest error is
+  shown, and FCST says when none beats repeating a recent day. Every model
+  is backtested only on what was known when its forecast would have been
+  made, and the bands come from its past errors, so an 80% band holds about
+  80%. `FCST XLU US` shows the range a security's close may take over the
+  next twenty trading days (random walk, with drift, the volatility cone,
+  GARCH, and a learned model only where it beats the random walk). Models
+  train on a background thread when new days arrive, and results are cached
+  for the day.
+
 - **Forecasts kept as issued.** For the forecasts coming in `FCST`, the
   terminal keeps MISO's load forecast by zone (its daily report, with the past
   year filled in a report every two seconds), its wind and solar forecasts

@@ -64,6 +64,7 @@ fn the_terminal_looks_as_it_did() {
         ),
         ("des", &["DES XLU US"][..]),
         ("beta", &["BETA XEL US"][..]),
+        ("fcst-security", &["FCST XLU US"][..]),
         ("cmp-security", &["CMP XLU US MINN.HUB 7"][..]),
         ("omon", &["OMON XLU US 2026-12-18"][..]),
         ("port", &["PORT"][..]),

@@ -16,6 +16,7 @@ mod cons;
 mod cross_chart;
 mod dam;
 mod des;
+mod fcst;
 mod fuel;
 mod gas;
 pub(crate) mod gp;
@@ -58,6 +59,7 @@ pub fn all() -> Vec<FunctionSpec> {
         dam::SPEC,
         map::SPEC,
         gp::SPEC,
+        fcst::SPEC,
         spread::SPEC,
         compare::SPEC,
         seam::SPEC,
