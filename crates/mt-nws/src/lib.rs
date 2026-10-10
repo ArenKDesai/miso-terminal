@@ -5,6 +5,7 @@
 //! `mt-core` (for the types) and `mt-data` (for `Query`), and the hub, cache,
 //! polite interval and LOG function apply to it unchanged.
 
+pub mod issued;
 pub mod parse;
 
 use std::sync::Arc;

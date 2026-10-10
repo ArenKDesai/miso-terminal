@@ -24,6 +24,7 @@ pub mod functions;
 pub mod gallery;
 pub mod geo;
 pub mod history;
+pub mod issued;
 pub mod market;
 pub mod news;
 pub mod notify;
@@ -57,7 +58,11 @@ pub fn set_version(version: &'static str) {
 /// archive, the day store, saved headlines), each with its own retention: the
 /// size cap and LOG's *Clear cache* leave them alone.
 pub fn kept_cache_dirs(cache: &mt_data::DiskCache) -> Vec<std::path::PathBuf> {
-    let mut keep = vec![mt_miso::archive_dir(cache), mt_miso::day_store_dir(cache)];
+    let mut keep = vec![
+        mt_miso::archive_dir(cache),
+        mt_miso::day_store_dir(cache),
+        mt_data::issued::dir(cache),
+    ];
     keep.extend(mt_news::archive_dirs(cache));
     keep
 }

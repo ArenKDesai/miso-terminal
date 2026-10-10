@@ -234,6 +234,15 @@ keys, and anything Aren has asked to see.
   read its status through `mt_ui::history`). It fetches through
   `fetch_report` like the panels, so the store stays the only record of what
   is there; keep it that way rather than tracking progress elsewhere.
+- Forecasts kept as issued (`mt_data::issued`): one gzipped TSV per kind
+  per day, `local://archive/issued/<kind>/<date>`, each value with when it
+  was issued, stored only when it changes. A `Collector` (the app's, beside
+  the backfill) polls `Source`s from `mt_miso::issued` (MTLF reports with a
+  year's backfill, wind and solar, outages) and `mt_nws::issued`
+  (temperatures), only while live. A model may only use a version issued
+  before its forecast's moment (`Issued::as_of` in `mt-forecast`); MTLF
+  reports count as issued at 06:00 on their date (MISO posts them at about
+  01:20). A new kind or source updates `docs/PRIVACY.md`.
 - News: headlines and summaries only, attributed and linked; never fetch or
   store article text, and never commit publishers' text (news fixtures are
   sample copies from `capture_news`; snapshots render those). Articles open through `AppCommand::OpenHeadline`, which

@@ -14,10 +14,16 @@ IP address and the program's name, version and repository in the
 The terminal keeps no cookies.
 
 - **MISO** (`public-api.misoenergy.org`, `docs.misoenergy.org`), for panels
-  with MISO data and the price history's backfill: requests for public data.
+  with MISO data, the price history's backfill and the forecasts kept as
+  issued (its daily load forecast reports, wind and solar forecasts and
+  outage schedule, asked for in the background while the terminal runs
+  unless *Forecasts kept as issued* is off in `SET`): requests for public
+  data.
   [MISO's policy](https://www.misoenergy.org/meet-miso/legal-and-privacy/).
-- **The National Weather Service** (`api.weather.gov`), for `WX`: forecasts
-  for fixed cities across MISO, never your location.
+- **The National Weather Service** (`api.weather.gov`), for `WX` and the
+  forecasts kept as issued (every three hours in the background, unless
+  turned off in `SET`): forecasts for fixed cities across MISO, never your
+  location.
   [NWS's policy](https://www.weather.gov/privacy).
 - **The EIA** (`www.eia.gov`), for `GAS` and HOME: the Henry Hub price file.
   [EIA's policy](https://www.eia.gov/about/privacy_security_policy.php).
@@ -43,8 +49,9 @@ updates this page in the same pull request, and the
 ## What it keeps on your PC
 
 - Settings, themes and fonts: `%APPDATA%\MISO Terminal\config`.
-- The cache, the price history, saved headlines (titles and links), the
-  layout, logs, and the audit log of orders you placed:
+- The cache, the price history, the forecasts kept as issued, saved
+  headlines (titles and links), the layout, logs, and the audit log of orders
+  you placed:
   `%LOCALAPPDATA%\MISO Terminal`.
 - API keys: Windows Credential Manager, never in files or logs. `SET`
   removes them.

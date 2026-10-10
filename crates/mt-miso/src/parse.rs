@@ -943,6 +943,82 @@ pub fn parse_cts(body: &str) -> Result<Cts, FetchError> {
     Ok(Cts { forecasts })
 }
 
+// --- Load forecast report (.xls) ----------------------------------------------
+
+/// An Excel serial day number (days since 1899-12-30) as a date.
+fn excel_date(serial: f64) -> Option<NaiveDate> {
+    let base = NaiveDate::from_ymd_opt(1899, 12, 30)?;
+    (serial.is_finite() && serial > 0.0)
+        .then(|| base + chrono::TimeDelta::days(serial.floor() as i64))
+}
+
+/// Parse a daily load forecast report (`<date>_df_al.xls`): a banner with the
+/// published date, a header row naming each zone's MTLF and actual load,
+/// then one row per market day and hour ending. Only the MTLF columns are
+/// kept.
+pub fn parse_load_forecast_report(bytes: &[u8]) -> Result<LoadForecastReport, FetchError> {
+    use calamine::Reader;
+    let what = "load forecast report";
+    let mut book =
+        calamine::Xls::new(std::io::Cursor::new(bytes)).map_err(|e| FetchError::parse(what, e))?;
+    let sheet = book
+        .worksheet_range_at(0)
+        .ok_or_else(|| FetchError::parse(what, "no worksheet"))?
+        .map_err(|e| FetchError::parse(what, e))?;
+    let rows: Vec<&[calamine::Data]> = sheet.rows().collect();
+    let published = rows
+        .iter()
+        .take(10)
+        .find(|r| {
+            r.first()
+                .is_some_and(|c| xls_text(c).starts_with("Published Date"))
+        })
+        .and_then(|r| excel_date(xls_number(r.get(1)?)?))
+        .ok_or_else(|| FetchError::parse(what, "no published date"))?;
+    let header_at = rows
+        .iter()
+        .position(|r| {
+            r.first()
+                .is_some_and(|c| header_key(&xls_text(c)) == "marketday")
+        })
+        .ok_or_else(|| FetchError::parse(what, "no header row"))?;
+    // "LRZ1 MTLF (MWh)" -> ("LRZ1", column 2).
+    let columns: Vec<(String, usize)> = rows[header_at]
+        .iter()
+        .enumerate()
+        .filter_map(|(i, c)| {
+            let text = xls_text(c);
+            let (zone, _) = text.split_once(" MTLF")?;
+            Some((zone.trim().to_owned(), i))
+        })
+        .collect();
+    if columns.is_empty() {
+        return Err(FetchError::parse(what, "no MTLF columns"));
+    }
+    let mut hours = Vec::new();
+    for r in &rows[header_at + 1..] {
+        let cell = |i: usize| r.get(i).and_then(xls_number);
+        // Day banners ("October 08, 2026") and the disclaimer have no hour.
+        let (Some(day), Some(he)) = (cell(0).and_then(excel_date), cell(1)) else {
+            continue;
+        };
+        if !(1.0..=24.0).contains(&he) {
+            continue;
+        }
+        let start =
+            day.and_hms_opt(0, 0, 0).unwrap_or_default() + chrono::TimeDelta::hours(he as i64 - 1);
+        let values: Vec<Option<f64>> = columns.iter().map(|(_, i)| cell(*i)).collect();
+        if values.iter().any(Option::is_some) {
+            hours.push((start, values));
+        }
+    }
+    Ok(LoadForecastReport {
+        published,
+        zones: columns.into_iter().map(|(z, _)| z).collect(),
+        hours,
+    })
+}
+
 // --- Binding-constraint history (.xls) ---------------------------------------
 
 /// A spreadsheet cell as text (whole numbers without a trailing `.0`).

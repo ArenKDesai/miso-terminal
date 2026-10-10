@@ -22,6 +22,7 @@ mod ctx;
 mod error;
 mod event;
 mod hub;
+pub mod issued;
 mod query;
 mod request;
 mod secret;

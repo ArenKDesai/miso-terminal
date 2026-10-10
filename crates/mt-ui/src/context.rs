@@ -105,6 +105,8 @@ pub struct PanelCx<'a> {
     pub desk: &'a mt_alpaca::OrderDesk,
     /// Fills the price history in the background; its progress for SET and LOG.
     pub backfill: &'a mt_miso::Backfill,
+    /// Keeps forecasts as issued in the background; its status for SET and LOG.
+    pub collector: &'a mt_data::issued::Collector,
     pub skin: &'a Skin,
     pub config: &'a AppConfig,
     pub paths: &'a AppPaths,

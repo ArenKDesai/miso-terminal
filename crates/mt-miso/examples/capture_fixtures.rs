@@ -101,9 +101,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Binding-constraint histories (.xls, kept whole): the newest of each,
-    // trying back a few days in case today's is not out yet.
-    for suffix in [reports::DA_BC, reports::RT_BC] {
+    // Binding-constraint histories and the load forecast report (.xls, kept
+    // whole): the newest of each, trying back a few days in case today's is
+    // not out yet.
+    for suffix in [reports::DA_BC, reports::RT_BC, reports::DF_AL] {
         for back in 0..4 {
             let url = endpoints.report_file(today - Duration::days(back), suffix, "xls");
             match ctx.get(&url).await {

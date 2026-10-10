@@ -212,6 +212,7 @@ impl Panel for Settings {
                 });
 
             price_history(ui, cx, &mut draft);
+            issued_forecasts(ui, cx, &mut draft);
 
             news(ui, cx, &mut draft);
 
@@ -401,6 +402,49 @@ fn price_history(ui: &mut Ui, cx: &mut PanelCx<'_>, draft: &mut AppConfig) {
              stored days from disk. The download runs in the background, one report every 2 \
              seconds and newest first; it carries on after a restart and, once done, keeps the \
              window filled. Days before the window are removed.",
+        )
+        .small()
+        .color(skin.text_muted),
+    );
+}
+
+/// MISO's and the NWS's forecasts kept as issued, for FCST's models.
+fn issued_forecasts(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig) {
+    let skin = cx.skin;
+    let status = cx.collector.status();
+    widgets::section(ui, skin, "Forecasts kept as issued");
+    ui.checkbox(
+        &mut draft.forecasts.keep_issued,
+        "Keep MISO's and the NWS's forecasts as they are issued",
+    );
+    Grid::new("set-issued")
+        .num_columns(2)
+        .spacing([16.0, 6.0])
+        .show(ui, |ui| {
+            ui.label("Keep");
+            let keep = &mut draft.forecasts.keep_days;
+            egui::ComboBox::from_id_salt("set-issued-keep")
+                .selected_text(crate::issued::window_label(*keep))
+                .show_ui(ui, |ui| {
+                    for (days, label) in crate::issued::WINDOWS {
+                        ui.selectable_value(keep, days, label);
+                    }
+                });
+            ui.end_row();
+            ui.label("Stored");
+            ui.label(crate::issued::stored(&status));
+            ui.end_row();
+        });
+    let (text, color) = crate::issued::activity(&status, skin);
+    ui.label(RichText::new(text).color(color));
+    ui.label(
+        RichText::new(
+            "FCST's models learn from forecasts as they stood when a price forecast would have \
+             been made, not from what happened later. So the terminal keeps MISO's load forecast \
+             by zone (its daily report, filled in for the past year), its wind and solar forecasts \
+             and outage schedule (hourly), and the NWS's temperature forecasts for a city in each \
+             zone (every three hours), storing a value only when it changes. A forecast becomes a \
+             feature once sixty days of it are kept. A few tens of megabytes over two years.",
         )
         .small()
         .color(skin.text_muted),

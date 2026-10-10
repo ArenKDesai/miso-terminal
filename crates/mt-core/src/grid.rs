@@ -194,6 +194,19 @@ pub struct OutageDay {
     pub derated: f64,
 }
 
+/// MISO's daily load forecast report (`<date>_df_al.xls`, "Daily Forecast
+/// and Actual Load by Local Resource Zone"): the medium-term load forecast
+/// (MTLF) for zone groups and for MISO, from the day before publication to
+/// five days after, as published. MISO posts it about 01:20 EST.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LoadForecastReport {
+    pub published: NaiveDate,
+    /// `LRZ1`, `LRZ2_7`, `LRZ3_5`, `LRZ4`, `LRZ6`, `LRZ8_9_10`, `MISO`.
+    pub zones: Vec<String>,
+    /// Hour beginning (market time) and the MTLF for each zone, MW.
+    pub hours: Vec<(NaiveDateTime, Vec<Option<f64>>)>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Outages {
     /// MISO's headline, e.g. "Total Outage Megawatts: 54,179".

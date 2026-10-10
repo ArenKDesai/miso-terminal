@@ -116,6 +116,9 @@ pub mod reports {
     pub const DA_BC: &str = "da_bc";
     /// Real-time binding constraints (`.xls`), dated the day after the market day.
     pub const RT_BC: &str = "rt_bc";
+    /// Daily forecast and actual load by zone (`.xls`): MTLF for the next
+    /// five days, dated the day it is published.
+    pub const DF_AL: &str = "df_al";
 }
 
 #[cfg(test)]

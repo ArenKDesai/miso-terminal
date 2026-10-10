@@ -20,6 +20,9 @@ pub struct AppConfig {
     /// days back, and whether to download the missing days (SET's *Price
     /// history*).
     pub price_history: mt_miso::HistoryConfig,
+    /// MISO's and the NWS's forecasts kept as issued, for FCST's models
+    /// (SET's *Forecasts kept as issued*).
+    pub forecasts: mt_data::issued::IssuedConfig,
     pub endpoints: MisoEndpoints,
     /// News feeds and topics (TOP, NEWS, NI): built-ins to turn off, feeds
     /// and topics to add, how long headlines are kept.
@@ -45,6 +48,7 @@ impl Default for AppConfig {
             ui: UiConfig::default(),
             data: DataConfig::default(),
             price_history: mt_miso::HistoryConfig::default(),
+            forecasts: mt_data::issued::IssuedConfig::default(),
             endpoints: MisoEndpoints::default(),
             news: mt_news::NewsConfig::default(),
             markets: mt_alpaca::MarketsConfig::default(),

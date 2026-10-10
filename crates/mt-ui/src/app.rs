@@ -103,6 +103,8 @@ pub struct TerminalApp {
     desk_seen: u64,
     /// Keeps the price history's window and downloads its missing days.
     backfill: mt_miso::Backfill,
+    /// Keeps MISO's and the NWS's forecasts as issued.
+    collector: mt_data::issued::Collector,
     /// The config came from the file, or has been saved since. One that
     /// failed to load is the defaults, whose three-month window must not
     /// prune a longer price history, so the backfill waits until then.
@@ -146,6 +148,9 @@ impl TerminalApp {
         let backfill = mt_miso::Backfill::new(deps.hub.ctx().clone(), deps.hub.runtime());
         let repaint = ctx.clone();
         backfill.set_notify(move || repaint.request_repaint());
+        let collector = mt_data::issued::Collector::new(deps.hub.ctx().clone(), deps.hub.runtime());
+        let repaint = ctx.clone();
+        collector.set_notify(move || repaint.request_repaint());
         let mut app = Self {
             miso: Miso::new(deps.config.endpoints.clone()),
             nws: mt_nws::Nws::default(),
@@ -188,10 +193,12 @@ impl TerminalApp {
             desk,
             desk_seen: 0,
             backfill,
+            collector,
             config: deps.config,
             paths: deps.paths,
         };
         app.sync_backfill();
+        app.sync_collector();
         app.apply_theme(ctx);
         app.restore_intraday();
         app.restore_news();
@@ -317,6 +324,14 @@ impl TerminalApp {
         );
     }
 
+    /// Hand the collector its config and sources (MISO's from the configured
+    /// endpoints, the NWS's).
+    fn sync_collector(&self) {
+        let mut sources = mt_miso::issued::sources(&self.config.endpoints);
+        sources.extend(mt_nws::issued::sources(&self.nws));
+        self.collector.configure(&self.config.forecasts, sources);
+    }
+
     /// The theme id to show now: the configured one, or the light/dark pair
     /// when following the OS setting (and the OS has told us which it is).
     fn wanted_theme(&self, ctx: &egui::Context) -> String {
@@ -435,6 +450,7 @@ impl TerminalApp {
         }
         self.save_config();
         self.sync_backfill();
+        self.sync_collector();
     }
 
     fn save_config(&mut self) {
@@ -1372,6 +1388,7 @@ impl eframe::App for TerminalApp {
             alpaca: &self.alpaca,
             desk: &self.desk,
             backfill: &self.backfill,
+            collector: &self.collector,
             skin: &self.skin,
             config: &self.config,
             paths: &self.paths,

@@ -14,6 +14,17 @@ notes are that section.
 
 ### Added
 
+- **Forecasts kept as issued.** For the forecasts coming in `FCST`, the
+  terminal keeps MISO's load forecast by zone (its daily report, with the past
+  year filled in a report every two seconds), its wind and solar forecasts
+  and outage schedule (hourly), and the NWS's temperature forecasts for a
+  city in each zone (every three hours), each version with when it was
+  issued and stored only when it changes: models can then learn from what
+  was known at the time. SET's new *Forecasts kept as issued* section turns
+  it off and chooses how long to keep (two years by default, a few tens of
+  megabytes); LOG shows each source. On by default, and idle in an offline
+  replay.
+
 - **`BETA`: how a security moves with the market and its industry.**
   `BETA XEL US` sets beta, adjusted beta (two thirds beta plus one third of
   1), alpha a year, R², correlation, beta's standard error and the number of

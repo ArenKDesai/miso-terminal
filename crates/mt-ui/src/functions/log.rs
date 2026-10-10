@@ -159,6 +159,7 @@ impl Panel for Log {
             streams(ui, cx);
             budgets(ui, cx);
             price_history(ui, cx);
+            issued_forecasts(ui, cx);
 
             widgets::section(ui, skin, "Recent activity");
             for e in hub.ctx().events().recent(80).iter().rev() {
@@ -293,6 +294,27 @@ fn streams(ui: &mut Ui, cx: &mut PanelCx<'_>) {
     if restart {
         hub.restart_streams();
     }
+}
+
+/// The forecasts kept as issued: what is collected, from where, and errors.
+fn issued_forecasts(ui: &mut Ui, cx: &mut PanelCx<'_>) {
+    let skin = cx.skin;
+    let s = cx.collector.status();
+    if !s.live {
+        return;
+    }
+    widgets::section(ui, skin, "Forecasts kept as issued");
+    let (text, color) = crate::issued::activity(&s, skin);
+    ui.label(RichText::new(text).color(color));
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(format!("Stored: {}", crate::issued::stored(&s))).color(skin.text_muted),
+        );
+        if ui.small_button("Settings").clicked() {
+            cx.open(Route::code("SET"));
+        }
+    });
+    crate::issued::sources(ui, &s, skin);
 }
 
 /// The price history's download: what it is doing, what is stored, and the
