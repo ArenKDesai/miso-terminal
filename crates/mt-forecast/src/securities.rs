@@ -4,7 +4,9 @@
 //! volatility. Returns are log returns of daily closes.
 
 use crate::evaluate::{QUANTILES, pinball_loss};
+use crate::gbm::Matrix;
 use crate::hourly::quantile;
+use crate::ridge::Ridge;
 
 /// The longest horizon offered, in trading days.
 pub const MAX_HORIZON: usize = 20;
@@ -282,14 +284,77 @@ fn nelder_mead(
     simplex[0].1.is_finite().then_some(simplex[0].0)
 }
 
+/// Ridge regression of the h-day return on the last day's, week's and
+/// month's returns and the month's volatility, one fit per horizon, over up
+/// to three years of past origins. The band is the quantiles of its own
+/// errors on those origins. Machine learning for a security is offered only
+/// where it beats the random walk.
+pub struct RidgeReturns;
+
+/// The features at close `o`: 1-, 5- and 20-day log returns and the 20-day
+/// volatility of daily returns.
+fn return_features(closes: &[f64], o: usize) -> Option<[f64; 4]> {
+    if o < 20 || closes[o - 20..=o].iter().any(|c| *c <= 0.0) {
+        return None;
+    }
+    let back = |k: usize| (closes[o] / closes[o - k]).ln();
+    let daily = log_returns(&closes[o - 20..=o]);
+    let mean = daily.iter().sum::<f64>() / daily.len() as f64;
+    let vol = (daily.iter().map(|r| (r - mean).powi(2)).sum::<f64>() / daily.len() as f64).sqrt();
+    Some([back(1), back(5), back(20), vol])
+}
+
+impl CloseModel for RidgeReturns {
+    fn name(&self) -> &'static str {
+        "Ridge regression"
+    }
+
+    fn forecast(&self, closes: &[f64], horizon: usize) -> Option<Path> {
+        let last = closes.len().checked_sub(1)?;
+        let now = return_features(closes, last)?;
+        let first = last.saturating_sub(3 * LOOKBACK);
+        (1..=horizon)
+            .map(|h| {
+                let (mut x, mut y) = (Vec::new(), Vec::new());
+                for o in first..=last.checked_sub(h)? {
+                    if let Some(f) = return_features(closes, o) {
+                        x.extend(f);
+                        y.push((closes[o + h] / closes[o]).ln());
+                    }
+                }
+                if y.len() < 120 {
+                    return None;
+                }
+                let m = Matrix {
+                    values: &x,
+                    features: 4,
+                };
+                let model = Ridge::fit(&m, &y)?;
+                let errors: Vec<f64> = x
+                    .chunks(4)
+                    .zip(&y)
+                    .map(|(row, actual)| actual - model.predict(row))
+                    .collect();
+                let point = model.predict(&now);
+                let mut q = [0.0; 5];
+                for (out, level) in q.iter_mut().zip(QUANTILES) {
+                    *out = closes[last] * (point + quantile(&errors, level)?).exp();
+                }
+                Some(q)
+            })
+            .collect()
+    }
+}
+
 /// The models, in the order the Skill tab lists them; the random walk first,
-/// as the bar to beat.
+/// as the bar to beat, and the learned one last.
 pub fn models() -> Vec<Box<dyn CloseModel>> {
     vec![
         Box::new(RandomWalk),
         Box::new(Drift),
         Box::new(Cone),
         Box::new(Garch),
+        Box::new(RidgeReturns),
     ]
 }
 
@@ -360,31 +425,14 @@ pub fn backtest_closes(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A deterministic stream of standard normal draws (xorshift and
-    /// Box–Muller), so the tests do not depend on a random crate.
-    struct Normals(u64);
-
-    impl Normals {
-        fn uniform(&mut self) -> f64 {
-            self.0 ^= self.0 << 13;
-            self.0 ^= self.0 >> 7;
-            self.0 ^= self.0 << 17;
-            ((self.0 >> 11) as f64 + 0.5) / (1u64 << 53) as f64
-        }
-
-        fn next(&mut self) -> f64 {
-            let (u, v) = (self.uniform(), self.uniform());
-            (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
-        }
-    }
+    use crate::TestRng;
 
     fn walk(n: usize, daily_sd: f64, seed: u64) -> Vec<f64> {
-        let mut z = Normals(seed);
+        let mut z = TestRng(seed);
         let mut c = vec![100.0];
         for _ in 1..n {
             let last = *c.last().unwrap();
-            c.push(last * (daily_sd * z.next()).exp());
+            c.push(last * (daily_sd * z.normal()).exp());
         }
         c
     }
@@ -439,11 +487,11 @@ mod tests {
     fn garch_recovers_its_parameters() {
         // Simulate ω = 0.00001, α = 0.1, β = 0.85 (long-run sd ≈ 1.4% a day).
         let (omega, alpha, beta): (f64, f64, f64) = (1e-5, 0.1, 0.85);
-        let mut z = Normals(42);
+        let mut z = TestRng(42);
         let mut v = omega / (1.0 - alpha - beta);
         let mut returns = Vec::new();
         for _ in 0..4000 {
-            let r = v.sqrt() * z.next();
+            let r = v.sqrt() * z.normal();
             returns.push(r);
             v = omega + alpha * r * r + beta * v;
         }
@@ -470,7 +518,7 @@ mod tests {
         // On a true random walk, every model's 80% band should hold about 80%.
         let c = walk(900, 0.012, 99);
         let scores = backtest_closes(&models(), &c, 10, 400, 5);
-        assert_eq!(scores.len(), 4);
+        assert_eq!(scores.len(), 5);
         for (name, a) in scores {
             let a = a.unwrap();
             assert!(a.origins >= 70, "{name}");
@@ -478,5 +526,37 @@ mod tests {
             assert!(a.coverage50 < a.coverage80, "{name}");
             assert!(a.mae_pct > 0.0 && a.pinball_pct > 0.0, "{name}");
         }
+    }
+}
+
+#[cfg(test)]
+mod ridge_tests {
+    use super::*;
+
+    #[test]
+    fn ridge_finds_momentum_where_there_is_some() {
+        // Each day's return is half the day before's plus noise: there is
+        // something to learn, and the ridge's median should lean the way the
+        // last move went.
+        let mut rng = crate::TestRng(5);
+        let mut c = vec![100.0];
+        let mut r = 0.0f64;
+        for _ in 0..700 {
+            r = 0.5 * r + 0.01 * rng.normal();
+            let last = *c.last().unwrap();
+            c.push(last * r.exp());
+        }
+        let path = RidgeReturns.forecast(&c, 5).unwrap();
+        assert_eq!(path.len(), 5);
+        let last = *c.last().unwrap();
+        let last_move = (c[c.len() - 1] / c[c.len() - 2]).ln();
+        assert_eq!(
+            path[0][2] > last,
+            last_move > 0.0,
+            "{} {last_move}",
+            path[0][2] / last
+        );
+        assert!(path.iter().all(|q| q[0] < q[2] && q[2] < q[4]));
+        assert!(RidgeReturns.forecast(&c[..100], 5).is_none());
     }
 }
