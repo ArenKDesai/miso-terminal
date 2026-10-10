@@ -129,13 +129,16 @@ pub fn render(hub: &DataHub, scene: &Scene<'_>) -> Result<image::RgbaImage, Stri
         .build_eframe(|cc| TerminalApp::new(cc, deps));
 
     // Step until nothing has been in flight for a while.
-    let deadline = Instant::now() + Duration::from_secs(30);
-    let mut quiet = 0;
-    while quiet < 10 && Instant::now() < deadline {
-        harness.step();
-        std::thread::sleep(Duration::from_millis(30));
-        quiet = if hub.in_flight() == 0 { quiet + 1 } else { 0 };
-    }
+    let settle = |harness: &mut Harness<'_, TerminalApp>| {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut quiet = 0;
+        while quiet < 10 && Instant::now() < deadline {
+            harness.step();
+            std::thread::sleep(Duration::from_millis(30));
+            quiet = if hub.in_flight() == 0 { quiet + 1 } else { 0 };
+        }
+    };
+    settle(&mut harness);
     if scene.zoom {
         harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::M);
     }
@@ -154,6 +157,8 @@ pub fn render(hub: &DataHub, scene: &Scene<'_>) -> Result<image::RgbaImage, Stri
             return Err(format!("nothing labelled {label:?} to click"));
         };
         node.click();
+        // What the click asked for may need fetching (or training) too.
+        settle(&mut harness);
         for _ in 0..5 {
             harness.step();
         }

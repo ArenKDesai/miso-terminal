@@ -54,6 +54,8 @@ fn open(args: &[String]) -> Result<Box<dyn Panel>, String> {
         component: Component::Lmp,
         heat: Heat::Rt,
         yesterday: false,
+        forecast: false,
+        forecaster: crate::forecast::NodeForecaster::default(),
     }))
 }
 
@@ -125,6 +127,9 @@ struct Gp {
     heat: Heat,
     /// Also plot yesterday's five-minute RT and DA in the Today view.
     yesterday: bool,
+    /// Also plot tomorrow's forecast (FCST's best model) in the Today view.
+    forecast: bool,
+    forecaster: crate::forecast::NodeForecaster,
 }
 
 impl Panel for Gp {
@@ -251,10 +256,49 @@ impl Gp {
         let skin = cx.skin;
         let t = series::node_today(cx, node, self.component);
         let intraday = cx.hub.peek(&cx.miso.rt_intraday());
-        ui.checkbox(&mut self.yesterday, "+ yesterday")
-            .on_hover_text(
-                "Also show yesterday's five-minute RT and DA (one ~11 MB download per day)",
+        ui.horizontal_wrapped(|ui| {
+            ui.checkbox(&mut self.yesterday, "+ yesterday")
+                .on_hover_text(
+                    "Also show yesterday's five-minute RT and DA (one ~11 MB download per day)",
+                );
+            ui.checkbox(&mut self.forecast, "+ forecast").on_hover_text(
+                "Also show tomorrow's forecast with its 80% band: DA until MISO posts it, then RT \
+                 (FCST has the detail). It trains on the price history, downloading up to 90 \
+                 days of reports the first time.",
             );
+        });
+        // Tomorrow's DA until it is posted, then tomorrow's RT, which needs it.
+        let target = if t.da_tomorrow.is_empty() {
+            mt_forecast::features::Target::DayAhead
+        } else {
+            mt_forecast::features::Target::RealTime
+        };
+        let forecast = if self.forecast {
+            let state = self.forecaster.watch(cx, node, target);
+            match &state {
+                crate::forecast::NodeState::Ready(..) => {}
+                crate::forecast::NodeState::Failed(e) => {
+                    ui.label(
+                        RichText::new(format!("Forecast: {e}"))
+                            .small()
+                            .color(skin.warning),
+                    );
+                }
+                _ => {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(
+                            RichText::new("Training tomorrow's forecast…")
+                                .small()
+                                .color(skin.text_muted),
+                        );
+                    });
+                }
+            }
+            forecast_overlay(&state)
+        } else {
+            None
+        };
         let (y_rt, y_da, y_loading) = if self.yesterday {
             let prev = cx.hub.watch(&cx.miso.rt_previous_day());
             let day = mt_core::time::market_today() - chrono::Duration::days(1);
@@ -341,6 +385,32 @@ impl Gp {
                 chart::forecast_steps(plot, "DA tomorrow", &t.da_tomorrow, skin.series(1));
             }
             plot.line(chart::line("RT 5-min", &t.rt_5min, skin.series(0)));
+            if let Some(o) = &forecast {
+                let color = match o.target {
+                    mt_forecast::features::Target::DayAhead => skin.series(1),
+                    mt_forecast::features::Target::RealTime => skin.series(0),
+                };
+                for (t, lo, hi) in &o.band {
+                    let (x0, x1) = (
+                        mt_core::time::chart_x(*t),
+                        mt_core::time::chart_x(*t + chrono::Duration::hours(1)),
+                    );
+                    plot.polygon(
+                        egui_plot::Polygon::new(
+                            "80% band",
+                            egui_plot::PlotPoints::from(vec![
+                                [x0, *lo],
+                                [x1, *lo],
+                                [x1, *hi],
+                                [x0, *hi],
+                            ]),
+                        )
+                        .fill_color(color.gamma_multiply(0.2))
+                        .stroke(egui::Stroke::NONE),
+                    );
+                }
+                chart::forecast_steps(plot, o.name, &o.median, color);
+            }
         });
     }
 
@@ -641,6 +711,58 @@ pub(crate) fn history_notes(
     });
 }
 
+/// Tomorrow's forecast as GP draws it: the median and the 80% band by hour.
+struct Overlay {
+    target: mt_forecast::features::Target,
+    name: &'static str,
+    median: series::Points,
+    band: Vec<(chrono::NaiveDateTime, f64, f64)>,
+}
+
+fn forecast_overlay(state: &crate::forecast::NodeState) -> Option<Overlay> {
+    let crate::forecast::NodeState::Ready(f, _) = state else {
+        return None;
+    };
+    let m = f.chosen()?;
+    let hours = m.hours?;
+    let at = |h: usize| mt_forecast::hourly::hour_start(f.day, h);
+    Some(Overlay {
+        target: f.target,
+        name: match f.target {
+            mt_forecast::features::Target::DayAhead => "DA forecast",
+            mt_forecast::features::Target::RealTime => "RT forecast",
+        },
+        median: (0..24).map(|h| (at(h), hours[h])).collect(),
+        band: m
+            .bands
+            .map(|b| {
+                (0..24)
+                    .map(|h| {
+                        let q = b.around(hours[h]);
+                        (at(h), q[0], q[4])
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+    })
+}
+
+/// A GP Today panel with the forecast overlay on, for the smoke tests.
+#[cfg(test)]
+pub(crate) fn with_forecast(node: &str) -> Box<dyn Panel> {
+    Box::new(Gp {
+        node: Some(node.to_owned()),
+        days: 0,
+        picker: NodePicker::default(),
+        view: View::Today,
+        component: Component::Lmp,
+        heat: Heat::Rt,
+        yesterday: false,
+        forecast: true,
+        forecaster: crate::forecast::NodeForecaster::default(),
+    })
+}
+
 /// A GP Today panel with the yesterday overlay on, for the smoke tests.
 #[cfg(test)]
 pub(crate) fn with_yesterday(node: &str) -> Box<dyn Panel> {
@@ -652,5 +774,7 @@ pub(crate) fn with_yesterday(node: &str) -> Box<dyn Panel> {
         component: Component::Lmp,
         heat: Heat::Rt,
         yesterday: true,
+        forecast: false,
+        forecaster: crate::forecast::NodeForecaster::default(),
     })
 }

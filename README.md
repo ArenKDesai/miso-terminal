@@ -236,8 +236,6 @@ The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
 - [x] **The terminal's own price history:** every daily report kept for every
       node, filled back as far as you like from SET, read by GP, SPRD, CMP and
       HUBS for any window.
-- [ ] **`FCST`:** forecasts for DA and RT prices and for securities, with
-      bands and a record against naive baselines.
 - [ ] **`ASK`:** a Claude assistant with read-only tools over the terminal's
       data, through Claude Desktop or Claude Code (the terminal as an MCP
       server) or in the terminal with an API key.

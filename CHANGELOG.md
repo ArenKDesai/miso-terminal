@@ -14,6 +14,11 @@ notes are that section.
 
 ### Added
 
+- **Forecasts in GP and DAM.** GP's *Today* view has *+ forecast*: tomorrow's
+  forecast with its 80% band after today's prices (DA until MISO posts it,
+  then RT). Until MISO posts tomorrow's day-ahead results, `DAM TOMORROW`
+  shows each hub's forecast in the same strip, marked as such.
+
 - **`FCST`: forecasts.** `FCST MINN.HUB` forecasts tomorrow's DA price at a
   node, `FCST MINN.HUB RT` tomorrow's RT, and `DART` the spread between them
   once tomorrow's DA is posted: a fan chart after the last week (the median

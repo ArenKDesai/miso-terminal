@@ -172,6 +172,39 @@ five minutes, so the terminal keeps every day it runs (90 days by default;
 *Five-minute archive* in `SET`). `GP <node> 7 5MIN` and `SPRD A B 7 5MIN`
 read it.
 
+## Forecast tomorrow
+
+![FCST: tomorrow's DA at the Minnesota hub, with bands and the posted DA](screenshots/tutorials/fcst.webp)
+
+`FCST MINN.HUB` forecasts tomorrow's day-ahead price at a node: the last three
+days as they happened, then tomorrow's median with a darker 50% band and a
+lighter 80% band, hour by hour. The tiles give the day's average, the peak
+hour, the average 80% band (and how often it held), and the backtest error
+beside the naive one. *RT tomorrow* forecasts real time instead; once MISO
+posts tomorrow's DA in the afternoon, it becomes a feature, and *RT − DA
+tomorrow* shows the spread.
+
+**Which model?** Six are tried: repeating the last day, repeating last week,
+an hour-by-day profile, exponential smoothing, gradient-boosted trees and
+ridge regression. *Skill* shows how each did over the last eight weeks,
+forecasting every day from what was known at the time, beside repeating a
+recent day. The one with the lowest error is shown (*Model* picks another),
+and FCST says so when nothing beats repeating a recent day. The learned
+models need history: SET's *Price history* (see *Reach back years*) gives
+them more, and once two months of MISO's load forecast and the other
+forecasts are kept as issued (SET's *Forecasts kept as issued*), those join
+too.
+
+**Elsewhere.** In `GP <node>`, *+ forecast* adds tomorrow's forecast to the
+*Today* chart. Before MISO posts tomorrow's day-ahead results,
+`DAM TOMORROW` shows each hub's forecast in the strip.
+
+**Securities.** `FCST XEL US` shows where the close may be over the next
+twenty trading days: a median and bands, not a call on direction. *Skill*
+compares the random walk, a drift, the volatility cone, GARCH and a
+regression on recent returns; the regression is offered only where it beats
+the random walk.
+
 ## Build a watchlist
 
 `WL` (`F6`) keeps the nodes you care about in one place: RT five-minute price,

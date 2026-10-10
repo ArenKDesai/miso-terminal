@@ -176,7 +176,9 @@ keys, and anything Aren has asked to see.
   labels. When a panel's controls, a command's arguments or a config key change,
   update the tutorial that mentions them. Its screenshots
   (`docs/screenshots/tutorials/*.webp`) are `render` output against the
-  fixtures at 1280x720, zoomed, saved as lossless WebP.
+  fixtures at 1280x720, zoomed, saved as lossless WebP. FCST's needs a
+  stored price history, which the fixtures lack: render it with `--cache`
+  pointing at a home's `cache/http` that holds a few months.
 - Built-in themes are `themes/*.toml` (listed in `mt_theme::BUILTIN_SOURCES`);
   downloadable ones are `themes/gallery/*.toml` (named after their id, previewed
   in `docs/screenshots/themes/<id>.webp`, published by the docs site and

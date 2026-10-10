@@ -464,7 +464,7 @@ fn tiles(
     });
 }
 
-/// The last week as it happened, then the forecast day's median with its
+/// The last three days as they happened, then the forecast day's median with its
 /// 50% and 80% bands, hour by hour.
 #[allow(clippy::too_many_arguments)]
 fn fan_chart(
@@ -479,7 +479,7 @@ fn fan_chart(
     actual: Option<&[f64; 24]>,
     height: f32,
 ) {
-    let from = hour_start(day - Duration::days(7), 0);
+    let from = hour_start(day - Duration::days(3), 0);
     let to = hour_start(day, 0);
     let window = |s: &hourly::Hourly| -> Vec<(NaiveDateTime, f64)> {
         s.range(from..to).map(|(t, v)| (*t, *v)).collect()
@@ -505,7 +505,7 @@ fn fan_chart(
                 .follow_insertion_order(true),
         )
         .show(ui, |plot| {
-            chart::hourly_steps(plot, "Last week", &history, skin.text_muted);
+            chart::hourly_steps(plot, "Last three days", &history, skin.text_muted);
             if let Some(q) = quantiles {
                 band(plot, "80% band", day, q, (0, 4), color.gamma_multiply(0.18));
                 band(plot, "50% band", day, q, (1, 3), color.gamma_multiply(0.35));
