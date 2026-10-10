@@ -8,6 +8,7 @@
 //! band comes only from the errors of the days before it.
 
 use chrono::{NaiveDate, NaiveDateTime};
+use serde::{Deserialize, Serialize};
 
 use crate::hourly::{self, Day, Hourly};
 use crate::models::DayModel;
@@ -25,13 +26,13 @@ pub const BAND_DAYS: usize = 60;
 
 /// One model's backtest: its forecast and the outcome for each day it could
 /// forecast, oldest first.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Record {
-    pub model: &'static str,
+    pub model: String,
     pub days: Vec<Outcome>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Outcome {
     pub day: NaiveDate,
     pub forecast: Day,
@@ -49,7 +50,7 @@ pub fn backtest(
     let mut records: Vec<Record> = models
         .iter()
         .map(|m| Record {
-            model: m.name(),
+            model: m.name().to_owned(),
             days: Vec::new(),
         })
         .collect();
@@ -81,7 +82,7 @@ pub fn errors(outcomes: &[Outcome]) -> Vec<f64> {
 }
 
 /// Conformal bands: what to add to a forecast for each of [`QUANTILES`].
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Bands {
     pub offsets: [f64; 5],
 }
@@ -112,7 +113,7 @@ impl Bands {
 }
 
 /// A model's accuracy over a backtest.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Accuracy {
     /// Days forecast.
     pub days: usize,
@@ -253,7 +254,7 @@ mod tests {
         let r = backtest(&models, &s, &[day("2026-10-05")], |d| hour_start(d, 0));
         assert!(r[0].days.is_empty());
         assert_eq!(
-            best(&backtest(&models, &s, &days, |d| hour_start(d, 0))).map(|r| r.model),
+            best(&backtest(&models, &s, &days, |d| hour_start(d, 0))).map(|r| r.model.as_str()),
             Some("Same hour, last day")
         );
     }
@@ -262,7 +263,7 @@ mod tests {
     fn accuracy_by_hand() {
         // Errors of +2 and −4 on alternate days, no bands yet (two days).
         let r = Record {
-            model: "m",
+            model: "m".into(),
             days: vec![
                 outcome("2026-10-01", 10.0, 12.0),
                 outcome("2026-10-02", 10.0, 6.0),
@@ -276,7 +277,7 @@ mod tests {
         assert_eq!((a.pinball, a.coverage80), (None, None));
         assert!(
             accuracy(&Record {
-                model: "m",
+                model: "m".into(),
                 days: vec![]
             })
             .is_none()
@@ -297,7 +298,10 @@ mod tests {
                 }
             })
             .collect();
-        let r = Record { model: "m", days };
+        let r = Record {
+            model: "m".into(),
+            days,
+        };
         let a = accuracy(&r).unwrap();
         let c80 = a.coverage80.unwrap();
         assert!((0.7..=0.9).contains(&c80), "{c80}");
@@ -322,20 +326,20 @@ mod tests {
         // A is perfect on one easy day; B misses by 1 on every day; on the
         // days both forecast, B is better.
         let a = Record {
-            model: "A",
+            model: "A".into(),
             days: vec![
                 outcome("2026-10-01", 0.0, 5.0),
                 outcome("2026-10-02", 1.0, 1.0),
             ],
         };
         let b = Record {
-            model: "B",
+            model: "B".into(),
             days: vec![
                 outcome("2026-10-01", 4.0, 5.0),
                 outcome("2026-10-03", 9.0, 0.0),
             ],
         };
-        assert_eq!(best(&[a, b]).map(|r| r.model), Some("B"));
+        assert_eq!(best(&[a, b]).map(|r| r.model.as_str()), Some("B"));
         assert!(best(&[]).is_none());
     }
 }

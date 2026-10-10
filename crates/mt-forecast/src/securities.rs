@@ -29,6 +29,11 @@ pub type Path = Vec<[f64; 5]>;
 pub trait CloseModel: Send + Sync {
     fn name(&self) -> &'static str;
 
+    /// Machine learning, offered only where it beats the random walk.
+    fn learned(&self) -> bool {
+        false
+    }
+
     /// From closes (oldest first, all positive) up to the last known one.
     fn forecast(&self, closes: &[f64], horizon: usize) -> Option<Path>;
 }
@@ -309,6 +314,10 @@ impl CloseModel for RidgeReturns {
         "Ridge regression"
     }
 
+    fn learned(&self) -> bool {
+        true
+    }
+
     fn forecast(&self, closes: &[f64], horizon: usize) -> Option<Path> {
         let last = closes.len().checked_sub(1)?;
         let now = return_features(closes, last)?;
@@ -356,6 +365,69 @@ pub fn models() -> Vec<Box<dyn CloseModel>> {
         Box::new(Garch),
         Box::new(RidgeReturns),
     ]
+}
+
+/// Origins in a security's backtest: the last year, a week apart.
+const BACKTEST_ORIGINS: usize = 250;
+const BACKTEST_STEP: usize = 5;
+
+/// One model's part in a security's forecast.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CloseModelForecast {
+    pub name: &'static str,
+    pub path: Option<Path>,
+    pub accuracy: Option<CloseAccuracy>,
+    /// Shown: the distribution models always, the learned one only where its
+    /// median beats the random walk's.
+    pub offered: bool,
+}
+
+/// A security's forecast from every model, `horizon` trading days out.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CloseForecast {
+    pub last: f64,
+    pub horizon: usize,
+    pub models: Vec<CloseModelForecast>,
+    /// The distribution model (not the learned one) with the lowest pinball
+    /// loss: the best-calibrated, sharpest range. A security's forecast is a
+    /// distribution, not a direction; the learned model can still be picked
+    /// where it is offered.
+    pub default: Option<usize>,
+}
+
+/// Forecast and backtest a security's closes (oldest first) with every
+/// model.
+pub fn forecast_closes(closes: &[f64], horizon: usize) -> CloseForecast {
+    let models = models();
+    let scores = backtest_closes(&models, closes, horizon, BACKTEST_ORIGINS, BACKTEST_STEP);
+    let walk = scores.first().and_then(|s| s.1).map(|a| a.mae_pct);
+    let out: Vec<CloseModelForecast> = models
+        .iter()
+        .zip(scores)
+        .map(|(m, (name, accuracy))| CloseModelForecast {
+            name,
+            path: m.forecast(closes, horizon),
+            accuracy,
+            offered: !m.learned()
+                || matches!((accuracy, walk), (Some(a), Some(w)) if a.mae_pct < w),
+        })
+        .collect();
+    let default = out
+        .iter()
+        .zip(&models)
+        .enumerate()
+        .filter(|(_, (m, model))| m.offered && m.path.is_some() && !model.learned())
+        .map(|(i, (m, _))| (i, m))
+        .filter_map(|(i, m)| Some((i, m.accuracy?.pinball_pct)))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(i, _)| i)
+        .or_else(|| out.iter().position(|m| m.offered && m.path.is_some()));
+    CloseForecast {
+        last: closes.last().copied().unwrap_or_default(),
+        horizon,
+        models: out,
+        default,
+    }
 }
 
 /// A security model's accuracy over past origins: errors of the median and
@@ -558,5 +630,42 @@ mod ridge_tests {
         );
         assert!(path.iter().all(|q| q[0] < q[2] && q[2] < q[4]));
         assert!(RidgeReturns.forecast(&c[..100], 5).is_none());
+    }
+}
+
+#[cfg(test)]
+mod forecast_tests {
+    use super::*;
+    use crate::TestRng;
+
+    #[test]
+    fn every_model_and_the_learned_one_only_if_it_wins() {
+        // A pure random walk: nothing to learn, so the ridge is not offered.
+        let mut z = TestRng(3);
+        let mut c = vec![50.0];
+        for _ in 0..800 {
+            let last = *c.last().unwrap();
+            c.push(last * (0.01 * z.normal()).exp());
+        }
+        let f = forecast_closes(&c, 10);
+        assert_eq!(f.models.len(), 5);
+        assert_eq!(f.last, *c.last().unwrap());
+        assert!(
+            f.models
+                .iter()
+                .all(|m| m.path.as_ref().is_some_and(|p| p.len() == 10))
+        );
+        let ridge = f
+            .models
+            .iter()
+            .find(|m| m.name == "Ridge regression")
+            .unwrap();
+        let walk = f.models[0].accuracy.unwrap().mae_pct;
+        assert_eq!(ridge.offered, ridge.accuracy.unwrap().mae_pct < walk);
+        let chosen = &f.models[f.default.unwrap()];
+        assert!(chosen.offered && chosen.name != "Ridge regression");
+        // Too short a history: nothing to show.
+        let f = forecast_closes(&c[..10], 10);
+        assert!(f.default.is_none());
     }
 }

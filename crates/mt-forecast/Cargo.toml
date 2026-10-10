@@ -10,10 +10,15 @@ license.workspace = true
 [dependencies]
 mt-core.workspace = true
 chrono.workspace = true
+# Results are cached on disk (FCST's local://models/) as JSON.
+serde.workspace = true
 # Exponential smoothing and MSTL (daily and weekly seasonality), pure Rust.
 augurs-core = "0.10.2"
 augurs-ets = { version = "0.10.2", features = ["mstl"] }
 augurs-mstl = "0.10.2"
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [lints]
 workspace = true

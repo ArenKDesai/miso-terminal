@@ -19,6 +19,7 @@ pub mod command;
 pub mod config;
 pub mod context;
 pub mod fonts;
+pub mod forecast;
 pub mod function;
 pub mod functions;
 pub mod gallery;

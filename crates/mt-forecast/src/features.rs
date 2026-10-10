@@ -16,12 +16,13 @@
 use std::collections::BTreeMap;
 
 use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime};
+use serde::{Deserialize, Serialize};
 
 use crate::calendar::{self, DayKind};
 use crate::hourly::{Hourly, hour_start};
 
 /// Which price a forecast is for.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Target {
     DayAhead,
     RealTime,

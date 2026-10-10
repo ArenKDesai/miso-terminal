@@ -2815,6 +2815,8 @@ dependencies = [
  "augurs-mstl",
  "chrono",
  "mt-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2889,6 +2891,7 @@ dependencies = [
  "mt-core",
  "mt-data",
  "mt-eia",
+ "mt-forecast",
  "mt-miso",
  "mt-news",
  "mt-nws",
