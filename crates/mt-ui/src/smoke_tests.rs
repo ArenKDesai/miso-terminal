@@ -69,6 +69,7 @@ fn routes(registry: &Registry) -> Vec<Route> {
     out.push(Route::new("MAP", ["MCC"]));
     out.push(Route::new("HUBS", ["3"]));
     out.push(Route::new("DAM", ["YESTERDAY"]));
+    out.push(Route::new("DAM", ["TOMORROW"]));
     out.push(Route::new("BCH", ["2026-09-30"]));
     out.push(Route::new(
         "CMP",
@@ -378,6 +379,14 @@ fn every_function_renders_in_every_theme_with_and_without_data() {
     // An unpublished RT day puts a gap in GP's history chart.
     let yesterday = mt_core::time::market_today() - chrono::Duration::days(1);
     full.hub.seed(&full.miso.rt_best_day(yesterday), None);
+    // Tomorrow's DA not yet posted: DAM TOMORROW shows the forecast strip.
+    let tomorrow = mt_core::time::market_today() + chrono::Duration::days(1);
+    full.hub.seed(
+        &full
+            .miso
+            .day_report(mt_core::DayReportKind::DaExPost, tomorrow),
+        None,
+    );
     let skin = Skin::new(themes[0].clone());
     full.apply(&skin);
     let mut panels: Vec<Box<dyn Panel>> = routes(&registry)
@@ -386,6 +395,7 @@ fn every_function_renders_in_every_theme_with_and_without_data() {
         .collect();
     // States that no route expresses.
     panels.push(crate::functions::gp::with_yesterday("MINN.HUB"));
+    panels.push(crate::functions::gp::with_forecast("MINN.HUB"));
     load_everything(&full, &skin, &mut panels);
     let failed: Vec<_> = full
         .hub

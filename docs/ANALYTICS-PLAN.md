@@ -86,53 +86,44 @@ Not done: excess returns over a risk-free rate. Alpha is over zero, and the
 panel says so; a daily Treasury bill source would be a new service (PRIVACY.md,
 the drift job), so it waits until it is worth one.
 
-## 4. Forecasts (`FCST`)
+## 4. Forecasts (`FCST`) (built)
 
-`FCST <node> [DA|RT]` and `FCST XLU US`: a fan chart (median, 50% and 80%
-bands) after the recent history, an hourly table, the model used, and a
-*Skill* tab with how each model has done on past data. GP gains a *Forecast*
-overlay, and DAM shows tomorrow's forecast strip until MISO posts the results.
+Built on 2026-10-09 and 2026-10-10 (#41, #42, #44, #45, #46). `FCST <node>`
+forecasts tomorrow's DA or RT LMP (and RT − DA once tomorrow's DA is posted)
+as a fan chart with 50% and 80% bands, tiles, an hourly table and a *Skill*
+tab; `FCST <security>` the range of its close twenty trading days out. GP's
+*Today* view has a forecast overlay, and DAM shows tomorrow's forecast strip
+until MISO posts the results.
 
-**Targets.** DA LMP for tomorrow's 24 hours; RT LMP, hourly, 24 to 48 hours
-out; the DART spread; a security's daily close one to twenty trading days
-out. Any node the price history holds, the hubs and load zones first.
-
-**Statistical models,** always computed and always shown as the bar to beat:
-seasonal naive (the same hour yesterday and last week) and an hour-by-weekday
-profile; exponential smoothing and MSTL (daily and weekly seasonality) from
-[augurs](https://docs.rs/augurs); for securities, a random walk with drift, a
-volatility cone and GARCH(1,1).
-
-**Machine learning:** gradient-boosted trees, with
-[Perpetual](https://docs.rs/perpetual) (pure Rust, tuned by a single budget,
-so no hyperparameter search on a desktop) first and a `linfa` ridge regression
-as the fallback.
-
-- **Features:** hour, weekday and holidays; recent DA and RT at the node and
-  its congestion; Henry Hub gas (lagged); MISO's load forecast; and, once
-  enough history builds up, the wind and solar forecasts, NWS temperatures by
-  zone and scheduled outages.
-- **Only what was known at the time.** A model trained on actual load where a
-  forecast would have been known is right for the wrong reason. So MISO's
-  load forecast (MTLF), the wind and solar forecasts, the NWS forecasts by
-  zone and the outage schedule are kept as issued: each new version stored
-  with the time it was fetched, unchanged versions not stored again, only the
-  fields the models use, one gzipped file per day, two years kept (tens of
-  megabytes; SET shows the space). A feature joins the model once enough of
-  its history exists.
-- **Intervals** from past errors (split conformal prediction over the
-  backtest), so an 80% band holds about 80% of outcomes by construction.
-
-**Evaluation.** Rolling-origin backtests over recent months (MAE, RMSE,
-pinball loss, band coverage), each against seasonal naive. A model that does
-not beat naive says so. Daily stock returns are close to unpredictable, so
-FCST for a security shows a distribution rather than a direction, and machine
-learning is offered there only if it beats the random walk.
-
-**Running it.** Training runs on the user's machine on its own thread, when
-new days arrive or on request (seconds for a few years of hourly data).
-Models are cached under `local://models/` with their data range and version,
-and a format change discards them.
+- **Models** (`mt-forecast`): the same hour on the last day known and a week
+  earlier, an hour-by-day profile, MSTL with automatic exponential smoothing
+  (augurs), and two learned models on features known at the time: gradient-
+  boosted trees and ridge regression, both written for the crate, since every
+  Perpetual release needs a nightly compiler and a closed-form ridge needs no
+  dependency. The trees use histogram splits, early stopping on the latest
+  rows and fixed parameters (no hyperparameter search). Models learn the
+  target less an anchor (today's DA for DA tomorrow, tomorrow's DA for RT).
+- **Only what was known.** DA tomorrow is forecast before MISO posts the DA
+  results, RT tomorrow after; each input is read through an accessor that
+  refuses anything past its cut-off. Gas is lagged a week.
+- **Forecasts kept as issued** (`mt_data::issued`): MISO's load forecast by
+  zone (its daily `df_al` report, the past year filled in), wind and solar
+  forecasts and the outage schedule, and the NWS's temperatures for each
+  zone's city, each value with when it was issued, stored only when it
+  changes, two years kept. A series joins the models once sixty days of it
+  exist.
+- **Evaluation and bands.** Rolling-origin backtests of the last eight weeks
+  (learned models refitted weekly) with MAE, RMSE, pinball loss and
+  out-of-sample band coverage; split conformal bands from the last two
+  months of errors. The best model on the days all forecast is shown, and
+  FCST says when none beats repeating a recent day.
+- **Securities:** random walk, drift, the volatility cone and GARCH(1,1),
+  the best-calibrated of them by default; a ridge regression on recent
+  returns is offered only where it beats the random walk.
+- **Running it.** Each forecast is a hub query keyed by a fingerprint of its
+  inputs (complete days only), trained on a blocking thread when new days
+  arrive (about a second for three months of hourly data), and cached under
+  `local://models/` with a model version.
 
 ## 5. The assistant (`ASK`)
 
