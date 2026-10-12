@@ -328,6 +328,7 @@ impl TerminalApp {
     /// endpoints, the NWS's).
     fn sync_collector(&self) {
         let mut sources = mt_miso::issued::sources(&self.config.endpoints);
+        sources.extend(mt_miso::ops::sources(&self.config.endpoints));
         sources.extend(mt_nws::issued::sources(&self.nws));
         self.collector.configure(&self.config.forecasts, sources);
     }

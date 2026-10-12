@@ -226,10 +226,11 @@ impl ToolBox for Lookups {
                  the fuel mix, wind and solar (forecast and actual for today, and MISO's \
                  forecast for tomorrow once it is posted, by hour), scheduled and actual \
                  interchange, area control error, the North-South transfer against its \
-                 limits, and committed capacity against demand. Apart from tomorrow's wind \
-                 and solar, MISO's feeds cover today only; `load` and `reserves` cover \
-                 other days.",
-                schema(json!({}), &[]),
+                 limits, and committed capacity against demand. With a past date: the \
+                 same, by hour, from what the terminal kept of those feeds while it ran \
+                 (MISO publishes them for the current day only), with how complete each \
+                 is. `load` and `reserves` cover any day from MISO's own reports.",
+                schema(json!({"date": date_prop("A past day (omit for now)")}), &[]),
             ),
             spec(
                 "outages",
@@ -333,7 +334,14 @@ impl ToolBox for Lookups {
                 "binding_constraints" => self.binding_constraints(&input).await,
                 "reserves" => self.reserves(&input).await,
                 "load" => self.load(&input).await,
-                "system_conditions" => Ok(self.system_conditions().await),
+                "system_conditions" => match date_arg(&input, "date")? {
+                    Some(day) if day < today() => self.system_on(day).await,
+                    Some(day) if day > today() => Err(format!(
+                        "{day} is ahead: use `load`, `reserves` and today's system_conditions \
+                         (wind and solar for tomorrow) instead"
+                    )),
+                    _ => Ok(self.system_conditions().await),
+                },
                 "outages" => self.outages().await,
                 "weather" => self.weather(&input).await,
                 "gas" => self.gas(&input).await,
@@ -1045,6 +1053,97 @@ impl Lookups {
         Ok(out)
     }
 
+    /// A past day's operating feeds, by hour, from what the terminal kept.
+    async fn system_on(&self, day: NaiveDate) -> ToolResult {
+        let Some(cache) = self.hub.ctx().cache().cloned() else {
+            return Err("operating data is kept only with a cache (not in a replay)".into());
+        };
+        let files = self
+            .hub
+            .ctx()
+            .blocking(move || {
+                mt_miso::ops::KINDS.map(|kind| {
+                    let f = mt_data::issued::read(&cache, kind, day, day + TimeDelta::days(1));
+                    (kind, latest_on(&f, day))
+                })
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+        let get = |kind: &str| files.iter().find(|(k, _)| *k == kind).map(|(_, d)| d);
+        let mut out = json!({
+            "date": day.to_string(),
+            "units": "MW; hourly arrays start at hour beginning 00:00 EST",
+            "note": "Kept by the terminal from MISO's same-day feeds while it ran; \
+                     `intervals` says how much of the day it saw (288 five-minute \
+                     intervals is all of it).",
+        });
+        if let Some(d) = get(mt_miso::ops::LOAD).filter(|d| !d.rows.is_empty()) {
+            let peak = d
+                .rows
+                .iter()
+                .filter_map(|(t, v)| Some((*t, v.first().copied().flatten()?)))
+                .max_by(|a, b| a.1.total_cmp(&b.1));
+            out["load"] = json!({
+                "intervals": d.rows.len(),
+                "hourly_mean": hourly(d, 0, Agg::Mean),
+                "peak": peak.map(|(t, v)| json!({"mw": r2(v), "at": time(t)})),
+            });
+        }
+        if let Some(d) = get(mt_miso::ops::FUEL_MIX).filter(|d| !d.rows.is_empty()) {
+            let by_fuel: serde_json::Map<String, Value> = d
+                .series
+                .iter()
+                .enumerate()
+                .map(|(i, name)| (name.clone(), hourly(d, i, Agg::Mean)))
+                .collect();
+            out["fuel_mix_hourly_mean"] = json!({"intervals": d.rows.len(), "by_fuel": by_fuel});
+        }
+        if let Some(d) = get(mt_miso::ops::INTERCHANGE).filter(|d| !d.rows.is_empty()) {
+            let total = d.series.iter().position(|s| s == "MISO");
+            out["scheduled_interchange"] = json!({
+                "intervals": d.rows.len(),
+                "sign": "positive = MISO importing",
+                "miso_net_hourly_mean": total.map(|i| hourly(d, i, Agg::Mean)),
+                "by_neighbour_daily_mean": d.series.iter().enumerate()
+                    .filter(|(_, s)| s.as_str() != "MISO")
+                    .map(|(i, s)| json!([s, mean_of(d, i)]))
+                    .collect::<Vec<_>>(),
+            });
+        }
+        if let Some(d) = get(mt_miso::ops::ACE).filter(|d| !d.rows.is_empty()) {
+            out["ace"] = json!({
+                "points": d.rows.len(),
+                "hourly_min": hourly(d, 0, Agg::Min),
+                "hourly_max": hourly(d, 0, Agg::Max),
+            });
+        }
+        if let Some(d) = get(mt_miso::ops::TRANSFER).filter(|d| !d.rows.is_empty()) {
+            out["north_south_transfer"] = json!({
+                "points": d.rows.len(),
+                "sign": "positive = north to south",
+                "hourly_max_flow": hourly(d, 0, Agg::Max),
+                "hourly_min_flow": hourly(d, 0, Agg::Min),
+                "north_to_south_limit": hourly(d, 1, Agg::Min),
+                "south_to_north_limit": hourly(d, 2, Agg::Min),
+            });
+        }
+        if let Some(d) = get(mt_miso::ops::CAPACITY).filter(|d| !d.rows.is_empty()) {
+            out["capacity"] = json!({
+                "points": d.rows.len(),
+                "demand_hourly_mean": hourly(d, 0, Agg::Mean),
+                "committed_hourly_mean": hourly(d, 1, Agg::Mean),
+            });
+        }
+        if files.iter().all(|(_, d)| d.rows.is_empty()) {
+            out["note"] = json!(
+                "The terminal kept nothing for this day: it was not running then (or \
+                 keeping forecasts and operating data is off in SET). Use `load` and \
+                 `reserves`, which read MISO's own reports."
+            );
+        }
+        Ok(out)
+    }
+
     async fn system_conditions(&self) -> Value {
         let mut out = json!({"units": "MW", "date": today().to_string()});
         out["load"] = match self.get(&self.miso.load()).await {
@@ -1476,6 +1575,72 @@ impl Lookups {
             "note": "Read only. Amounts are exact decimals as strings.",
             "terminal": "PORT",
         }))
+    }
+}
+
+/// One kind's values for a day: the latest version of each interval.
+struct DayValues {
+    series: Vec<String>,
+    rows: Vec<(NaiveDateTime, Vec<Option<f64>>)>,
+}
+
+fn latest_on(f: &mt_data::issued::Issued, day: NaiveDate) -> DayValues {
+    let mut by_time: std::collections::BTreeMap<NaiveDateTime, &Vec<Option<f64>>> =
+        std::collections::BTreeMap::new();
+    // Versions are in issue order, so a later one replaces an earlier.
+    for v in f.versions.iter().filter(|v| v.target.date() == day) {
+        by_time.insert(v.target, &v.values);
+    }
+    DayValues {
+        series: f.series.clone(),
+        rows: by_time.into_iter().map(|(t, v)| (t, v.clone())).collect(),
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Agg {
+    Mean,
+    Min,
+    Max,
+}
+
+/// A column by hour beginning, `null` where nothing was kept.
+fn hourly(d: &DayValues, col: usize, agg: Agg) -> Value {
+    use chrono::Timelike;
+    let mut buckets: Vec<Vec<f64>> = vec![Vec::new(); 24];
+    for (t, v) in &d.rows {
+        if let Some(x) = v.get(col).copied().flatten() {
+            buckets[t.hour() as usize].push(x);
+        }
+    }
+    Value::Array(
+        buckets
+            .iter()
+            .map(|b| {
+                if b.is_empty() {
+                    return Value::Null;
+                }
+                let x = match agg {
+                    Agg::Mean => b.iter().sum::<f64>() / b.len() as f64,
+                    Agg::Min => b.iter().copied().fold(f64::INFINITY, f64::min),
+                    Agg::Max => b.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+                };
+                json!(r2(x))
+            })
+            .collect(),
+    )
+}
+
+fn mean_of(d: &DayValues, col: usize) -> Value {
+    let v: Vec<f64> = d
+        .rows
+        .iter()
+        .filter_map(|(_, r)| r.get(col).copied().flatten())
+        .collect();
+    if v.is_empty() {
+        Value::Null
+    } else {
+        json!(r2(v.iter().sum::<f64>() / v.len() as f64))
     }
 }
 

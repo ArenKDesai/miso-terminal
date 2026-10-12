@@ -173,8 +173,10 @@ operating feeds, and the evaluation set. *Built (step 5):* MISO's daily
 reserve price reports (`AsmDayReport`, `Miso::asm_day`: DA ex-post else
 ex-ante, RT final else preliminary) and the load report's actuals
 (`Miso::load_report`), so `reserves` and the new `load` lookup answer for
-past days and tomorrow; the operating feeds MISO keeps no history of still
-need stores.
+past days and tomorrow. *Built (step 6):* `mt_miso::ops` keeps the
+operating feeds MISO shows for the current day only (fuel mix, load,
+interchange, ACE, transfer, capacity) with the forecasts as issued, and
+`system_conditions` takes a past date.
 
 - **The loop:** the question with the tool definitions; while Claude calls
   tools, run them (in parallel where independent) and send all results back

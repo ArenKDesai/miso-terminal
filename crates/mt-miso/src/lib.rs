@@ -16,6 +16,7 @@
 pub mod endpoints;
 pub mod history;
 pub mod issued;
+pub mod ops;
 pub mod parse;
 pub mod queries;
 

@@ -192,7 +192,7 @@ recent day. The one with the lowest error is shown (*Model* picks another),
 and FCST says so when nothing beats repeating a recent day. The learned
 models need history: SET's *Price history* (see *Reach back years*) gives
 them more, and once two months of MISO's load forecast and the other
-forecasts are kept as issued (SET's *Forecasts kept as issued*), those join
+forecasts are kept as issued (SET's *Forecasts and operating data kept*), those join
 too.
 
 **Elsewhere.** In `GP <node>`, *+ forecast* adds tomorrow's forecast to the

@@ -271,8 +271,9 @@ keys, and anything Aren has asked to see.
   per day, `local://archive/issued/<kind>/<date>`, each value with when it
   was issued, stored only when it changes. A `Collector` (the app's, beside
   the backfill) polls `Source`s from `mt_miso::issued` (MTLF reports with a
-  year's backfill, wind and solar, outages) and `mt_nws::issued`
-  (temperatures), only while live. A model may only use a version issued
+  year's backfill, wind and solar, outages), `mt_nws::issued`
+  (temperatures) and `mt_miso::ops` (the operating feeds MISO keeps no
+  history of, for the assistant's past days), only while live. A model may only use a version issued
   before its forecast's moment (`Issued::as_of` in `mt-forecast`); MTLF
   reports count as issued at 06:00 on their date (MISO posts them at about
   01:20). A new kind or source updates `docs/PRIVACY.md`.

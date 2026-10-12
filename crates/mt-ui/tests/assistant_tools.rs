@@ -247,6 +247,42 @@ fn every_lookup_answers_from_the_fixtures_and_only_reads() {
         assert_eq!(account["mode"], "paper");
         assert!(account["positions"].as_array().is_some_and(|p| !p.is_empty()), "{account}");
 
+        // A past day's operating feeds come from what the terminal kept: here
+        // a cache holding a day of five-minute load.
+        let dir = std::env::temp_dir().join(format!("mt-ops-{}", std::process::id()));
+        let cache = mt_data::DiskCache::new(&dir);
+        let day = chrono::NaiveDate::from_ymd_opt(2026, 9, 30).expect("date");
+        let kept = mt_data::issued::Issued {
+            series: vec!["Load".into()],
+            versions: (0..288)
+                .map(|i| mt_data::issued::Version {
+                    issued: day.and_hms_opt(23, 59, 0).expect("time"),
+                    target: day.and_hms_opt(0, 0, 0).expect("time")
+                        + chrono::TimeDelta::minutes(5 * i),
+                    values: vec![Some(60_000.0 + i as f64 * 100.0)],
+                })
+                .collect(),
+        };
+        mt_data::issued::write_day(&cache, mt_miso::ops::LOAD, day, &kept).expect("written");
+        let with_cache = Lookups::new(
+            DataHub::new(
+                tokio::runtime::Handle::current(),
+                FetchCtx::new(
+                    Arc::new(FixtureTransport::new(&fixtures)),
+                    Some(cache),
+                    FetchCtxOptions::default(),
+                    EventLog::default(),
+                ),
+            ),
+            &AppConfig::default(),
+        );
+        let past = call(&with_cache, "system_conditions", json!({"date": day.to_string()})).await;
+        assert_eq!(past["load"]["intervals"], 288, "{past}");
+        assert_eq!(past["load"]["peak"]["at"], "2026-09-30 23:55");
+        assert_eq!(past["load"]["hourly_mean"][0], 60_550.0);
+        assert!(past.get("fuel_mix_hourly_mean").is_none(), "nothing kept, nothing claimed");
+        let _ = std::fs::remove_dir_all(&dir);
+
         let news = call(&tools, "news", json!({"days": 21})).await;
         assert!(news["headlines"].as_array().is_some_and(|h| !h.is_empty()), "{news}");
     });

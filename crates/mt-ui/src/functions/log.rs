@@ -303,7 +303,7 @@ fn issued_forecasts(ui: &mut Ui, cx: &mut PanelCx<'_>) {
     if !s.live {
         return;
     }
-    widgets::section(ui, skin, "Forecasts kept as issued");
+    widgets::section(ui, skin, "Forecasts and operating data kept");
     let (text, color) = crate::issued::activity(&s, skin);
     ui.label(RichText::new(text).color(color));
     ui.horizontal(|ui| {

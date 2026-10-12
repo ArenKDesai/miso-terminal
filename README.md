@@ -263,9 +263,9 @@ The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
         RT reserve prices from MISO's daily reports, and tomorrow's
         short-term reserve requirement), and `load` gives a day's MTLF and,
         for a past day, its actual load.
-  - [ ] Per-day stores for the operating feeds MISO keeps no history of
-        (fuel mix, interchange, ACE, transfers), so questions about past
-        days have more than prices, constraints, reserves and load.
+  - [x] Operating feeds MISO keeps no history of (fuel mix, load,
+        interchange, ACE, the North-South transfer, capacity) are kept by
+        day while the terminal runs; `system_conditions` takes a past date.
   - [ ] A snapshot test of a recorded ASK conversation, and the hand-run
         evaluation set.
 - [ ] An update check, off by default (a link, never a download).

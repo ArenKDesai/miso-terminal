@@ -21,7 +21,7 @@ pub struct AppConfig {
     /// history*).
     pub price_history: mt_miso::HistoryConfig,
     /// MISO's and the NWS's forecasts kept as issued, for FCST's models
-    /// (SET's *Forecasts kept as issued*).
+    /// (SET's *Forecasts and operating data kept*).
     pub forecasts: mt_data::issued::IssuedConfig,
     pub endpoints: MisoEndpoints,
     /// News feeds and topics (TOP, NEWS, NI): built-ins to turn off, feeds

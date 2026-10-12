@@ -417,10 +417,10 @@ fn price_history(ui: &mut Ui, cx: &mut PanelCx<'_>, draft: &mut AppConfig) {
 fn issued_forecasts(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig) {
     let skin = cx.skin;
     let status = cx.collector.status();
-    widgets::section(ui, skin, "Forecasts kept as issued");
+    widgets::section(ui, skin, "Forecasts and operating data kept");
     ui.checkbox(
         &mut draft.forecasts.keep_issued,
-        "Keep MISO's and the NWS's forecasts as they are issued",
+        "Keep MISO's and the NWS's forecasts as they are issued, and MISO's operating data by day",
     );
     Grid::new("set-issued")
         .num_columns(2)
@@ -449,7 +449,10 @@ fn issued_forecasts(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig) {
              by zone (its daily report, filled in for the past year), its wind and solar forecasts \
              and outage schedule (hourly), and the NWS's temperature forecasts for a city in each \
              zone (every three hours), storing a value only when it changes. A forecast becomes a \
-             feature once sixty days of it are kept. A few tens of megabytes over two years.",
+             feature once sixty days of it are kept. It also keeps the operating feeds MISO shows \
+             for the current day only (fuel mix, load, interchange, ACE, the North-South transfer \
+             and committed capacity, every half hour), so ASK can look back at a past day. A few \
+             tens of megabytes over two years.",
         )
         .small()
         .color(skin.text_muted),

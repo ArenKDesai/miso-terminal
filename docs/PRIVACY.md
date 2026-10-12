@@ -16,9 +16,11 @@ The terminal keeps no cookies.
 - **MISO** (`public-api.misoenergy.org`, `docs.misoenergy.org`), for panels
   with MISO data, the assistant's lookups, the price history's backfill and the forecasts kept as
   issued (its daily load forecast reports, wind and solar forecasts and
-  outage schedule, asked for in the background while the terminal runs
-  unless *Forecasts kept as issued* is off in `SET`): requests for public
-  data.
+  outage schedule) and the operating data kept by day (fuel mix, load,
+  interchange, area control error, North-South transfer and committed
+  capacity, every half hour), asked for in the background while the
+  terminal runs unless *Forecasts and operating data kept* is off in `SET`:
+  requests for public data.
   [MISO's policy](https://www.misoenergy.org/meet-miso/legal-and-privacy/).
 - **The National Weather Service** (`api.weather.gov`), for `WX` and the
   forecasts kept as issued (every three hours in the background, unless
@@ -67,7 +69,8 @@ updates this page in the same pull request, and the
 ## What it keeps on your PC
 
 - Settings, themes and fonts: `%APPDATA%\MISO Terminal\config`.
-- The cache, the price history, the forecasts kept as issued, saved
+- The cache, the price history, the forecasts kept as issued and the
+  operating data kept by day, saved
   headlines (titles and links), the layout, logs, the audit log of orders
   you placed, and what ASK has cost this month (`ai-usage.json`):
   `%LOCALAPPDATA%\MISO Terminal`.

@@ -214,6 +214,12 @@ NWS's hourly temperatures for each zone's city (every three hours) from
 window daily, and reports per-source status to SET and LOG. Reports count as
 issued at 06:00 on their date; MISO posts them at about 01:20 EST.
 
+The same collector keeps the operating feeds MISO publishes for the
+current day only (`mt_miso::ops`: fuel mix, five-minute load, scheduled
+interchange, ACE, the North-South transfer and committed capacity, every
+half hour, kinds `ops-*`), so the assistant's `system_conditions` can
+answer for a past day from what the terminal saw while it ran.
+
 ### News
 
 `mt-news` reads publishers' RSS and Atom feeds: one `FeedQuery` per feed, so
