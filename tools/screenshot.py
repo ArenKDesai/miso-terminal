@@ -114,7 +114,15 @@ def main() -> int:
             if not hwnd:
                 print("the app window never appeared", file=sys.stderr)
                 return 1
-            time.sleep(args.wait)
+            # Keep the display on while waiting: once it sleeps, the capture
+            # comes back empty (seen after a four-minute wait).
+            kernel32 = ctypes.windll.kernel32
+            ES_CONTINUOUS, ES_DISPLAY_REQUIRED = 0x80000000, 0x00000002
+            kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED)
+            try:
+                time.sleep(args.wait)
+            finally:
+                kernel32.SetThreadExecutionState(ES_CONTINUOUS)
             args.out.parent.mkdir(parents=True, exist_ok=True)
             capture(hwnd).save(args.out)
             print(f"wrote {args.out}")

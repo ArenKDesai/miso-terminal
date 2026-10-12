@@ -160,8 +160,9 @@ keys, and anything Aren has asked to see.
   `PanelCx`, so a lookup can run it, waiting with `DataHub::settled`.
   `functions/ask.rs` is the ASK panel: it runs `mt_ai::ask` on the hub's
   runtime, records each request's cost with `assistant::ledger` (the cap's
-  only record), and offers an answer's backticked commands as buttons
-  (never BUY, SELL, MLEG or ORD). The Anthropic key is
+  only record), and makes an answer's backticked commands links
+  (never BUY, SELL, MLEG or ORD), rendered by `widgets::markdown`;
+  `mt_ai::KeyCheckQuery` checks the key and credits for SET and ASK. The Anthropic key is
   `anthropic/api-key` in the secret store.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines

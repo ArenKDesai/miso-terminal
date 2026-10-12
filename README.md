@@ -247,24 +247,15 @@ The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
         optional fields silently dropped; at most 16 nullable parameters
         across tools). Tools now go without strict mode, checked by
         `tools::run` before they run.
-  - [ ] Render the answer's Markdown: bold, bullets and `code` show as raw
-        `**`, `-` and backticks.
-  - [ ] The answer's closing line of backticked commands repeats the
-        *Open:* buttons under it; drop one (ask for no such line, or hide it).
-  - [ ] Tell Claude that MISO's "DA ex-post" report for tomorrow is the
-        final day-ahead result (it called tomorrow's prices "labelled DA
-        ex-post, but new", and doubted them).
-  - [ ] The check program (`cargo run -p mt-ui --example
-        check_anthropic_request`, free) uses the token counter, which
-        accepted schemas the real endpoint refused (the 16-union limit);
-        make it send one tiny real request too.
-  - [ ] `tools/screenshot.py` wrote an empty image after `--wait 240` (the
-        display may have slept); 90 s worked.
-  - [ ] A billing refusal reads as *Anthropic rejected the request
-        (invalid_request_error): Your credit balance is too low…*; say what
-        to do instead (add credits at console.anthropic.com, *Plans &
-        Billing*), and have SET check the key like it checks Alpaca's, so
-        ASK does not look ready when every question will fail.
+  - [x] Answers render as Markdown, with commands in backticks as links
+        (the separate *Open:* row is gone).
+  - [x] The system prompt says tomorrow's "DA ex-post" prices are final.
+  - [x] The check program also sends one tiny real request per model.
+  - [x] `tools/screenshot.py` keeps the display on while it waits.
+  - [x] An account without credits gets a plain message, and SET and ASK
+        check the key and the account for free (the token counter).
+  - [x] `system_conditions` said it covered today only, so Claude did not
+        look at tomorrow's wind and solar forecast it holds.
   - [x] `price_extremes` stopped at today; it now reaches tomorrow's DA.
   - [x] `system_conditions` listed wind and solar by hour ending with no
         date; rows now carry their hour beginning.

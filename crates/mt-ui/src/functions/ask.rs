@@ -1,7 +1,7 @@
 //! ASK: questions about the market, answered by Claude with the terminal's
-//! own lookups (`assistant::Lookups`). The answer streams in, the lookups
-//! show as they run, and the commands it names open the panels that show
-//! the same data, when clicked.
+//! own lookups (`assistant::Lookups`). The answer streams in as Markdown,
+//! the lookups show as they run, and the commands it names in backticks
+//! are links that open the panels showing the same data, when clicked.
 //!
 //! In the app this needs an Anthropic API key (SET) and a monthly spending
 //! cap above $0; until then the panel explains that and the other route,
@@ -126,8 +126,25 @@ impl Panel for Ask {
                 self.turns.clear();
             }
         });
-        let ready = has_key && cap > 0.0 && cx.hub.ctx().is_live();
-        if !ready {
+        // A key that is refused, or an account without credits, fails every
+        // question: say so before one is asked (checked for free).
+        let key_status = (has_key && cx.hub.ctx().is_live())
+            .then(|| {
+                cx.hub.watch(&mt_ai::KeyCheckQuery {
+                    model: cx.config.ai.model.clone(),
+                })
+            })
+            .and_then(|s| s.data);
+        let blocked = key_status.as_deref().filter(|s| s.blocks()).cloned();
+        let ready = has_key && cap > 0.0 && cx.hub.ctx().is_live() && blocked.is_none();
+        if let Some(status) = &blocked {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(status.describe()).color(skin.negative));
+                if ui.button("Open SET").clicked() {
+                    cx.send(AppCommand::Open(Route::code("SET")));
+                }
+            });
+        } else if !ready {
             routes_help(ui, cx, has_key, cap);
         }
 
@@ -182,8 +199,8 @@ impl Panel for Ask {
             .auto_shrink(false)
             .stick_to_bottom(true)
             .show(ui, |ui| {
-                for turn in &self.turns {
-                    show_turn(ui, cx, turn);
+                for (i, turn) in self.turns.iter().enumerate() {
+                    show_turn(ui, cx, turn, i);
                     ui.add_space(10.0);
                 }
             });
@@ -331,7 +348,7 @@ fn routes_help(ui: &mut Ui, cx: &mut PanelCx<'_>, has_key: bool, cap: f64) {
     ui.separator();
 }
 
-fn show_turn(ui: &mut Ui, cx: &mut PanelCx<'_>, turn: &Turn) {
+fn show_turn(ui: &mut Ui, cx: &mut PanelCx<'_>, turn: &Turn, index: usize) {
     let skin = cx.skin;
     ui.label(
         RichText::new(format!("› {}", turn.question))
@@ -362,23 +379,20 @@ fn show_turn(ui: &mut Ui, cx: &mut PanelCx<'_>, turn: &Turn) {
             ui.label(RichText::new("thinking…").color(skin.text_muted));
         });
     } else {
-        ui.label(&live.text);
+        let clicked = {
+            let cx_ref: &PanelCx<'_> = cx;
+            widgets::markdown::show(ui, skin, &format!("ask-{index}"), &live.text, |code| {
+                is_command(code, cx_ref)
+            })
+        };
+        if let Some(cmd) = clicked {
+            cx.send(AppCommand::Run(cmd.trim().to_owned()));
+        }
     }
     if let Some(ending) = &live.ending
         && let Some(text) = ending_text(ending)
     {
         ui.label(RichText::new(text).color(skin.warning));
-    }
-    let commands = commands_in(&live.text, cx);
-    if !commands.is_empty() {
-        ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new("Open:").small().color(skin.text_muted));
-            for c in commands {
-                if ui.small_button(&c).clicked() {
-                    cx.send(AppCommand::Run(c));
-                }
-            }
-        });
     }
     if live.usage.total_tokens() > 0 {
         ui.label(
@@ -421,25 +435,16 @@ fn ending_text(e: &Ending) -> Option<String> {
     })
 }
 
-/// Commands an answer names in backticks that open a known, non-trading
-/// function: `GP INDIANA.HUB 2`, `BCH 2026-10-06`.
-fn commands_in(text: &str, cx: &PanelCx<'_>) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for (i, part) in text.split('`').enumerate() {
-        let cmd = part.trim();
-        if i % 2 == 0 || cmd.is_empty() || cmd.len() > 60 || cmd.contains('\n') {
-            continue;
-        }
-        let code = cmd.split_whitespace().next().unwrap_or_default();
-        let known = cx.registry.find(code).is_some();
-        let trading = NEVER_OPENED.iter().any(|c| c.eq_ignore_ascii_case(code))
-            || cx
-                .registry
-                .find(code)
-                .is_some_and(|s| NEVER_OPENED.contains(&s.code));
-        if known && !trading && !out.iter().any(|c| c == cmd) {
-            out.push(cmd.to_owned());
-        }
+/// Whether a code span in an answer is a command to offer as a link: a
+/// known function, never a trading one (`GP INDIANA.HUB 2`, `BCH 2026-10-06`).
+fn is_command(code: &str, cx: &PanelCx<'_>) -> bool {
+    let cmd = code.trim();
+    if cmd.is_empty() || cmd.len() > 60 || cmd.contains('\n') {
+        return false;
     }
-    out
+    let first = cmd.split_whitespace().next().unwrap_or_default();
+    match cx.registry.find(first) {
+        Some(spec) => !NEVER_OPENED.contains(&spec.code),
+        None => false,
+    }
 }

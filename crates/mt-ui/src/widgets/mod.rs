@@ -5,6 +5,7 @@ pub mod chart;
 pub mod csv;
 pub mod fmt;
 pub mod heatmap;
+pub mod markdown;
 pub mod node_picker;
 pub mod scale;
 pub mod table;

@@ -929,6 +929,35 @@ fn credentials(ui: &mut Ui, cx: &mut PanelCx<'_>, keys: &mut Keys) {
             }
         });
     }
+    // Whether Anthropic accepts the key and the account has credits: the
+    // token counter answers both, for free.
+    let check = mt_ai::KeyCheckQuery {
+        model: cx.config.ai.model.clone(),
+    };
+    if changed {
+        cx.hub.refresh(&check);
+    }
+    if cx.hub.ctx().is_live() && mt_ai::Anthropic::new(cx.hub.ctx().clone()).has_key() {
+        let snap = cx.hub.watch(&check);
+        let (color, text) = match snap.data.as_deref() {
+            Some(mt_ai::KeyStatus::Ready) => (
+                skin.live,
+                "Anthropic: the key works and the account has credits".to_owned(),
+            ),
+            Some(status @ (mt_ai::KeyStatus::NoCredit | mt_ai::KeyStatus::Refused)) => {
+                (skin.negative, format!("Anthropic: {}", status.describe()))
+            }
+            Some(status) => (skin.warning, format!("Anthropic: {}", status.describe())),
+            None => (skin.text_muted, "Anthropic: checking the key…".to_owned()),
+        };
+        ui.horizontal(|ui| {
+            widgets::lamp(ui, color);
+            ui.label(RichText::new(text).small().color(skin.text_muted));
+            if ui.small_button("Check again").clicked() {
+                cx.hub.refresh(&check);
+            }
+        });
+    }
 }
 
 /// Carry a change of `[trading] enabled` made elsewhere (the kill switch, or
