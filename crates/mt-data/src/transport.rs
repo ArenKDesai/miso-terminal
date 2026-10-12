@@ -324,6 +324,8 @@ pub struct FixtureTransport {
     root: PathBuf,
     /// Shown in the status bar instead of the directory.
     label: Option<String>,
+    /// How many times each numbered recording has been served.
+    played: parking_lot::Mutex<std::collections::HashMap<PathBuf, usize>>,
 }
 
 impl FixtureTransport {
@@ -331,6 +333,7 @@ impl FixtureTransport {
         Self {
             root: root.into(),
             label: None,
+            played: parking_lot::Mutex::default(),
         }
     }
 
@@ -392,6 +395,23 @@ impl FixtureTransport {
             .collect()
     }
 
+    /// A recording of several answers to the same request (a conversation's
+    /// rounds): `messages.post.1.json`, `messages.post.2.json`… served in
+    /// turn, starting over after the last.
+    fn next_numbered(&self, path: &Path) -> Option<PathBuf> {
+        let (stem, ext) = (path.file_stem()?.to_str()?, path.extension()?.to_str()?);
+        let numbered = |n: usize| path.with_file_name(format!("{stem}.{n}.{ext}"));
+        let count = (1..).take_while(|n| numbered(*n).exists()).count();
+        if count == 0 {
+            return None;
+        }
+        let mut played = self.played.lock();
+        let turn = played.entry(path.to_path_buf()).or_default();
+        let n = *turn % count + 1;
+        *turn += 1;
+        Some(numbered(n))
+    }
+
     /// Where a recorded stream session for `url` lives.
     pub fn stream_path_for(&self, url: &str) -> PathBuf {
         self.path_for(url).with_extension("jsonl")
@@ -424,8 +444,9 @@ impl Transport for FixtureTransport {
         Box::pin(async move {
             let path = self.path_for_request(req);
             let found = self
-                .variant_paths(req)
+                .next_numbered(&path)
                 .into_iter()
+                .chain(self.variant_paths(req))
                 .find(|p| p.exists())
                 .or_else(|| path.exists().then_some(path.clone()))
                 .or_else(|| Self::dated_fallback(&path));
@@ -548,6 +569,31 @@ mod tests {
             "only filename-safe values"
         );
         assert!(t.variant_paths(&Request::get("https://h/a")).is_empty());
+    }
+
+    #[tokio::test]
+    async fn numbered_recordings_play_in_turn() {
+        let root = std::env::temp_dir().join(format!("mt-numbered-test-{}", std::process::id()));
+        let dir = root.join("api.example.com").join("v1");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("messages.post.1.json"), "first").unwrap();
+        std::fs::write(dir.join("messages.post.2.json"), "second").unwrap();
+        let t = FixtureTransport::new(&root);
+        let req = Request::post("https://api.example.com/v1/messages");
+        let mut got = Vec::new();
+        for _ in 0..3 {
+            got.push(t.send(&req).await.unwrap().body);
+        }
+        assert_eq!(got, ["first", "second", "first"]);
+        // Other requests are untouched.
+        assert_eq!(
+            t.send(&Request::get("https://api.example.com/v1/x"))
+                .await
+                .unwrap()
+                .status,
+            404
+        );
+        std::fs::remove_dir_all(&root).ok();
     }
 
     #[tokio::test]

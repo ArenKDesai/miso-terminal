@@ -80,6 +80,8 @@ fn the_terminal_looks_as_it_did() {
             &["MLEG +XLU261218C00045000 -XLU261218C00047000 2"][..],
         ),
         ("ord", &["ORD ALL"][..]),
+        // The conversation recorded in fixtures/api.anthropic.com (capture_ask).
+        ("ask", &["ASK Why is INDIANA.HUB above MINN.HUB today?"][..]),
     ] {
         scenes.push((
             format!("zoom-{name}"),

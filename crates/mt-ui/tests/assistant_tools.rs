@@ -202,6 +202,15 @@ fn every_lookup_answers_from_the_fixtures_and_only_reads() {
         let next = mt_ai::tools::run(&tools, "load", json!({})).await;
         assert!(next.is_ok() || next.is_err_and(|e| e.contains("does not cover")), "tomorrow from the replayed report");
 
+        let ahead = call(
+            &tools,
+            "lmp_series",
+            json!({"node": "MINN.HUB", "start_date": tomorrow, "market": "both"}),
+        )
+        .await;
+        assert!(ahead["days"][0]["da"].is_object(), "{ahead}");
+        assert!(ahead["days"][0].get("rt").is_none(), "no RT for a day not begun: {ahead}");
+
         let tomorrow_da = call(&tools, "price_extremes", json!({"start_date": tomorrow, "market": "da", "limit": 2})).await;
         assert_eq!(tomorrow_da["days_read"], 1, "tomorrow's DA is searchable: {tomorrow_da}");
 

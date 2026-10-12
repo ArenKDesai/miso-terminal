@@ -114,7 +114,9 @@ impl Panel for Ask {
         let ledger_path = ledger::path(&cx.paths.state_file);
         widgets::title_bar(ui, skin, "Ask Claude", |ui| {
             let spent = ledger::spent_this_month(&ledger_path);
-            let text = if spent.is_finite() {
+            let text = if !cx.hub.ctx().is_live() {
+                "replay: no cost".to_owned()
+            } else if spent.is_finite() {
                 format!("${spent:.2} of ${cap:.2} this month")
             } else {
                 "usage ledger unreadable".into()
@@ -136,7 +138,10 @@ impl Panel for Ask {
             })
             .and_then(|s| s.data);
         let blocked = key_status.as_deref().filter(|s| s.blocks()).cloned();
-        let ready = has_key && cap > 0.0 && cx.hub.ctx().is_live() && blocked.is_none();
+        // A replay plays the conversation recorded in the fixtures
+        // (`capture_ask`), whatever is asked: no key, no cost.
+        let replay = !cx.hub.ctx().is_live();
+        let ready = replay || (has_key && cap > 0.0 && blocked.is_none());
         if let Some(status) = &blocked {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(status.describe()).color(skin.negative));
@@ -144,6 +149,14 @@ impl Panel for Ask {
                     cx.send(AppCommand::Open(Route::code("SET")));
                 }
             });
+        } else if replay {
+            ui.label(
+                RichText::new(
+                    "Replaying recorded data: ASK plays a recorded conversation, whatever you \
+                     ask, and sends nothing.",
+                )
+                .color(skin.warning),
+            );
         } else if !ready {
             routes_help(ui, cx, has_key, cap);
         }
@@ -173,19 +186,21 @@ impl Panel for Ask {
                 ask = true;
             }
         });
-        ui.label(
-            RichText::new(if cx.config.ai.share_paper_account {
-                "Sends your question and the lookups' results (public market data, and the \
+        if !replay {
+            ui.label(
+                RichText::new(if cx.config.ai.share_paper_account {
+                    "Sends your question and the lookups' results (public market data, and the \
                  paper account's positions) to Anthropic. Never keys, the order audit log or \
                  your files. See the privacy policy."
-            } else {
-                "Sends your question and the lookups' results (public market data) to \
+                } else {
+                    "Sends your question and the lookups' results (public market data) to \
                  Anthropic. Never keys, the paper account, the order audit log or your files. \
                  See the privacy policy."
-            })
-            .small()
-            .color(skin.text_muted),
-        );
+                })
+                .small()
+                .color(skin.text_muted),
+            );
+        }
         if (ask || std::mem::take(&mut self.ask_now)) && ready && self.running.is_none() {
             let question = self.input.trim().to_owned();
             if !question.is_empty() {
@@ -239,9 +254,17 @@ impl Ask {
         hub.runtime().clone().spawn(async move {
             let client = Anthropic::new(hub.ctx().clone());
             let events = hub.ctx().events().clone();
-            let allowance = Allowance {
-                cap_usd: config.monthly_cap_usd,
-                spent_usd: ledger::spent_this_month(&ledger_path),
+            let live_api = hub.ctx().is_live();
+            let allowance = if live_api {
+                Allowance {
+                    cap_usd: config.monthly_cap_usd,
+                    spent_usd: ledger::spent_this_month(&ledger_path),
+                }
+            } else {
+                Allowance {
+                    cap_usd: f64::INFINITY,
+                    spent_usd: 0.0,
+                }
             };
             let progress = |p: Progress| {
                 {
@@ -274,7 +297,9 @@ impl Ask {
                             l.cost_usd += cost_usd;
                             // Text before a tool round is narration, not the answer.
                             l.text.clear();
-                            let month = ledger::record(&ledger_path, cost_usd).ok();
+                            let month = live_api
+                                .then(|| ledger::record(&ledger_path, cost_usd).ok())
+                                .flatten();
                             events.info(format!(
                                 "ASK round {number} on {}: {} input ({} cached, {} written to the cache), {} output, ${cost_usd:.4}{}",
                                 model.id,
@@ -320,10 +345,6 @@ impl Ask {
 
 fn routes_help(ui: &mut Ui, cx: &mut PanelCx<'_>, has_key: bool, cap: f64) {
     let skin = cx.skin;
-    if !cx.hub.ctx().is_live() {
-        ui.label(RichText::new("ASK is off while replaying recorded data.").color(skin.warning));
-        return;
-    }
     ui.label(RichText::new("Two ways to ask Claude about the market:").strong());
     ui.label(
         "• With your Claude plan: in Claude Desktop or Claude Code, add this terminal as an \

@@ -234,10 +234,15 @@ impl Anthropic {
     }
 
     async fn once(&self, req: &TurnRequest, on: DeltaSink<'_>) -> Result<Turn, Attempt> {
-        let key = self
-            .ctx
-            .secret(KEY_NAME)
-            .map_err(|_| Attempt::Fatal(AiError::NoKey))?;
+        // A replay plays recorded answers and never reaches Anthropic: it
+        // needs no key (and gets none).
+        let key = if self.ctx.is_live() {
+            self.ctx
+                .secret(KEY_NAME)
+                .map_err(|_| Attempt::Fatal(AiError::NoKey))?
+        } else {
+            mt_data::Secret::new("replay")
+        };
         let mut http = Request::post(&self.url)
             .secret_header("x-api-key", key)
             .header("anthropic-version", API_VERSION)

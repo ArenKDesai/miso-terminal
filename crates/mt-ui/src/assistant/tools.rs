@@ -708,7 +708,8 @@ impl Lookups {
                     None => missing.push(format!("DA {day}")),
                 }
             }
-            if want_rt {
+            // No RT for a day that has not begun.
+            if want_rt && day <= today() {
                 let row = if day == today() {
                     let store = self.get(&self.miso.rt_intraday()).await?;
                     intraday_hours(&store, &node)

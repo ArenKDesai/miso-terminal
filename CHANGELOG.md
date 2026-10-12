@@ -45,6 +45,9 @@ notes are that section.
   now *Forecasts and operating data kept*). ASK's `system_conditions` reads
   them for a past day.
 
+- **ASK in a replay.** With `--offline`, ASK plays a conversation recorded
+  with the fixtures and sends nothing; the tutorial shows it.
+
 - **Ask Claude about the market (`--mcp`).** `miso-terminal --mcp` serves
   read-only lookups to Claude Desktop and Claude Code over the Model Context
   Protocol: nodes by name or place, a node's DA and RT prices with their

@@ -683,14 +683,20 @@ To ask inside the terminal instead, type `ASK` (or `ASK why did RT spike
 at INDIANA.HUB yesterday`). This needs an Anthropic API key, paid per
 question rather than through a Claude plan: add it in `SET` under
 *Credentials*, then raise *Monthly spending cap* under *Assistant (ASK)*
-above $0 (it starts at $0, which sends nothing). The answer streams in, each
+above $0 (it starts at $0, which sends nothing). `SET` checks the key and
+the account's credits next to it, for free. The answer streams in, each
 lookup shows as it runs (✓ when it answered), and the commands the answer
-names appear as buttons under it; they open panels only when clicked, and
-never the order tickets. Each answer shows its tokens and cost, `LOG` lists
-each request, and the panel's title bar shows the month's spending against
-the cap. *Stop* cancels a question; *New* starts a fresh conversation.
-`SET` also picks the model (Claude Opus 5.5 by default; Sonnet 5.5 and
-Haiku 5.5 cost less) and the effort.
+names are links in its text; they open panels only when clicked, and never
+the order tickets. Each answer shows its tokens and cost, `LOG` lists each
+request and lookup, and the panel's title bar shows the month's spending
+against the cap. *Stop* cancels a question; *New* starts a fresh
+conversation. `SET` also picks the model (Claude Opus 5.5 by default;
+Sonnet 5.5 and Haiku 5.5 cost less) and the effort.
+
+![ASK: why INDIANA.HUB is above MINN.HUB, with its lookups, a table and linked commands](screenshots/tutorials/ask.webp)
+
+With `--offline`, ASK plays a conversation recorded with the fixtures (the
+one above), whatever you ask, and sends nothing.
 
 Add `--offline` after `--mcp` to try it on the recorded data. The server
 reads the same cache and price history as the terminal, so a longer

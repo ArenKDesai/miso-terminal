@@ -147,14 +147,14 @@ pub fn show(
             Block::Gap => ui.add_space(6.0),
             Block::Heading(s) => {
                 ui.add_space(2.0);
-                line(ui, skin, s, true, &link, &mut clicked);
+                line(ui, skin, s, true, true, &link, &mut clicked);
             }
-            Block::Paragraph(s) => line(ui, skin, s, false, &link, &mut clicked),
+            Block::Paragraph(s) => line(ui, skin, s, false, true, &link, &mut clicked),
             Block::Item(marker, s) => {
                 ui.horizontal_top(|ui| {
                     ui.add_space(8.0);
                     ui.label(RichText::new(marker).color(skin.text_muted));
-                    ui.vertical(|ui| line(ui, skin, s, false, &link, &mut clicked));
+                    ui.vertical(|ui| line(ui, skin, s, false, true, &link, &mut clicked));
                 });
             }
             Block::Code(code) => {
@@ -175,7 +175,8 @@ pub fn show(
                             .show(ui, |ui| {
                                 for (r, row) in rows.iter().enumerate() {
                                     for cell in row {
-                                        line(ui, skin, cell, r == 0, &link, &mut clicked);
+                                        // Cells keep their width (the table scrolls).
+                                        line(ui, skin, cell, r == 0, false, &link, &mut clicked);
                                     }
                                     ui.end_row();
                                 }
@@ -187,16 +188,17 @@ pub fn show(
     clicked
 }
 
-/// One run of spans, wrapping word by word.
+/// One run of spans, wrapping word by word when `wrap`.
 fn line(
     ui: &mut Ui,
     skin: &Skin,
     spans: &[Span],
     strong: bool,
+    wrap: bool,
     link: &impl Fn(&str) -> bool,
     clicked: &mut Option<String>,
 ) {
-    ui.horizontal_wrapped(|ui| {
+    let body = |ui: &mut Ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         for span in spans {
             match span {
@@ -222,7 +224,12 @@ fn line(
                 }
             }
         }
-    });
+    };
+    if wrap {
+        ui.horizontal_wrapped(body);
+    } else {
+        ui.horizontal(body);
+    }
 }
 
 #[cfg(test)]

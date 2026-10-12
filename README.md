@@ -266,8 +266,9 @@ The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
   - [x] Operating feeds MISO keeps no history of (fuel mix, load,
         interchange, ACE, the North-South transfer, capacity) are kept by
         day while the terminal runs; `system_conditions` takes a past date.
-  - [ ] A snapshot test of a recorded ASK conversation, and the hand-run
-        evaluation set.
+  - [x] A snapshot test of a recorded ASK conversation: a replay plays the
+        conversation `capture_ask` records (`fixtures/api.anthropic.com`).
+  - [ ] The hand-run evaluation set.
 - [ ] An update check, off by default (a link, never a download).
 - [ ] The docs site deploys from published releases, not from `main`.
 
