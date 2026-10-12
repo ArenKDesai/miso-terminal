@@ -19,6 +19,7 @@ mt-miso = { path = "crates/mt-miso" }
 mt-nws = { path = "crates/mt-nws" }
 mt-eia = { path = "crates/mt-eia" }
 mt-forecast = { path = "crates/mt-forecast" }
+mt-ai = { path = "crates/mt-ai" }
 mt-news = { path = "crates/mt-news" }
 mt-alpaca = { path = "crates/mt-alpaca" }
 mt-theme = { path = "crates/mt-theme" }
@@ -37,7 +38,7 @@ egui_dock = { version = "0.21", features = ["serde"] }
 # Async + networking. native-tls means SChannel on Windows, so corporate
 # TLS-inspection roots in the Windows certificate store are trusted.
 tokio = { version = "1.53", features = ["rt-multi-thread", "sync", "time", "macros"] }
-reqwest = { version = "0.13", default-features = false, features = ["native-tls", "http2", "charset", "system-proxy", "gzip"] }
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "http2", "charset", "system-proxy", "gzip", "stream"] }
 bytes = "1"
 # WebSocket streams (market data, trade updates). native-tls for the same SChannel trust as reqwest.
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "native-tls"] }

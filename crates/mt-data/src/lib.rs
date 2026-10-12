@@ -15,6 +15,8 @@
 //!   and in tests.
 //! - [`SecretStore`]: API keys in Windows Credential Manager, never in files or logs.
 //! - [`EventLog`]: a ring buffer of fetch activity for the in-app log.
+//! - [`sse`]: server-sent events, for answers streamed as they are written
+//!   ([`FetchCtx::send_streaming`]).
 
 mod budget;
 mod cache;
@@ -26,6 +28,7 @@ pub mod issued;
 mod query;
 mod request;
 mod secret;
+pub mod sse;
 mod stream;
 mod transport;
 
@@ -36,7 +39,7 @@ pub use error::FetchError;
 pub use event::{Event, EventLevel, EventLog};
 pub use hub::{DataHub, EntryState, EntryStatus, Snapshot};
 pub use query::{Freshness, Query};
-pub use request::{HeaderValue, Method, Request, Response, host_of};
+pub use request::{BodyStream, HeaderValue, Method, Request, Response, StreamingResponse, host_of};
 #[cfg(windows)]
 pub use secret::CredentialManager;
 pub use secret::{MemorySecrets, Secret, SecretError, SecretStore, os_store};

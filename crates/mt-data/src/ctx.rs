@@ -10,7 +10,7 @@ use tokio::sync::Semaphore;
 use crate::budget::{BudgetStatus, Budgets};
 use crate::{
     Budget, DiskCache, EventLog, FetchError, MemorySecrets, Method, Request, Response, Secret,
-    SecretStore, Transport,
+    SecretStore, StreamingResponse, Transport,
 };
 
 /// Bodies larger than this are not kept for conditional requests.
@@ -136,6 +136,51 @@ impl FetchCtx {
     /// that got no answer is an error.
     pub async fn send(&self, req: impl Into<Request>) -> Result<Response, FetchError> {
         self.send_network(&req.into()).await
+    }
+
+    /// One request whose body is read as it arrives (server-sent events):
+    /// request budget and log as with [`Self::send`]. The concurrency cap
+    /// covers only the wait for the headers, so a long answer does not hold
+    /// up other panels' fetches.
+    pub async fn send_streaming(
+        &self,
+        req: impl Into<Request>,
+    ) -> Result<StreamingResponse, FetchError> {
+        let req = req.into();
+        let host = req.host().to_owned();
+        self.inner.budgets.acquire(&host).await;
+        let started = Instant::now();
+        let result = {
+            let _permit = self
+                .inner
+                .limiter
+                .acquire()
+                .await
+                .map_err(|e| FetchError::Other(e.to_string()))?;
+            self.inner.transport.send_streaming(&req).await
+        };
+        let ms = started.elapsed().as_millis();
+        let what = req.describe();
+        match &result {
+            Ok(r) if r.is_success() => self
+                .events()
+                .info(format!("{what} -> streaming after {ms} ms")),
+            Ok(r) if r.status == 429 => {
+                let wait = retry_after_header(r.header("retry-after"));
+                self.inner.budgets.block(&host, wait);
+                self.events().warn(format!(
+                    "{what} -> rate limited; holding {host} for {} s",
+                    wait.as_secs()
+                ));
+            }
+            Ok(r) => self
+                .events()
+                .warn(format!("{what} -> HTTP {} in {ms} ms", r.status)),
+            Err(e) => self
+                .events()
+                .warn(format!("{what} failed after {ms} ms: {e}")),
+        }
+        result
     }
 
     /// GET something whose content changes over time. Repeats inside the
@@ -400,7 +445,11 @@ impl FetchCtx {
 
 /// `Retry-After` in seconds (the HTTP-date form is rare for APIs; it gets the default).
 fn retry_after(resp: &Response) -> Duration {
-    resp.header("retry-after")
+    retry_after_header(resp.header("retry-after"))
+}
+
+fn retry_after_header(value: Option<&str>) -> Duration {
+    value
         .and_then(|v| v.trim().parse::<u64>().ok())
         .map_or(DEFAULT_RETRY_AFTER, Duration::from_secs)
 }

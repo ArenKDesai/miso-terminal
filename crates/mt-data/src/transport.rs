@@ -9,12 +9,14 @@ use futures_util::{SinkExt, StreamExt};
 use tokio_tungstenite::tungstenite;
 
 use crate::stream::{Frame, StreamConn};
-use crate::{FetchError, Method, Request, Response};
+use crate::{FetchError, Method, Request, Response, StreamingResponse};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// How long a WebSocket handshake may take.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+/// How long a streamed answer may take from first byte to last.
+const STREAMING_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 
 /// Where bytes come from. Queries never see this directly; they go through
 /// [`crate::FetchCtx`], which adds caching, throttling, budgets and logging on
@@ -23,6 +25,16 @@ pub trait Transport: Send + Sync + 'static {
     /// One round trip. Any HTTP status is a `Response`; errors are for
     /// requests that got no answer.
     fn send<'a>(&'a self, req: &'a Request) -> BoxFuture<'a, Result<Response, FetchError>>;
+
+    /// One round trip whose body is read as it arrives. Transports that
+    /// cannot stream hand over the whole body as one piece (fixtures and
+    /// test scripts replay a recorded event stream that way).
+    fn send_streaming<'a>(
+        &'a self,
+        req: &'a Request,
+    ) -> BoxFuture<'a, Result<StreamingResponse, FetchError>> {
+        Box::pin(async move { self.send(req).await.map(StreamingResponse::whole) })
+    }
 
     /// Open a WebSocket. `req` carries the URL and any handshake headers.
     fn connect<'a>(
@@ -119,32 +131,42 @@ fn header_value(
     Ok(v)
 }
 
+impl HttpTransport {
+    fn builder(&self, req: &Request) -> Result<reqwest::RequestBuilder, FetchError> {
+        keys_travel_safely(req)?;
+        let client = if req.headers.iter().any(|(_, v)| v.is_secret()) {
+            &self.keyed
+        } else {
+            &self.client
+        };
+        let mut rb = client.request(reqwest_method(req.method), &req.url);
+        for (name, value) in &req.headers {
+            rb = rb.header(name.as_str(), header_value(name, value)?);
+        }
+        if let Some(body) = &req.body {
+            rb = rb.body(body.clone());
+        }
+        Ok(rb)
+    }
+}
+
+fn response_headers(resp: &reqwest::Response) -> Vec<(String, String)> {
+    resp.headers()
+        .iter()
+        .filter_map(|(n, v)| Some((n.as_str().to_owned(), v.to_str().ok()?.to_owned())))
+        .collect()
+}
+
 impl Transport for HttpTransport {
     fn send<'a>(&'a self, req: &'a Request) -> BoxFuture<'a, Result<Response, FetchError>> {
         Box::pin(async move {
-            keys_travel_safely(req)?;
-            let client = if req.headers.iter().any(|(_, v)| v.is_secret()) {
-                &self.keyed
-            } else {
-                &self.client
-            };
-            let mut rb = client.request(reqwest_method(req.method), &req.url);
-            for (name, value) in &req.headers {
-                rb = rb.header(name.as_str(), header_value(name, value)?);
-            }
-            if let Some(body) = &req.body {
-                rb = rb.body(body.clone());
-            }
-            let resp = rb
+            let resp = self
+                .builder(req)?
                 .send()
                 .await
                 .map_err(|e| FetchError::Network(e.without_url().to_string()))?;
             let status = resp.status().as_u16();
-            let headers = resp
-                .headers()
-                .iter()
-                .filter_map(|(n, v)| Some((n.as_str().to_owned(), v.to_str().ok()?.to_owned())))
-                .collect();
+            let headers = response_headers(&resp);
             let body = resp
                 .bytes()
                 .await
@@ -153,6 +175,30 @@ impl Transport for HttpTransport {
                 status,
                 headers,
                 body,
+            })
+        })
+    }
+
+    fn send_streaming<'a>(
+        &'a self,
+        req: &'a Request,
+    ) -> BoxFuture<'a, Result<StreamingResponse, FetchError>> {
+        Box::pin(async move {
+            let resp = self
+                .builder(req)?
+                .timeout(STREAMING_TIMEOUT)
+                .send()
+                .await
+                .map_err(|e| FetchError::Network(e.without_url().to_string()))?;
+            let status = resp.status().as_u16();
+            let headers = response_headers(&resp);
+            let body = resp
+                .bytes_stream()
+                .map(|piece| piece.map_err(|e| FetchError::Network(e.without_url().to_string())));
+            Ok(StreamingResponse {
+                status,
+                headers,
+                body: Box::pin(body),
             })
         })
     }
