@@ -39,7 +39,9 @@ AGPL-3.0.
 
 Dependencies point downward only. `mt-core`, `mt-data`, the sources (`mt-miso`,
 `mt-nws`, `mt-eia`, `mt-news`, `mt-alpaca`), `mt-forecast` (forecasting
-maths on `mt-core`: models, backtests and bands, with no I/O) and `mt-theme`
+maths on `mt-core`: models, backtests and bands, with no I/O), `mt-ai` (the
+assistant: a Claude Messages API client and its tool loop, over `mt-data`)
+and `mt-theme`
 know nothing about egui, and CI tests them on Linux to keep them portable. A second front end (a
 TUI, a web view, a CLI exporter) could reuse them unchanged.
 
@@ -452,11 +454,12 @@ as strings to keep them exact, and `Decimal` deserialises from those directly.
 | Layer | Tests |
 |---|---|
 | `mt-core` | Market and New York time, intraday stores, the day store's format, map geometry, instruments, exact money, account figures, orders, and every guardrail for stocks, options and spreads, against values worked by hand |
-| `mt-data` | The hub (dedupe, refresh, backoff, pause, GC), streams against a scripted server and a real local WebSocket, conditional GETs, budgets and `429`s, secrets kept out of the log, the disk cache |
+| `mt-data` | The hub (dedupe, refresh, backoff, pause, GC), streams against a scripted server and a real local WebSocket, conditional GETs, budgets and `429`s, secrets kept out of the log, the disk cache, server-sent events split anywhere |
 | `mt-miso` | Every parser against a recording in `fixtures/` (structure and sanity, so re-recording keeps them green); the day store, the stored-prices reader and the backfill against a fake MISO |
 | `mt-nws`, `mt-eia`, `mt-news` | Parsers against recordings (news as sample text in the feeds' real structure); merging, topics and read marks |
 | `mt-alpaca` | Every dataset against recordings with synthetic prices and the made-up account; stream subscriptions within the plan's limit; the order desk against a fake broker (an order goes in once, lost answers looked up, rejections, cancels, replaces, the kill switch, nothing sent while trading is off) |
 | `mt-forecast` | Holidays, gap filling and quantiles; each model against series worked by hand (naive days, profiles, smoothing a known shape, a random walk's bands, GARCH recovering simulated parameters); backtests that see only what was known, accuracy and conformal bands scored out of sample |
+| `mt-ai` | The assistant's loop against a fake Messages API: streamed text, tool rounds with parallel calls answered in one message, invalid tool input, `pause_turn`, refusals, `max_tokens`, `429`s and overloads retried, round, token and spending caps, a missing key, cancelling; tool input checking; costs and the monthly ledger |
 | `mt-theme` | Built-ins parse, validate and round-trip; contrast maths |
 | `mt-ui` | Commands and completion; every earlier release's `config.toml` loading; the alert engine; series maths; a **headless smoke test** rendering and tessellating every function in every theme, with and without data; the shell's commands and shortcuts; commands from outside the window opening tickets with nothing but GETs sent |
 | visual | `mt-ui/tests/snapshots.rs`: the real app rendered offscreen (egui_kittest + wgpu) against the fixtures with the clock frozen, compared with committed images |

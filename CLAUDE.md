@@ -139,6 +139,14 @@ keys, and anything Aren has asked to see.
   distribution: random walk, drift, volatility cone, GARCH), `calendar.rs`
   (NERC holidays) and `hourly.rs` (series with gaps). A model never sees data
   from after its forecast was made: the backtest cuts the series off.
+- `crates/mt-ai`: the assistant (ASK), no UI: `api.rs` (the Messages API
+  over `FetchCtx::send_streaming` and `mt_data::sse`: streaming, retries,
+  prompt caching, `fallbacks`), `conversation.rs` (one question's tool loop
+  and its caps on rounds, tokens and the month's spending), `tools.rs` (the
+  read-only `ToolBox`, input checking), `usage.rs` (costs, the ledger) and
+  `config.rs` (`[ai]`; model ids and prices are configuration). Its tests
+  run against a fake API (`tests/fake_server.rs`); nothing in CI calls
+  Anthropic.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.
@@ -148,7 +156,7 @@ keys, and anything Aren has asked to see.
 ## Conventions
 
 - Crate boundaries are load-bearing. `mt-core`, `mt-data`, `mt-miso`,
-  `mt-nws`, `mt-eia`, `mt-news`, `mt-alpaca`, `mt-forecast` and `mt-theme`
+  `mt-nws`, `mt-eia`, `mt-news`, `mt-alpaca`, `mt-forecast`, `mt-ai` and `mt-theme`
   must not depend on egui; CI tests them on Linux.
 - New panel = new file in `crates/mt-ui/src/functions/` + one line in
   `functions/mod.rs` + a README row (a test checks the README). Add any

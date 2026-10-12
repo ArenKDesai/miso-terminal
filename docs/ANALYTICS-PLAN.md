@@ -150,14 +150,19 @@ So:
   a key and raises it; until then the panel explains both routes.
 
 **The Messages API client** (`mt-ai`, HTTP through `mt-data`; there is no
-official Rust SDK):
+official Rust SDK). *Built (step 1):* `mt_data::sse` and
+`FetchCtx::send_streaming`; `mt_ai::api` (requests, the streamed answer,
+retries), `conversation` (the loop and its caps), `tools` (the `ToolBox`
+and input checking), `usage` and `config` (`[ai]`), tested against a fake
+API in `crates/mt-ai/tests/fake_server.rs`. Next: the tools and the MCP
+server, then the ASK panel, SET and the privacy policy.
 
 - **The loop:** the question with the tool definitions; while Claude calls
   tools, run them (in parallel where independent) and send all results back
   in one message; stop at the answer or at caps on rounds (12) and tokens.
 - **Streaming** over server-sent events, a new reader in `mt-data`.
 - **Model:** Claude Opus 5.5 (`claude-opus-5-5`) by default, Sonnet 5.5 and
-  Haiku 4.5 as cheaper choices, effort **low** by default. Model ids and
+  Haiku 5.5 as cheaper choices, effort **low** by default. Model ids and
   prices are configuration, not constants.
 - **API details:** strict tool definitions with inputs validated before
   running; `tool_choice` on `auto`; refusals shown as such, with the

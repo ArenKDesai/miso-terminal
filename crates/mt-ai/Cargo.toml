@@ -1,0 +1,26 @@
+[package]
+name = "mt-ai"
+description = "The assistant (ASK): a Claude Messages API client over mt-data, with streaming, read-only tool rounds, prompt caching, spending caps and usage. No UI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+mt-data.workspace = true
+chrono.workspace = true
+futures-util.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+toml.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

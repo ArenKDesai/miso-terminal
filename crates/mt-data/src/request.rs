@@ -235,6 +235,63 @@ impl Response {
     }
 }
 
+/// A body that arrives in pieces (server-sent events).
+pub type BodyStream =
+    std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<Bytes, crate::FetchError>> + Send>>;
+
+/// A response whose body is read as it arrives, for answers that are written
+/// while they are sent ([`crate::sse`]).
+pub struct StreamingResponse {
+    pub status: u16,
+    /// Names in lower case.
+    pub headers: Vec<(String, String)>,
+    pub body: BodyStream,
+}
+
+impl StreamingResponse {
+    /// A whole body as one piece (transports that cannot stream).
+    pub fn whole(resp: Response) -> Self {
+        let body = resp.body;
+        Self {
+            status: resp.status,
+            headers: resp.headers,
+            body: Box::pin(futures_util::stream::iter([Ok(body)])),
+        }
+    }
+
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.headers
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(name))
+            .map(|(_, v)| v.as_str())
+    }
+
+    pub fn is_success(&self) -> bool {
+        (200..300).contains(&self.status)
+    }
+
+    /// Read the rest of the body (an error's explanation).
+    pub async fn collect(self) -> Result<Response, crate::FetchError> {
+        use futures_util::StreamExt;
+        let mut body = Vec::new();
+        let mut stream = self.body;
+        while let Some(piece) = stream.next().await {
+            body.extend_from_slice(&piece?);
+        }
+        Ok(Response {
+            status: self.status,
+            headers: self.headers,
+            body: Bytes::from(body),
+        })
+    }
+}
+
+impl fmt::Debug for StreamingResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "StreamingResponse({})", self.status)
+    }
+}
+
 /// The host part of a URL, without scheme, port or path.
 pub fn host_of(url: &str) -> &str {
     let rest = url.split_once("://").map_or(url, |(_, r)| r);
