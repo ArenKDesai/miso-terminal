@@ -18,7 +18,7 @@ use mt_forecast::node::{NodeForecast, Settings};
 use mt_forecast::securities::{self, CloseForecast};
 use serde::{Deserialize, Serialize};
 
-use crate::context::PanelCx;
+use crate::context::Sources;
 use crate::series::{self, Component};
 
 /// Bump when models or features change: cached results are then discarded.
@@ -87,7 +87,13 @@ pub fn target_day() -> NaiveDate {
 
 impl NodeForecaster {
     /// Gather, then watch the forecast of `target` at `node` for tomorrow.
-    pub fn watch(&mut self, cx: &PanelCx<'_>, node: &str, target: Target) -> NodeState {
+    pub fn watch<'s>(
+        &mut self,
+        cx: impl Into<Sources<'s>>,
+        node: &str,
+        target: Target,
+    ) -> NodeState {
+        let cx: Sources<'s> = cx.into();
         let today = mt_core::time::market_today();
         let day = target_day();
         let lmp = series::node_history(cx, node, Component::Lmp, HISTORY_DAYS);
@@ -421,7 +427,8 @@ pub enum SecurityState {
 }
 
 /// Watch a security's daily closes and their forecast.
-pub fn security(cx: &PanelCx<'_>, symbol: &str) -> SecurityState {
+pub fn security<'s>(cx: impl Into<Sources<'s>>, symbol: &str) -> SecurityState {
+    let cx: Sources<'s> = cx.into();
     let today = mt_core::exchange::now_exchange().date_naive();
     let bars = cx.hub.watch(&cx.alpaca.bars(
         [symbol],

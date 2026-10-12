@@ -154,7 +154,9 @@ keys, and anything Aren has asked to see.
   fixtures and checks each request is a GET) and the system prompt
   (`prompt.rs`, which must not change between questions: it is cached). A
   new tool adds a spec, a match arm and a line in that test; the order of
-  the specs is part of the cached prompt.
+  the specs is part of the cached prompt. Data code shared with panels takes
+  `context::Sources` (`impl Into<Sources>`; panels pass `&*cx`), never
+  `PanelCx`, so a lookup can run it, waiting with `DataHub::settled`.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.

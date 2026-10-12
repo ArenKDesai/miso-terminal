@@ -123,6 +123,28 @@ pub struct PanelCx<'a> {
     pub(crate) commands: &'a mut Vec<AppCommand>,
 }
 
+/// The data sources alone, for code that reads data the way a panel does
+/// but runs outside a frame too (the assistant's lookups): a hub and the
+/// query builders, nothing that sends orders or drives the app.
+#[derive(Clone, Copy)]
+pub struct Sources<'a> {
+    pub hub: &'a DataHub,
+    pub miso: &'a Miso,
+    pub eia: &'a mt_eia::Eia,
+    pub alpaca: &'a mt_alpaca::Alpaca,
+}
+
+impl<'a, 'b: 'a> From<&'a PanelCx<'b>> for Sources<'a> {
+    fn from(cx: &'a PanelCx<'b>) -> Self {
+        Self {
+            hub: cx.hub,
+            miso: cx.miso,
+            eia: cx.eia,
+            alpaca: cx.alpaca,
+        }
+    }
+}
+
 impl PanelCx<'_> {
     pub fn send(&mut self, cmd: AppCommand) {
         self.commands.push(cmd);

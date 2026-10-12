@@ -246,7 +246,12 @@ impl Panel for Cross {
             .nodes
             .iter()
             .cloned()
-            .zip(series::nodes_history(cx, &names, self.component, self.days))
+            .zip(series::nodes_history(
+                &*cx,
+                &names,
+                self.component,
+                self.days,
+            ))
             .collect();
         let node_lines: Vec<(&str, &Points)> = histories
             .iter()

@@ -11,7 +11,7 @@ use mt_core::{DayLmpReport, DayNodeRow, DayReportKind, Market, NodeSeries, RtInt
 use mt_miso::StoredPrices;
 use mt_miso::parse::hourly_points;
 
-use crate::context::PanelCx;
+use crate::context::Sources;
 
 /// `(market time, value)` points, sorted by time.
 pub type Points = Vec<(NaiveDateTime, f64)>;
@@ -133,7 +133,8 @@ pub struct Today {
     pub loaded: bool,
 }
 
-pub fn node_today(cx: &PanelCx<'_>, node: &str, component: Component) -> Today {
+pub fn node_today<'s>(cx: impl Into<Sources<'s>>, node: &str, component: Component) -> Today {
+    let cx: Sources<'s> = cx.into();
     let today = market_today();
     let tomorrow = today + Duration::days(1);
     let intraday = cx.hub.watch(&cx.miso.rt_intraday());
@@ -174,7 +175,12 @@ pub struct History {
 /// reports a day, every node in each); before that it shows what is stored.
 pub const DOWNLOAD_DAYS: u32 = 90;
 
-pub fn node_history(cx: &PanelCx<'_>, node: &str, component: Component, days: u32) -> History {
+pub fn node_history<'s>(
+    cx: impl Into<Sources<'s>>,
+    node: &str,
+    component: Component,
+    days: u32,
+) -> History {
     nodes_history(cx, &[node], component, days)
         .pop()
         .unwrap_or_default()
@@ -182,12 +188,13 @@ pub fn node_history(cx: &PanelCx<'_>, node: &str, component: Component, days: u3
 
 /// [`node_history`] for several nodes, which read the price history together
 /// (each stored day is read once for all of them).
-pub fn nodes_history(
-    cx: &PanelCx<'_>,
+pub fn nodes_history<'s>(
+    cx: impl Into<Sources<'s>>,
     nodes: &[&str],
     component: Component,
     days: u32,
 ) -> Vec<History> {
+    let cx: Sources<'s> = cx.into();
     let today = market_today();
     let first = today - Duration::days(i64::from(days.max(1)) - 1);
     let snap = cx.hub.watch(&cx.miso.stored_prices(nodes, first));
@@ -212,7 +219,7 @@ pub fn nodes_history(
 }
 
 fn one_history(
-    cx: &PanelCx<'_>,
+    cx: Sources<'_>,
     node: &str,
     component: Component,
     today: NaiveDate,
@@ -294,12 +301,13 @@ pub struct FiveMinute {
     pub pending: usize,
 }
 
-pub fn node_five_minute(
-    cx: &PanelCx<'_>,
+pub fn node_five_minute<'s>(
+    cx: impl Into<Sources<'s>>,
     node: &str,
     component: Component,
     days: u32,
 ) -> FiveMinute {
+    let cx: Sources<'s> = cx.into();
     let today = market_today();
     let first = today - Duration::days(i64::from(days.max(1)) - 1);
     let mut out = FiveMinute {
