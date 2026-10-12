@@ -44,7 +44,9 @@ The terminal keeps no cookies.
 With `--mcp`, the terminal answers an AI assistant you run yourself
 (Claude Desktop or Claude Code) from the same sources as its panels, and
 sends nothing anywhere else: what you ask, and the answers, stay between
-you and that assistant's provider, under its own policy.
+you and that assistant's provider, under its own policy. The paper
+account's positions and balances reach the assistant only if you set
+`share_paper_account = true` under `[ai]`; it is off by default.
 
 Opening a headline or a link hands it to your web browser; the terminal does
 not fetch the article. A change that adds a service, or sends something new,

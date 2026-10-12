@@ -812,7 +812,7 @@ fn history_reads_stored_days_older_than_charts_download() {
     let year = loop {
         let mut got = None;
         h.draw_with(&skin, |_, cx| {
-            got = Some(series::node_history(cx, "MINN.HUB", Component::Lmp, 365));
+            got = Some(series::node_history(&*cx, "MINN.HUB", Component::Lmp, 365));
         });
         let got = got.unwrap();
         if got.pending == 0 {

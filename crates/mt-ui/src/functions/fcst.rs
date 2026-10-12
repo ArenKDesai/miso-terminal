@@ -209,11 +209,11 @@ impl Panel for Fcst {
         match subject {
             Subject::Node(node) => {
                 let node = node.clone();
-                let state = self.forecaster.watch(cx, &node, self.view.target());
+                let state = self.forecaster.watch(&*cx, &node, self.view.target());
                 node_view(ui, cx, &node, self.view, self.skill, &mut self.model, state);
             }
             Subject::Security(sec) => {
-                let state = forecast::security(cx, &sec.ticker);
+                let state = forecast::security(&*cx, &sec.ticker);
                 if market::needs_keys(ui, cx) {
                     return;
                 }

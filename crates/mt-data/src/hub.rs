@@ -316,6 +316,21 @@ impl DataHub {
         }
     }
 
+    /// Wait until `ready` returns something, checking again each time a
+    /// fetch lands. For code built on [`Self::watch`] (which starts what it
+    /// needs on each call) that has to run to an answer outside a frame.
+    pub async fn settled<T>(&self, mut ready: impl FnMut() -> Option<T>) -> T {
+        loop {
+            let landed = self.inner.landed.notified();
+            tokio::pin!(landed);
+            landed.as_mut().enable();
+            if let Some(t) = ready() {
+                return t;
+            }
+            landed.await;
+        }
+    }
+
     /// Current value of `q` without registering interest or fetching.
     pub fn peek<Q: Query>(&self, q: &Q) -> Snapshot<Q::Output> {
         self.inner

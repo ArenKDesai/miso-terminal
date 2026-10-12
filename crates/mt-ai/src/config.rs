@@ -110,7 +110,10 @@ pub struct AiConfig {
     /// Let the assistant see the paper account (positions and P&L). Also
     /// governs the MCP server's `paper_account` tool.
     pub share_paper_account: bool,
-    /// Extra or replacement models, merged over the built-in list by id.
+    /// Extra or replacement models, merged over the built-in list by id
+    /// (`[[ai.models]]`). Left out of the file when empty, so a hand-written
+    /// table never clashes with a `models = []` the terminal wrote.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub models: Vec<ModelInfo>,
 }
 

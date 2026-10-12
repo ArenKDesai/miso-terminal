@@ -655,8 +655,10 @@ DA be tomorrow in Michigan?* The terminal runs as a Model Context Protocol
 server with no window (`--mcp`), and Claude calls its lookups: nodes by name
 or place, a node's DA and RT prices and components, price extremes across
 the footprint, binding constraints, reserve prices, load, fuel mix, wind and
-solar, interchange, outages, weather, gas and the news archive. Every lookup
-only reads; none can trade or change a setting. This uses your Claude plan,
+solar, interchange, outages, weather, gas, the news archive, FCST's
+forecasts and, with Alpaca keys, securities. Every lookup only reads; none
+can trade or change a setting. Claude sees the paper account only if you
+allow it: add `share_paper_account = true` under `[ai]` in `config.toml`. This uses your Claude plan,
 and the terminal itself sends nothing to Anthropic.
 
 In Claude Desktop, open *Settings*, *Developer*, *Edit Config*, and add the

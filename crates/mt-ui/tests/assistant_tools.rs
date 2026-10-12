@@ -70,7 +70,10 @@ fn every_lookup_answers_from_the_fixtures_and_only_reads() {
         EventLog::default(),
     );
     let hub = DataHub::new(runtime.handle().clone(), ctx);
-    let tools = Lookups::new(hub, &AppConfig::default());
+    let tools = Lookups::new(hub.clone(), &AppConfig::default());
+    let mut sharing = AppConfig::default();
+    sharing.ai.share_paper_account = true;
+    let sharing = Lookups::new(hub, &sharing);
 
     let names: Vec<String> = tools.specs().iter().map(|s| s.name.clone()).collect();
     assert_eq!(
@@ -85,7 +88,10 @@ fn every_lookup_answers_from_the_fixtures_and_only_reads() {
             "outages",
             "weather",
             "gas",
-            "news"
+            "news",
+            "forecast",
+            "securities",
+            "paper_account"
         ],
         "the order is part of the cached prompt: change it on purpose"
     );
@@ -197,6 +203,29 @@ fn every_lookup_answers_from_the_fixtures_and_only_reads() {
         let gas = call(&tools, "gas", json!({"days": 5})).await;
         assert_eq!(gas["latest_first"].as_array().map(Vec::len), Some(5), "{gas}");
 
+        let fcst = call(&tools, "forecast", json!({"node": "MINN.HUB"})).await;
+        assert_eq!(fcst["hours"].as_array().map(Vec::len), Some(24), "{fcst}");
+        assert!(fcst["models"].as_array().is_some_and(|m| m.len() > 2));
+        let sec = call(&tools, "forecast", json!({"security": "XLU US"})).await;
+        assert!(sec["path_by_trading_day"].is_array(), "{sec}");
+
+        let q = call(
+            &tools,
+            "securities",
+            json!({"symbols": ["xlu", "XEL US"], "bar_days": 10, "beta": true}),
+        )
+        .await;
+        assert_eq!(q["securities"][1]["symbol"], "XEL US", "{q}");
+        assert!(q["securities"][0]["last"].is_number(), "{q}");
+        assert!(q["securities"][0]["daily_bars"]["rows"].is_array());
+        assert!(q["securities"][0]["beta_vs_spy_1y"]["beta"].is_number(), "{q}");
+
+        let hidden = mt_ai::tools::run(&tools, "paper_account", json!({})).await;
+        assert!(hidden.unwrap_err().contains("has not let"));
+        let account = call(&sharing, "paper_account", json!({})).await;
+        assert_eq!(account["mode"], "paper");
+        assert!(account["positions"].as_array().is_some_and(|p| !p.is_empty()), "{account}");
+
         let news = call(&tools, "news", json!({"days": 21})).await;
         assert!(news["headlines"].as_array().is_some_and(|h| !h.is_empty()), "{news}");
     });
@@ -206,8 +235,8 @@ fn every_lookup_answers_from_the_fixtures_and_only_reads() {
     for (method, url) in &asked {
         assert_eq!(*method, Method::Get, "a lookup sent {method} {url}");
         assert!(
-            !url.contains("alpaca.markets"),
-            "no lookup here touches the broker: {url}"
+            !url.contains("/v2/orders"),
+            "no lookup reads or writes orders: {url}"
         );
     }
 }

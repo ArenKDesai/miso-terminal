@@ -160,9 +160,11 @@ API in `crates/mt-ai/tests/fake_server.rs`. *Built (step 2):*
 price reference) with ten of the tools below, `mt_ai::mcp` and
 `miso-terminal --mcp`. The MCP server reads a hub of its own over the same
 cache rather than the running terminal's (simpler, and the cache is shared
-anyway). Next: `forecast`, `securities` and `paper_account`, then the ASK
-panel, SET and the privacy policy, then per-day stores for the operating
-feeds.
+anyway). *Built (step 3):* `forecast`, `securities` and `paper_account`
+(`[ai] share_paper_account`, off by default); FCST's data code takes
+`Sources` (hub and query builders) so a lookup runs it outside a frame,
+waiting with `DataHub::settled`. Next: the ASK panel, SET and the privacy
+policy, then per-day stores for the operating feeds.
 
 - **The loop:** the question with the tool definitions; while Claude calls
   tools, run them (in parallel where independent) and send all results back

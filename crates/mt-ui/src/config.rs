@@ -34,6 +34,9 @@ pub struct AppConfig {
     /// orders, per-order, daily and per-position caps in dollars, the price
     /// collar, the fat-finger check and the restricted list.
     pub trading: mt_core::guard::Limits,
+    /// The assistant (ASK and `--mcp`): the model, effort, caps and spending
+    /// limit, web search, and whether it may see the paper account.
+    pub ai: mt_ai::AiConfig,
     /// Alert rules (see the ALRT function), as `[[alerts]]` tables. Left out
     /// of the file when empty, so a hand-written `[[alerts]]` never clashes
     /// with an `alerts = []` the terminal wrote.
@@ -53,6 +56,7 @@ impl Default for AppConfig {
             news: mt_news::NewsConfig::default(),
             markets: mt_alpaca::MarketsConfig::default(),
             trading: mt_core::guard::Limits::default(),
+            ai: mt_ai::AiConfig::default(),
             alerts: Vec::new(),
         }
     }

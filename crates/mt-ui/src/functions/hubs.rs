@@ -143,16 +143,17 @@ impl Panel for Hubs {
         // Each daily report covers every node, so the eight hubs share
         // downloads, and each stored day is read once for all of them.
         let mut history = series::History::default();
-        let rows: Vec<HubRow> = series::nodes_history(cx, &TRADING_HUBS, Component::Lmp, self.days)
-            .iter()
-            .zip(TRADING_HUBS)
-            .map(|(h, hub)| {
-                history.pending = history.pending.max(h.pending);
-                history.prelim_days = history.prelim_days.max(h.prelim_days);
-                history.unstored_days = history.unstored_days.max(h.unstored_days);
-                HubRow::of(hub, &h.da, &h.rt)
-            })
-            .collect();
+        let rows: Vec<HubRow> =
+            series::nodes_history(&*cx, &TRADING_HUBS, Component::Lmp, self.days)
+                .iter()
+                .zip(TRADING_HUBS)
+                .map(|(h, hub)| {
+                    history.pending = history.pending.max(h.pending);
+                    history.prelim_days = history.prelim_days.max(h.prelim_days);
+                    history.unstored_days = history.unstored_days.max(h.unstored_days);
+                    HubRow::of(hub, &h.da, &h.rt)
+                })
+                .collect();
         super::gp::history_notes(ui, cx, &history, || {
             let mut headers = vec!["hub"];
             headers.extend(HEADERS);

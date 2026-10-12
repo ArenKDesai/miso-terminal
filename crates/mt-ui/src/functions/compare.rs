@@ -180,7 +180,7 @@ impl Panel for Compare {
 
         let names: Vec<&str> = self.nodes.iter().map(String::as_str).collect();
         let histories = if self.history {
-            series::nodes_history(cx, &names, self.component, self.days)
+            series::nodes_history(&*cx, &names, self.component, self.days)
         } else {
             Vec::new()
         };
@@ -193,7 +193,12 @@ impl Panel for Compare {
         } else {
             self.nodes
                 .iter()
-                .map(|n| (n.clone(), series::node_today(cx, n, self.component).rt_5min))
+                .map(|n| {
+                    (
+                        n.clone(),
+                        series::node_today(&*cx, n, self.component).rt_5min,
+                    )
+                })
                 .collect()
         };
 

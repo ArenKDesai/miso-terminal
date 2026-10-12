@@ -168,12 +168,12 @@ impl Panel for Gp {
             View::Today => self.today(ui, cx, &node),
             View::History => self.history(ui, cx, &node),
             View::FiveMinute => {
-                let f = series::node_five_minute(cx, &node, self.component, self.days);
+                let f = series::node_five_minute(&*cx, &node, self.component, self.days);
                 five_minute_view(ui, cx, &format!("gp-5min-{node}"), &f, &f.rt, &f.da);
             }
             View::Heatmap => self.heatmap(ui, cx, &node),
             View::Duration => {
-                let h = series::node_history(cx, &node, self.component, self.days);
+                let h = series::node_history(&*cx, &node, self.component, self.days);
                 history_notes(ui, cx, &h, || {
                     csv::to_csv(
                         &["hour_start_est", "da", "rt", "rt_minus_da"],
@@ -254,7 +254,7 @@ impl Gp {
 
     fn today(&mut self, ui: &mut Ui, cx: &mut PanelCx<'_>, node: &str) {
         let skin = cx.skin;
-        let t = series::node_today(cx, node, self.component);
+        let t = series::node_today(&*cx, node, self.component);
         let intraday = cx.hub.peek(&cx.miso.rt_intraday());
         ui.horizontal_wrapped(|ui| {
             ui.checkbox(&mut self.yesterday, "+ yesterday")
@@ -274,7 +274,7 @@ impl Gp {
             mt_forecast::features::Target::RealTime
         };
         let forecast = if self.forecast {
-            let state = self.forecaster.watch(cx, node, target);
+            let state = self.forecaster.watch(&*cx, node, target);
             match &state {
                 crate::forecast::NodeState::Ready(..) => {}
                 crate::forecast::NodeState::Failed(e) => {
@@ -416,7 +416,7 @@ impl Gp {
 
     fn history(&self, ui: &mut Ui, cx: &mut PanelCx<'_>, node: &str) {
         let skin = cx.skin;
-        let h = series::node_history(cx, node, self.component, self.days);
+        let h = series::node_history(&*cx, node, self.component, self.days);
         let stats = Stats::of(&h.da, &h.rt);
         ui.horizontal_wrapped(|ui| {
             widgets::stat_tile(ui, skin, "DA avg", &fmt::price_opt(stats.da_avg), None);
@@ -461,7 +461,7 @@ impl Gp {
 
 impl Gp {
     fn heatmap(&mut self, ui: &mut Ui, cx: &mut PanelCx<'_>, node: &str) {
-        let h = series::node_history(cx, node, self.component, self.days);
+        let h = series::node_history(&*cx, node, self.component, self.days);
         ui.horizontal(|ui| {
             widgets::label(ui, cx.skin, "Colour by");
             ui.selectable_value(&mut self.heat, Heat::Rt, "RT");

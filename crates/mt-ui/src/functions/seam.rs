@@ -135,7 +135,7 @@ impl Seam {
                 );
             }
         });
-        let miso_today = series::node_today(cx, PJM_INTERFACE, Component::Lmp).rt_5min;
+        let miso_today = series::node_today(&*cx, PJM_INTERFACE, Component::Lmp).rt_5min;
         ui.horizontal_wrapped(|ui| {
             ui.label(
                 RichText::new(

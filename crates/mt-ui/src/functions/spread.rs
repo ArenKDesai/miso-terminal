@@ -118,8 +118,8 @@ impl Panel for Spread {
             View::Today => self.today(ui, cx, &a, &b),
             View::History => self.history(ui, cx, &a, &b),
             View::FiveMinute => {
-                let fa = series::node_five_minute(cx, &a, self.component, self.days);
-                let fb = series::node_five_minute(cx, &b, self.component, self.days);
+                let fa = series::node_five_minute(&*cx, &a, self.component, self.days);
+                let fb = series::node_five_minute(&*cx, &b, self.component, self.days);
                 five_minute_view(
                     ui,
                     cx,
@@ -172,8 +172,8 @@ impl Spread {
     fn today(&self, ui: &mut Ui, cx: &mut PanelCx<'_>, a: &str, b: &str) {
         let skin = cx.skin;
         let (ta, tb) = (
-            series::node_today(cx, a, self.component),
-            series::node_today(cx, b, self.component),
+            series::node_today(&*cx, a, self.component),
+            series::node_today(&*cx, b, self.component),
         );
         let rt = series::subtract(&ta.rt_5min, &tb.rt_5min);
         let da = series::subtract(&ta.da, &tb.da);
