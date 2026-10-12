@@ -178,8 +178,9 @@ operating feeds, and the evaluation set.
 - **Model:** Claude Opus 5.5 (`claude-opus-5-5`) by default, Sonnet 5.5 and
   Haiku 5.5 as cheaper choices, effort **low** by default. Model ids and
   prices are configuration, not constants.
-- **API details:** strict tool definitions with inputs validated before
-  running; `tool_choice` on `auto`; refusals shown as such, with the
+- **API details:** tool definitions with inputs validated before
+  running (not strict mode: it dropped optional fields and allows at most
+  16 nullable parameters across tools); `tool_choice` on `auto`; refusals shown as such, with the
   server-side fallback on; `max_tokens` and `pause_turn` handled; 429s and
   overloads retried with backoff.
 - **Prompt caching:** the tool list (in a fixed order) and the system prompt

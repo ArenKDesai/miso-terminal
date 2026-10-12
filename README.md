@@ -241,13 +241,25 @@ The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
 - [ ] **`ASK`:** a Claude assistant with read-only tools over the terminal's
       data, through Claude Desktop or Claude Code (the terminal as an MCP
       server) or in the terminal with an API key. Found while trying it on
-      2026-10-12:
-  - [ ] Verify the request against the live API: Anthropic refuses every
-        call from an account without credits (even token counting) before
-        checking the request, so the body (strict tools, effort, caching,
-        `fallbacks`, web search) is tested only against the fake API. With
-        credits, run `cargo run -p mt-ai --example check_anthropic_request`
-        (free), then one real question.
+      2026-10-12 (ASK now answers: a question about tomorrow's $1,000 DA
+      took three requests and about $0.08 on Opus 5.5):
+  - [x] Strict tool use broke every request (`minimum`/`maxLength` refused;
+        optional fields silently dropped; at most 16 nullable parameters
+        across tools). Tools now go without strict mode, checked by
+        `tools::run` before they run.
+  - [ ] Render the answer's Markdown: bold, bullets and `code` show as raw
+        `**`, `-` and backticks.
+  - [ ] The answer's closing line of backticked commands repeats the
+        *Open:* buttons under it; drop one (ask for no such line, or hide it).
+  - [ ] Tell Claude that MISO's "DA ex-post" report for tomorrow is the
+        final day-ahead result (it called tomorrow's prices "labelled DA
+        ex-post, but new", and doubted them).
+  - [ ] The check program (`cargo run -p mt-ui --example
+        check_anthropic_request`, free) uses the token counter, which
+        accepted schemas the real endpoint refused (the 16-union limit);
+        make it send one tiny real request too.
+  - [ ] `tools/screenshot.py` wrote an empty image after `--wait 240` (the
+        display may have slept); 90 s worked.
   - [ ] A billing refusal reads as *Anthropic rejected the request
         (invalid_request_error): Your credit balance is too low…*; say what
         to do instead (add credits at console.anthropic.com, *Plans &

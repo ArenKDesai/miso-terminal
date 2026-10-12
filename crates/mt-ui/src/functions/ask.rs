@@ -235,13 +235,19 @@ impl Ask {
                             l.text.clear();
                             l.note = Some(format!("{why}; trying again in {} s", wait.as_secs()));
                         }
-                        Progress::ToolStarted { id, name, input } => l.lookups.push(Lookup {
+                        Progress::ToolStarted { id, name, input } => {
+                            events.info(format!("ASK lookup {name} {input}"));
+                            l.lookups.push(Lookup {
                             id,
                             name,
-                            input: input.to_string(),
-                            done: None,
-                        }),
-                        Progress::ToolFinished { id, ok, .. } => {
+                                input: input.to_string(),
+                                done: None,
+                            });
+                        }
+                        Progress::ToolFinished { id, ok, output } => {
+                            if !ok {
+                                events.warn(format!("ASK lookup failed: {output}"));
+                            }
                             if let Some(x) = l.lookups.iter_mut().find(|x| x.id == id) {
                                 x.done = Some(ok);
                             }

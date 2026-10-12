@@ -272,7 +272,10 @@ async fn a_streamed_answer_and_the_request_it_came_from() {
     assert_eq!(body["fallbacks"], "default");
     assert_eq!(body["cache_control"]["type"], "ephemeral");
     assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
-    assert_eq!(body["tools"][0]["strict"], true);
+    assert!(
+        body["tools"][0].get("strict").is_none(),
+        "see api.rs on strict mode"
+    );
     assert_eq!(body["tool_choice"]["type"], "auto");
     assert!(body.get("thinking").is_none(), "Opus 5.5 thinks adaptively");
     let logged: String = s
