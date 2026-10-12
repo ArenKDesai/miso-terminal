@@ -91,6 +91,7 @@ fn every_lookup_answers_from_the_fixtures_and_only_reads() {
             "news",
             "forecast",
             "securities",
+            "load",
             "paper_account"
         ],
         "the order is part of the cached prompt: change it on purpose"
@@ -185,8 +186,28 @@ fn every_lookup_answers_from_the_fixtures_and_only_reads() {
 
         let reserves = call(&tools, "reserves", json!({})).await;
         assert!(reserves["zones"].as_array().is_some_and(|z| !z.is_empty()));
+        let tomorrow = (today + chrono::TimeDelta::days(1)).to_string();
+        let da_reserves = call(&tools, "reserves", json!({"date": tomorrow, "market": "da"})).await;
+        let spin = &da_reserves["da"]["miso_wide"]["spinning"];
+        assert_eq!(spin.as_array().map(Vec::len), Some(24), "{da_reserves}");
+        assert_eq!(da_reserves["da"]["report"], "DA ex-post");
+        assert!(da_reserves["short_term_reserve_requirement"].is_array(), "{da_reserves}");
+        let past = call(&tools, "reserves", json!({"date": "2026-09-30", "market": "rt"})).await;
+        assert!(past["rt"]["miso_wide"]["regulation"].is_array(), "{past}");
+
+        let load = call(&tools, "load", json!({"date": "2026-10-08"})).await;
+        assert_eq!(load["mtlf"]["MISO"].as_array().map(Vec::len), Some(24), "{load}");
+        assert_eq!(load["actual"]["MISO"].as_array().map(Vec::len), Some(24), "{load}");
+        assert!(load["mtlf_peak_miso"]["mw"].as_f64().is_some_and(|mw| mw > 40_000.0));
+        let next = mt_ai::tools::run(&tools, "load", json!({})).await;
+        assert!(next.is_ok() || next.is_err_and(|e| e.contains("does not cover")), "tomorrow from the replayed report");
+
+        let tomorrow_da = call(&tools, "price_extremes", json!({"start_date": tomorrow, "market": "da", "limit": 2})).await;
+        assert_eq!(tomorrow_da["days_read"], 1, "tomorrow's DA is searchable: {tomorrow_da}");
 
         let system = call(&tools, "system_conditions", json!({})).await;
+        let first_hour = &system["wind_solar"]["hours"][0][0];
+        assert!(first_hour.as_str().is_some_and(|t| t.len() == 16), "dated rows: {first_hour}");
         for part in ["load", "fuel_mix", "wind_solar", "interchange", "ace", "north_south_transfer", "capacity"] {
             assert!(system[part].get("error").is_none(), "{part}: {}", system[part]);
         }

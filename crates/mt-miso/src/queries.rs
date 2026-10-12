@@ -164,6 +164,27 @@ impl Miso {
             day,
         }
     }
+
+    /// A day's hourly ancillary-service MCPs in one market: DA ex-post (else
+    /// ex-ante), RT final (else preliminary). `None` until published (DA
+    /// with the DA results the day before, RT the day after).
+    pub fn asm_day(&self, market: Market, day: NaiveDate) -> AsmDayQuery {
+        AsmDayQuery {
+            endpoints: self.endpoints.clone(),
+            market,
+            day,
+        }
+    }
+
+    /// MISO's load report published on a day: the MTLF from the day before
+    /// to five days after, and the day before's actual load. `None` until
+    /// published (about 01:20 EST).
+    pub fn load_report(&self, published: NaiveDate) -> LoadReportQuery {
+        LoadReportQuery {
+            endpoints: self.endpoints.clone(),
+            published,
+        }
+    }
 }
 
 // --- Generic JSON endpoint ----------------------------------------------------
@@ -520,6 +541,131 @@ fn suffix(kind: DayReportKind) -> &'static str {
         DayReportKind::DaExAnte => reports::DA_EXANTE,
         DayReportKind::RtFinal => reports::RT_FINAL,
         DayReportKind::RtPrelim => reports::RT_PRELIM,
+    }
+}
+
+/// A day's ancillary-service MCPs in one market (see [`Miso::asm_day`]).
+#[derive(Clone, Debug)]
+pub struct AsmDayQuery {
+    endpoints: Arc<MisoEndpoints>,
+    pub market: Market,
+    pub day: NaiveDate,
+}
+
+impl AsmDayQuery {
+    /// The reports to try, best first.
+    fn kinds(&self) -> [(AsmReportKind, &'static str); 2] {
+        match self.market {
+            Market::DayAhead => [
+                (AsmReportKind::DaExPost, reports::ASM_DA_EXPOST),
+                (AsmReportKind::DaExAnte, reports::ASM_DA_EXANTE),
+            ],
+            Market::RealTime => [
+                (AsmReportKind::RtFinal, reports::ASM_RT_FINAL),
+                (AsmReportKind::RtPrelim, reports::ASM_RT_PRELIM),
+            ],
+        }
+    }
+}
+
+impl Query for AsmDayQuery {
+    type Output = Option<AsmDayReport>;
+
+    fn key(&self) -> String {
+        format!("miso/asm/{}/{}", self.market.label(), self.day)
+    }
+
+    fn label(&self) -> String {
+        format!("{} reserve prices {}", self.market.label(), self.day)
+    }
+
+    fn freshness(&self, current: &Self::Output) -> Freshness {
+        match current.as_ref().map(|r| r.kind) {
+            Some(AsmReportKind::DaExPost | AsmReportKind::RtFinal) => Freshness::Forever,
+            Some(_) => Freshness::Every(Duration::from_secs(3600)),
+            None => Freshness::Every(UNPUBLISHED_RETRY),
+        }
+    }
+
+    async fn fetch(
+        &self,
+        ctx: FetchCtx,
+        _prev: Option<Arc<Self::Output>>,
+    ) -> Result<Self::Output, FetchError> {
+        for (kind, suffix) in self.kinds() {
+            let url = self.endpoints.report(self.day, suffix);
+            // Settled reports never change: keep them on disk.
+            let settled = matches!(kind, AsmReportKind::DaExPost | AsmReportKind::RtFinal);
+            let body = if settled {
+                ctx.get_text_immutable(&url).await
+            } else {
+                ctx.get_text(&url).await
+            };
+            let body = match body {
+                Ok(b) => b,
+                Err(FetchError::NotFound(_)) => continue,
+                Err(e) => return Err(e),
+            };
+            let report = parse::parse_asm_day(kind, &body)?;
+            // Replayed fixtures stand in for any date; live files must match.
+            if report.day != self.day && ctx.is_live() {
+                return Err(FetchError::parse(
+                    self.label(),
+                    format!("the file is for {}", report.day),
+                ));
+            }
+            return Ok(Some(report));
+        }
+        Ok(None)
+    }
+}
+
+/// MISO's load report published on a day (see [`Miso::load_report`]).
+#[derive(Clone, Debug)]
+pub struct LoadReportQuery {
+    endpoints: Arc<MisoEndpoints>,
+    pub published: NaiveDate,
+}
+
+impl Query for LoadReportQuery {
+    type Output = Option<LoadForecastReport>;
+
+    fn key(&self) -> String {
+        format!("miso/load-report/{}", self.published)
+    }
+
+    fn label(&self) -> String {
+        format!("Load forecast and actual, published {}", self.published)
+    }
+
+    fn freshness(&self, current: &Self::Output) -> Freshness {
+        match current {
+            Some(_) => Freshness::Forever,
+            None => Freshness::Every(UNPUBLISHED_RETRY),
+        }
+    }
+
+    async fn fetch(
+        &self,
+        ctx: FetchCtx,
+        _prev: Option<Arc<Self::Output>>,
+    ) -> Result<Self::Output, FetchError> {
+        let url = self
+            .endpoints
+            .report_file(self.published, reports::DF_AL, "xls");
+        let body = match ctx.get_immutable(&url).await {
+            Ok(b) => b,
+            Err(FetchError::NotFound(_)) => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        let report = parse::parse_load_forecast_report(&body)?;
+        if report.published != self.published && ctx.is_live() {
+            return Err(FetchError::parse(
+                self.label(),
+                format!("the file was published {}", report.published),
+            ));
+        }
+        Ok(Some(report))
     }
 }
 

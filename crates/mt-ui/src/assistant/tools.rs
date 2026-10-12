@@ -204,10 +204,21 @@ impl ToolBox for Lookups {
             ),
             spec(
                 "reserves",
-                "Ancillary-service market clearing prices ($/MW) by reserve zone for the \
-                 latest RT interval: regulation, spinning, supplemental, short-term reserve \
-                 and ramp. MISO's feed shows only the latest interval.",
-                schema(json!({}), &[]),
+                "Ancillary-service market clearing prices ($/MW). With a date: that day's \
+                 hourly DA prices (ex-post, posted with the DA results the afternoon \
+                 before, so tomorrow's are there once DA clears) and RT prices (posted \
+                 the next day), MISO-wide and for reserve zones priced above MISO-wide, \
+                 plus, for tomorrow, MISO's short-term reserve requirement. Prices far \
+                 above their usual few dollars mean MISO is short of reserves, which also \
+                 lifts every node's energy price. Without a date: the latest RT interval, \
+                 by zone, including short-term reserve and ramp.",
+                schema(
+                    json!({
+                        "date": date_prop("The day (omit for the latest RT interval)"),
+                        "market": {"type": "string", "enum": ["da", "rt", "both"]}
+                    }),
+                    &[],
+                ),
             ),
             spec(
                 "system_conditions",
@@ -290,6 +301,18 @@ impl ToolBox for Lookups {
                 ),
             ),
             spec(
+                "load",
+                "MISO's load for a day, by zone group (LRZ1, LRZ2_7, LRZ3_5, LRZ4, LRZ6, \
+                 LRZ8_9_10) and MISO in all, MW by hour: the medium-term load forecast \
+                 (MTLF) and, for a past day, the actual load beside it. Covers yesterday \
+                 through five days ahead from today's report, and past days from the \
+                 report MISO published the day after.",
+                schema(
+                    json!({"date": date_prop("The day (default: tomorrow)")}),
+                    &[],
+                ),
+            ),
+            spec(
                 "paper_account",
                 "The Alpaca paper account's positions and profit and loss, only when the \
                  user has let the assistant see it (SET). Read only: there is no tool that \
@@ -306,7 +329,8 @@ impl ToolBox for Lookups {
                 "lmp_series" => self.lmp_series(&input).await,
                 "price_extremes" => self.price_extremes(&input).await,
                 "binding_constraints" => self.binding_constraints(&input).await,
-                "reserves" => self.reserves().await,
+                "reserves" => self.reserves(&input).await,
+                "load" => self.load(&input).await,
                 "system_conditions" => Ok(self.system_conditions().await),
                 "outages" => self.outages().await,
                 "weather" => self.weather(&input).await,
@@ -762,7 +786,11 @@ impl Lookups {
         let below = input["below"].as_f64();
         let node_type = input["node_type"].as_str().unwrap_or("any").to_owned();
         let limit = limit(input, 20);
-        let end = end.min(today());
+        // DA for tomorrow is out once MISO posts it (the afternoon before).
+        let end = end.min(match market {
+            Market::DayAhead => today() + TimeDelta::days(1),
+            Market::RealTime => today(),
+        });
         // Read the price history directly, a day at a time, so a long window
         // never holds more than one day in memory.
         let cache = self.hub.ctx().cache().cloned();
@@ -870,7 +898,10 @@ impl Lookups {
         Ok(out)
     }
 
-    async fn reserves(&self) -> ToolResult {
+    async fn reserves(&self, input: &Value) -> ToolResult {
+        if let Some(day) = date_arg(input, "date")? {
+            return self.reserves_on(day, input).await;
+        }
         let a = self.get(&self.miso.ancillary()).await?;
         Ok(json!({
             "interval": a.interval.map(time),
@@ -886,6 +917,130 @@ impl Lookups {
             })).collect::<Vec<_>>(),
             "terminal": "ASM",
         }))
+    }
+
+    /// A day's hourly reserve prices from MISO's daily ASM reports.
+    async fn reserves_on(&self, day: NaiveDate, input: &Value) -> ToolResult {
+        let (da, rt) = market_arg(input);
+        let mut out = json!({
+            "date": day.to_string(),
+            "units": "$/MW; hourly arrays start at hour beginning 00:00 EST",
+            "terminal": "ASM",
+        });
+        for (want, market, key) in [(da, Market::DayAhead, "da"), (rt, Market::RealTime, "rt")] {
+            if !want || (market == Market::RealTime && day >= today()) {
+                continue;
+            }
+            out[key] = match self.get(&self.miso.asm_day(market, day)).await {
+                Ok(r) => match r.as_ref() {
+                    Some(r) => asm_json(r),
+                    None => json!({"note": match market {
+                        Market::DayAhead => "not posted yet (MISO posts DA reserve prices with the DA results, the afternoon before)",
+                        Market::RealTime => "not posted yet (MISO posts RT reserve prices the day after)",
+                    }}),
+                },
+                Err(e) => json!({"error": e}),
+            };
+        }
+        if day == today() + TimeDelta::days(1) {
+            out["short_term_reserve_requirement"] =
+                match self.get(&self.miso.str_requirement()).await {
+                    Ok(s) => json!(
+                        s.regions
+                            .iter()
+                            .map(|r| json!({
+                                "region": r.region,
+                                "requirement_mw": opt(r.requirement_mw),
+                                "operator_override_mw": opt(r.overwrite_mw),
+                                "for_peak_hour_beginning": r.peak_hour.map(time),
+                            }))
+                            .collect::<Vec<_>>()
+                    ),
+                    Err(e) => json!({"error": e}),
+                };
+        }
+        Ok(out)
+    }
+
+    /// MTLF (and actual load, for a past day) from MISO's daily load report.
+    async fn load(&self, input: &Value) -> ToolResult {
+        let day = date_arg(input, "date")?.unwrap_or_else(|| today() + TimeDelta::days(1));
+        // A day's actuals are in the next day's report; a future day's
+        // forecast is in today's (or yesterday's, before ~01:20 EST).
+        let candidates: Vec<NaiveDate> = if day < today() {
+            vec![day + TimeDelta::days(1)]
+        } else {
+            vec![today(), today() - TimeDelta::days(1)]
+        };
+        let mut report = None;
+        for published in candidates {
+            if let Some(r) = self.get(&self.miso.load_report(published)).await?.as_ref() {
+                report = Some(r.clone());
+                break;
+            }
+        }
+        let Some(r) = report else {
+            return Err(format!(
+                "MISO has not published a load report covering {day}"
+            ));
+        };
+        let pick = |rows: &[(NaiveDateTime, Vec<Option<f64>>)]| -> Option<Vec<Vec<Value>>> {
+            let day_rows: Vec<&Vec<Option<f64>>> = rows
+                .iter()
+                .filter(|(t, _)| t.date() == day)
+                .map(|(_, v)| v)
+                .collect();
+            (!day_rows.is_empty()).then(|| {
+                (0..r.zones.len())
+                    .map(|z| {
+                        day_rows
+                            .iter()
+                            .map(|v| opt(v.get(z).copied().flatten()))
+                            .collect()
+                    })
+                    .collect()
+            })
+        };
+        let forecast = pick(&r.hours).ok_or_else(|| {
+            format!(
+                "the load report published {} does not cover {day}",
+                r.published
+            )
+        })?;
+        let actual = pick(&r.actual);
+        let by_zone = |series: &Vec<Vec<Value>>| -> Value {
+            Value::Object(
+                r.zones
+                    .iter()
+                    .zip(series)
+                    .map(|(z, v)| (z.clone(), Value::Array(v.clone())))
+                    .collect(),
+            )
+        };
+        let peak = |series: &Vec<Vec<Value>>| -> Value {
+            let miso = series.last().cloned().unwrap_or_default();
+            miso.iter()
+                .enumerate()
+                .filter_map(|(h, v)| v.as_f64().map(|v| (h, v)))
+                .max_by(|a, b| a.1.total_cmp(&b.1))
+                .map_or(
+                    Value::Null,
+                    |(h, v)| json!({"mw": v, "hour_beginning": format!("{h:02}:00")}),
+                )
+        };
+        let mut out = json!({
+            "date": day.to_string(),
+            "report_published": r.published.to_string(),
+            "units": "MW; hourly arrays start at hour beginning 00:00 EST",
+            "mtlf": by_zone(&forecast),
+            "mtlf_peak_miso": peak(&forecast),
+            "terminal": "LOAD",
+        });
+        if let Some(a) = &actual {
+            out["actual"] = by_zone(a);
+            out["actual_peak_miso"] = peak(a);
+        }
+        Ok(out)
     }
 
     async fn system_conditions(&self) -> Value {
@@ -910,8 +1065,9 @@ impl Lookups {
         };
         out["wind_solar"] = match self.get(&self.miso.renewables()).await {
             Ok(r) => json!({
-                "columns": ["hour_ending", "wind_forecast", "wind_actual", "solar_forecast", "solar_actual"],
-                "hours": r.hours.iter().map(|h| json!([h.hour_ending, opt(h.wind_forecast), opt(h.wind_actual), opt(h.solar_forecast), opt(h.solar_actual)])).collect::<Vec<_>>(),
+                "columns": ["hour_beginning", "wind_forecast", "wind_actual", "solar_forecast", "solar_actual"],
+                "hours": r.hours.iter().map(|h| json!([time(h.start), opt(h.wind_forecast), opt(h.wind_actual), opt(h.solar_forecast), opt(h.solar_actual)])).collect::<Vec<_>>(),
+                "note": "today and, once MISO posts it, tomorrow; actuals for the hours that have happened",
                 "terminal": "RENEW",
             }),
             Err(e) => json!({"error": e}),
@@ -1319,6 +1475,30 @@ impl Lookups {
             "terminal": "PORT",
         }))
     }
+}
+
+/// A day's reserve prices: MISO-wide by product, and only the zones whose
+/// price differs from MISO-wide (a zone's own requirement binding).
+fn asm_json(r: &mt_core::AsmDayReport) -> Value {
+    let system: serde_json::Map<String, Value> = r
+        .system
+        .iter()
+        .map(|(p, v)| (p.label().to_owned(), hours(v)))
+        .collect();
+    let zones: Vec<Value> = r
+        .zones
+        .iter()
+        .filter(|(_, p, v)| {
+            r.system(*p)
+                .is_some_and(|s| s.iter().zip(v.iter()).any(|(a, b)| (a - b).abs() > 0.01))
+        })
+        .map(|(z, p, v)| json!({"zone": z, "product": p.label(), "mcp": hours(v)}))
+        .collect();
+    json!({
+        "report": r.kind.label(),
+        "miso_wide": system,
+        "zones_above_miso_wide": zones,
+    })
 }
 
 fn unknown_node(node: &str) -> String {

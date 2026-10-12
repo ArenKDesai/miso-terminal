@@ -630,6 +630,95 @@ pub struct AncillaryMcps {
     pub zones: Vec<ZoneMcp>,
 }
 
+/// Which daily ancillary-service report an [`AsmDayReport`] came from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AsmReportKind {
+    DaExPost,
+    DaExAnte,
+    RtFinal,
+    RtPrelim,
+}
+
+impl AsmReportKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::DaExPost => "DA ex-post",
+            Self::DaExAnte => "DA ex-ante",
+            Self::RtFinal => "RT final",
+            Self::RtPrelim => "RT prelim",
+        }
+    }
+
+    pub fn market(self) -> Market {
+        match self {
+            Self::DaExPost | Self::DaExAnte => Market::DayAhead,
+            Self::RtFinal | Self::RtPrelim => Market::RealTime,
+        }
+    }
+}
+
+/// An operating reserve product with a market clearing price.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ReserveProduct {
+    Regulation,
+    Spinning,
+    Supplemental,
+    /// Regulation mileage (RT only, MISO-wide).
+    RegulationMileage,
+}
+
+impl ReserveProduct {
+    /// From a report's `MCP Type` (the generator-side MCPs; the demand-side
+    /// `DEM*` ones carry the same prices).
+    pub fn from_mcp_type(s: &str) -> Option<Self> {
+        match s.trim() {
+            "GENREGMCP" => Some(Self::Regulation),
+            "GENSPINMCP" => Some(Self::Spinning),
+            "GENSUPPMCP" => Some(Self::Supplemental),
+            "REGMILEAGEMCP" => Some(Self::RegulationMileage),
+            _ => None,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Regulation => "regulation",
+            Self::Spinning => "spinning",
+            Self::Supplemental => "supplemental",
+            Self::RegulationMileage => "regulation_mileage",
+        }
+    }
+}
+
+/// A day of hourly ancillary-service market clearing prices ($/MW) from
+/// MISO's daily ASM report: MISO-wide, and for each reserve zone (a zone's
+/// price exceeds MISO-wide when its own requirement binds). Missing hours
+/// are `NaN`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AsmDayReport {
+    pub kind: AsmReportKind,
+    pub day: NaiveDate,
+    pub system: Vec<(ReserveProduct, [f32; 24])>,
+    /// Zone label (`Zone 1`..`Zone 8`), product, prices.
+    pub zones: Vec<(String, ReserveProduct, [f32; 24])>,
+}
+
+impl AsmDayReport {
+    pub fn system(&self, product: ReserveProduct) -> Option<&[f32; 24]> {
+        self.system
+            .iter()
+            .find(|(p, _)| *p == product)
+            .map(|(_, v)| v)
+    }
+
+    pub fn zone(&self, zone: &str, product: ReserveProduct) -> Option<&[f32; 24]> {
+        self.zones
+            .iter()
+            .find(|(z, p, _)| z == zone && *p == product)
+            .map(|(_, _, v)| v)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

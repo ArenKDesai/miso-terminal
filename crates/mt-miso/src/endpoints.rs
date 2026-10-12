@@ -119,6 +119,13 @@ pub mod reports {
     /// Daily forecast and actual load by zone (`.xls`): MTLF for the next
     /// five days, dated the day it is published.
     pub const DF_AL: &str = "df_al";
+    /// Day-ahead ancillary-service MCPs, ex-post (posted with the DA results).
+    pub const ASM_DA_EXPOST: &str = "asm_expost_damcp";
+    pub const ASM_DA_EXANTE: &str = "asm_exante_damcp";
+    /// Real-time ancillary-service MCPs, hourly: final about a week later,
+    /// preliminary the next day.
+    pub const ASM_RT_FINAL: &str = "asm_rtmcp_final";
+    pub const ASM_RT_PRELIM: &str = "asm_rtmcp_prelim";
 }
 
 #[cfg(test)]

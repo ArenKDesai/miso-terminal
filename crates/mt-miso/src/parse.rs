@@ -982,7 +982,7 @@ pub fn parse_load_forecast_report(bytes: &[u8]) -> Result<LoadForecastReport, Fe
                 .is_some_and(|c| header_key(&xls_text(c)) == "marketday")
         })
         .ok_or_else(|| FetchError::parse(what, "no header row"))?;
-    // "LRZ1 MTLF (MWh)" -> ("LRZ1", column 2).
+    // "LRZ1 MTLF (MWh)" -> ("LRZ1", column 2); "LRZ1 ActualLoad (MWh)" -> column 3.
     let columns: Vec<(String, usize)> = rows[header_at]
         .iter()
         .enumerate()
@@ -992,10 +992,19 @@ pub fn parse_load_forecast_report(bytes: &[u8]) -> Result<LoadForecastReport, Fe
             Some((zone.trim().to_owned(), i))
         })
         .collect();
+    let actual_columns: Vec<Option<usize>> = columns
+        .iter()
+        .map(|(zone, _)| {
+            rows[header_at]
+                .iter()
+                .position(|c| xls_text(c).starts_with(&format!("{zone} ActualLoad")))
+        })
+        .collect();
     if columns.is_empty() {
         return Err(FetchError::parse(what, "no MTLF columns"));
     }
     let mut hours = Vec::new();
+    let mut actual = Vec::new();
     for r in &rows[header_at + 1..] {
         let cell = |i: usize| r.get(i).and_then(xls_number);
         // Day banners ("October 08, 2026") and the disclaimer have no hour.
@@ -1011,11 +1020,16 @@ pub fn parse_load_forecast_report(bytes: &[u8]) -> Result<LoadForecastReport, Fe
         if values.iter().any(Option::is_some) {
             hours.push((start, values));
         }
+        let loads: Vec<Option<f64>> = actual_columns.iter().map(|i| i.and_then(cell)).collect();
+        if loads.iter().any(Option::is_some) {
+            actual.push((start, loads));
+        }
     }
     Ok(LoadForecastReport {
         published,
         zones: columns.into_iter().map(|(z, _)| z).collect(),
         hours,
+        actual,
     })
 }
 
@@ -1210,6 +1224,71 @@ pub fn parse_day_report(
         return Err(FetchError::parse(what(), "no rows"));
     }
     Ok(DayLmpReport::new(kind, day, rows))
+}
+
+/// Parse a daily ancillary-service MCP report (`<date>_asm_expost_damcp.csv`,
+/// `_asm_exante_damcp`, `_asm_rtmcp_final`, `_asm_rtmcp_prelim`): a banner
+/// with the market day, a MISO-wide section (`MISO Wide` or `Miso-Wide`),
+/// then one row per pricing node, reserve zone and MCP type. A zone's price
+/// is the same at every node in it, so the first node of each zone stands
+/// for the zone.
+pub fn parse_asm_day(kind: AsmReportKind, body: &str) -> Result<AsmDayReport, FetchError> {
+    let what = || format!("{} ancillary-service report", kind.label());
+    let day = body
+        .lines()
+        .take(6)
+        .find_map(|l| {
+            let first = l.split(',').next()?.trim();
+            NaiveDate::parse_from_str(first, "%m/%d/%Y").ok()
+        })
+        .ok_or_else(|| FetchError::parse(what(), "no market day"))?;
+    let mut system: Vec<(ReserveProduct, [f32; 24])> = Vec::new();
+    let mut zones: Vec<(String, ReserveProduct, [f32; 24])> = Vec::new();
+    for line in body.lines() {
+        let cols: Vec<&str> = line.split(',').collect();
+        if cols.len() < 27 {
+            continue;
+        }
+        let Some(product) = ReserveProduct::from_mcp_type(cols[2]) else {
+            continue;
+        };
+        let mut prices = [f32::NAN; 24];
+        for (h, p) in prices.iter_mut().enumerate() {
+            if let Some(v) = parse_num(cols[3 + h]) {
+                *p = v as f32;
+            }
+        }
+        let place = cols[0].trim();
+        if place.to_ascii_lowercase().replace('-', " ") == "miso wide" {
+            if !system.iter().any(|(p, _)| *p == product) {
+                system.push((product, prices));
+            }
+        } else {
+            let zone = cols[1].trim();
+            if zone.starts_with("Zone") && !zones.iter().any(|(z, p, _)| z == zone && *p == product)
+            {
+                zones.push((zone.to_owned(), product, prices));
+            }
+        }
+    }
+    if system.is_empty() {
+        return Err(FetchError::parse(what(), "no MISO-wide prices"));
+    }
+    zones.sort_by_key(|z| (zone_number(&z.0), z.1));
+    Ok(AsmDayReport {
+        kind,
+        day,
+        system,
+        zones,
+    })
+}
+
+/// `Zone 8` -> 8, for ordering.
+fn zone_number(zone: &str) -> u32 {
+    zone.trim_start_matches("Zone")
+        .trim()
+        .parse()
+        .unwrap_or(u32::MAX)
 }
 
 /// The market day a daily LMP report names on its second line (`10/06/2026`,

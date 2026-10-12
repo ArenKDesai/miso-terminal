@@ -14,7 +14,7 @@ IP address and the program's name, version and repository in the
 The terminal keeps no cookies.
 
 - **MISO** (`public-api.misoenergy.org`, `docs.misoenergy.org`), for panels
-  with MISO data, the price history's backfill and the forecasts kept as
+  with MISO data, the assistant's lookups, the price history's backfill and the forecasts kept as
   issued (its daily load forecast reports, wind and solar forecasts and
   outage schedule, asked for in the background while the terminal runs
   unless *Forecasts kept as issued* is off in `SET`): requests for public
