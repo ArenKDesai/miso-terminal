@@ -18,10 +18,12 @@ mt-miso.workspace = true
 mt-news.workspace = true
 mt-alpaca.workspace = true
 mt-ui.workspace = true
+mt-ai.workspace = true
 anyhow.workspace = true
 directories.workspace = true
 eframe.workspace = true
-tokio.workspace = true
+# --mcp reads stdin and writes stdout.
+tokio = { workspace = true, features = ["io-std"] }
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true

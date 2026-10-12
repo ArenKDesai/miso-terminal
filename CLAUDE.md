@@ -146,7 +146,15 @@ keys, and anything Aren has asked to see.
   read-only `ToolBox`, input checking), `usage.rs` (costs, the ledger) and
   `config.rs` (`[ai]`; model ids and prices are configuration). Its tests
   run against a fake API (`tests/fake_server.rs`); nothing in CI calls
-  Anthropic.
+  Anthropic. `mcp.rs` serves a `ToolBox` over MCP (stdio) for
+  `miso-terminal --mcp`.
+- `crates/mt-ui/src/assistant/`: the assistant's lookups (`tools.rs`,
+  `Lookups`: a hub and the sources' query builders, never the order desk or
+  an `AppCommand` sender; `tests/assistant_tools.rs` runs every tool on the
+  fixtures and checks each request is a GET) and the system prompt
+  (`prompt.rs`, which must not change between questions: it is cached). A
+  new tool adds a spec, a match arm and a line in that test; the order of
+  the specs is part of the cached prompt.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.

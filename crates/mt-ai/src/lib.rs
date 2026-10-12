@@ -7,6 +7,8 @@
 //!   tokens and money, and cancelling.
 //! - [`tools`]: the read-only [`ToolBox`] the loop (and the MCP server) calls,
 //!   with input checking.
+//! - [`mcp`]: the same tools over the Model Context Protocol (stdio), for
+//!   Claude Desktop and Claude Code.
 //! - [`usage`]: tokens, costs and the monthly ledger; [`config`]: `[ai]`.
 //!
 //! No UI and no writes: tools get data, never an order desk or app commands.
@@ -14,6 +16,7 @@
 pub mod api;
 pub mod config;
 pub mod conversation;
+pub mod mcp;
 pub mod tools;
 pub mod usage;
 
