@@ -96,7 +96,6 @@ impl TurnRequest {
                     "name": t.name,
                     "description": t.description,
                     "input_schema": t.input_schema,
-                    "strict": true,
                 })
             })
             .collect();
@@ -130,6 +129,14 @@ impl TurnRequest {
         body
     }
 }
+
+// Tools are not sent in strict mode. Tried 2026-10-12: strict mode drops
+// every optional property from Claude's input unless the schema makes it
+// required and nullable, refuses `minimum`, `maxLength` and the like, and
+// allows at most 16 nullable parameters across all tools (the lookups have
+// 23). The full schemas go as they are, and `tools::run` checks every input
+// against them before a tool runs, so a bad input comes back to Claude as an
+// error result instead of reaching a tool.
 
 /// Why the model stopped.
 #[derive(Clone, Debug, PartialEq)]

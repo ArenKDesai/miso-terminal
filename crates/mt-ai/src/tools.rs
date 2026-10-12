@@ -2,9 +2,9 @@
 //! described by a JSON Schema. The same box serves the in-app assistant and
 //! the MCP server.
 //!
-//! Inputs are checked against the schema before a tool runs ([`validate`]),
-//! even though the API's strict mode already holds Claude to it: the MCP
-//! server's callers are not held to anything.
+//! Inputs are checked against the schema before a tool runs ([`validate`]):
+//! the API's strict mode does not fit these tools (see `api.rs`), and the
+//! MCP server's callers are not held to anything.
 
 use serde::Serialize;
 use serde_json::Value;
@@ -46,8 +46,49 @@ pub async fn run(tools: &dyn ToolBox, name: &str, input: Value) -> ToolResult {
     let Some(spec) = tools.specs().into_iter().find(|s| s.name == name) else {
         return Err(format!("there is no tool named {name}"));
     };
+    let input = drop_nulls(&spec.input_schema, input);
     validate(&spec.input_schema, &input).map_err(|e| format!("invalid input: {e}"))?;
     tools.call(name, input).await
+}
+
+/// Some clients send `null` for a property they mean to leave out (MCP
+/// clients, or Claude now and then): drop those, at every level, so tools
+/// see only what was asked for. A `null` the schema allows is kept.
+pub fn drop_nulls(schema: &Value, input: Value) -> Value {
+    match input {
+        Value::Object(map) => {
+            let props = schema.get("properties").and_then(Value::as_object);
+            Value::Object(
+                map.into_iter()
+                    .filter_map(|(k, v)| {
+                        let sub = props.and_then(|p| p.get(&k));
+                        let allows_null = sub.is_some_and(|s| is_type_allowed(s, "null"));
+                        if v.is_null() && !allows_null {
+                            return None;
+                        }
+                        let v = match sub {
+                            Some(s) => drop_nulls(s, v),
+                            None => v,
+                        };
+                        Some((k, v))
+                    })
+                    .collect(),
+            )
+        }
+        Value::Array(items) => {
+            let item = schema.get("items").cloned().unwrap_or(Value::Null);
+            Value::Array(items.into_iter().map(|v| drop_nulls(&item, v)).collect())
+        }
+        v => v,
+    }
+}
+
+fn is_type_allowed(schema: &Value, t: &str) -> bool {
+    match schema.get("type") {
+        Some(Value::String(s)) => s == t,
+        Some(Value::Array(a)) => a.iter().any(|x| x == t),
+        _ => false,
+    }
 }
 
 /// Check `value` against the subset of JSON Schema the tools use: `type`
@@ -173,6 +214,18 @@ mod tests {
         let ok = json!({"node": "MINN.HUB", "days": 7, "market": "rt",
             "nodes": ["A", "B"], "note": null});
         assert_eq!(validate(&schema(), &ok), Ok(()));
+    }
+
+    #[test]
+    fn nulls_for_left_out_fields_are_dropped() {
+        let sent = json!({"node": "A", "days": null, "market": null, "nodes": null, "note": null});
+        let input = drop_nulls(&schema(), sent);
+        assert_eq!(
+            input,
+            json!({"node": "A", "note": null}),
+            "note allows null"
+        );
+        assert_eq!(validate(&schema(), &input), Ok(()));
     }
 
     #[test]

@@ -6,6 +6,7 @@ mod acct;
 mod ace;
 mod act;
 mod alrt;
+mod ask;
 mod asm;
 mod bch;
 mod beta;
@@ -54,6 +55,7 @@ use crate::function::FunctionSpec;
 pub fn all() -> Vec<FunctionSpec> {
     vec![
         home::SPEC,
+        ask::SPEC,
         lmp::SPEC,
         hubs::SPEC,
         dam::SPEC,

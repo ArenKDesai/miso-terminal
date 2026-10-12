@@ -99,6 +99,7 @@ New to the terminal? The [tutorials](docs/TUTORIALS.md) walk through it.
 | Code | Name | What it shows |
 |---|---|---|
 | `HOME` | Launchpad | Demand, marginal energy, interchange, generation, hub prices with sparklines, fuel mix, constraints, weather, top stories and the paper account's equity |
+| `ASK` | Ask Claude | Questions about MISO and the markets, answered with the terminal's own data, showing each lookup and the commands to check it (`ASK why did RT spike at INDIANA.HUB yesterday`); needs an Anthropic API key and a monthly cap in `SET`, or use Claude Desktop with `--mcp` |
 | `LMP` | LMP monitor | ~300 key nodes (`LMP ALL`: all ~2,600) with RT, DA, RT − DA, congestion and loss; sort and filter |
 | `HUBS` | Hub statistics | The eight trading hubs over N days: averages, on- and off-peak, volatility, extremes |
 | `DAM` | Day-ahead strip | Hourly DA at the hubs for a day, with block averages, or the change from the day before |
@@ -239,7 +240,46 @@ The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
       HUBS for any window.
 - [ ] **`ASK`:** a Claude assistant with read-only tools over the terminal's
       data, through Claude Desktop or Claude Code (the terminal as an MCP
-      server) or in the terminal with an API key.
+      server) or in the terminal with an API key. Found while trying it on
+      2026-10-12 (ASK now answers: a question about tomorrow's $1,000 DA
+      took three requests and about $0.08 on Opus 5.5):
+  - [x] Strict tool use broke every request (`minimum`/`maxLength` refused;
+        optional fields silently dropped; at most 16 nullable parameters
+        across tools). Tools now go without strict mode, checked by
+        `tools::run` before they run.
+  - [ ] Render the answer's Markdown: bold, bullets and `code` show as raw
+        `**`, `-` and backticks.
+  - [ ] The answer's closing line of backticked commands repeats the
+        *Open:* buttons under it; drop one (ask for no such line, or hide it).
+  - [ ] Tell Claude that MISO's "DA ex-post" report for tomorrow is the
+        final day-ahead result (it called tomorrow's prices "labelled DA
+        ex-post, but new", and doubted them).
+  - [ ] The check program (`cargo run -p mt-ui --example
+        check_anthropic_request`, free) uses the token counter, which
+        accepted schemas the real endpoint refused (the 16-union limit);
+        make it send one tiny real request too.
+  - [ ] `tools/screenshot.py` wrote an empty image after `--wait 240` (the
+        display may have slept); 90 s worked.
+  - [ ] A billing refusal reads as *Anthropic rejected the request
+        (invalid_request_error): Your credit balance is too low…*; say what
+        to do instead (add credits at console.anthropic.com, *Plans &
+        Billing*), and have SET check the key like it checks Alpaca's, so
+        ASK does not look ready when every question will fail.
+  - [ ] `price_extremes` stops at today, so it cannot search tomorrow's DA
+        once MISO posts it (it read 0 days for 2026-10-13).
+  - [ ] `system_conditions` lists today's and tomorrow's wind and solar
+        forecasts as hour ending 1-24 twice with no date; tomorrow's rows
+        read as today's.
+  - [ ] Lookups for tomorrow are missing: DA reserve prices (MISO's DA
+        ancillary report), the next-day reserve requirement (`CAP` has it),
+        and tomorrow's load forecast (the forecasts kept as issued have it).
+        A question about tomorrow's DA prices needs all three to tell a
+        reserve shortage from the top of the offer stack.
+  - [ ] Per-day stores for the operating feeds (load, fuel mix,
+        interchange, ACE, transfers, reserves, constraints), so questions
+        about past days have more than prices and constraints.
+  - [ ] A snapshot test of a recorded ASK conversation, and the hand-run
+        evaluation set.
 - [ ] An update check, off by default (a link, never a download).
 - [ ] The docs site deploys from published releases, not from `main`.
 

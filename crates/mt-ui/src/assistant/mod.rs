@@ -2,6 +2,7 @@
 //! The conversation itself lives in `mt-ai`; this module joins it to the
 //! terminal's data.
 
+pub mod ledger;
 pub mod prompt;
 pub mod tools;
 

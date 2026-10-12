@@ -14,6 +14,16 @@ notes are that section.
 
 ### Added
 
+- **`ASK`: ask Claude inside the terminal.** With an Anthropic API key
+  (`SET`, *Credentials*) and a monthly spending cap above $0 (*Assistant
+  (ASK)*, which starts at $0), Claude answers questions with the same
+  read-only lookups as `--mcp`: the answer streams in, the lookups show as
+  they run, and the commands it names open the panels that show the data.
+  Each answer shows its tokens and cost, `LOG` lists each request, and the
+  cap holds across restarts. `SET` picks the model and effort and shows the
+  Claude Desktop and Claude Code setup for `--mcp`. The privacy policy now
+  lists Anthropic.
+
 - **Ask Claude about the market (`--mcp`).** `miso-terminal --mcp` serves
   read-only lookups to Claude Desktop and Claude Code over the Model Context
   Protocol: nodes by name or place, a node's DA and RT prices with their

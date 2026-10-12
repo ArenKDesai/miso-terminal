@@ -32,6 +32,7 @@ cargo run -p mt-news --example capture_news          # re-record the news feeds 
 cargo run -p mt-alpaca --example capture_alpaca      # re-record Alpaca (needs keys; prices made synthetic, stories sampled)
 cargo run -p mt-alpaca --example check_paper_orders  # the order desk against the live paper API (needs paper keys; one order, cancelled)
 cargo run -p mt-alpaca --example check_option_orders # an option order and a spread against the live paper API (paper keys; both cancelled)
+cargo run -p mt-ui --example check_anthropic_request  # ASK's request body checked by Anthropic's free token counter (needs the API key and credits)
 uv run tools/sample_account.py         # rewrite the sample paper account and its orders (after re-recording Alpaca)
 uv run tools/sample_options.py         # then the sample option chains (OMON) around the account's contracts
 cargo run -p mt-theme --example sync_everforge -- ..\everforge
@@ -157,6 +158,11 @@ keys, and anything Aren has asked to see.
   the specs is part of the cached prompt. Data code shared with panels takes
   `context::Sources` (`impl Into<Sources>`; panels pass `&*cx`), never
   `PanelCx`, so a lookup can run it, waiting with `DataHub::settled`.
+  `functions/ask.rs` is the ASK panel: it runs `mt_ai::ask` on the hub's
+  runtime, records each request's cost with `assistant::ledger` (the cap's
+  only record), and offers an answer's backticked commands as buttons
+  (never BUY, SELL, MLEG or ORD). The Anthropic key is
+  `anthropic/api-key` in the secret store.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.

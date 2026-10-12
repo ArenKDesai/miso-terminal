@@ -67,6 +67,10 @@ const CREDENTIALS: &[Credential] = &[
         name: "alpaca/paper/secret-key",
         label: "Alpaca paper secret key",
     },
+    Credential {
+        name: mt_ai::api::KEY_NAME,
+        label: "Anthropic API key (ASK)",
+    },
 ];
 
 /// The credentials section's state. Whether each key is stored is read from
@@ -220,6 +224,7 @@ impl Panel for Settings {
 
             trading(ui, cx, &mut draft, &mut self.restricted);
 
+            assistant(ui, cx, &mut draft);
             credentials(ui, cx, &mut self.keys);
 
             widgets::section(ui, skin, "MISO endpoints");
@@ -699,6 +704,125 @@ fn markets(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig) {
     );
 }
 
+/// ASK's model, effort and limits, and how to use the terminal from Claude
+/// Desktop or Claude Code instead.
+fn assistant(ui: &mut Ui, cx: &PanelCx<'_>, draft: &mut AppConfig) {
+    let skin = cx.skin;
+    widgets::section(ui, skin, "Assistant (ASK)");
+    let ai = &mut draft.ai;
+    let models = ai.model_list();
+    let spent = crate::assistant::ledger::spent_this_month(&crate::assistant::ledger::path(
+        &cx.paths.state_file,
+    ));
+    Grid::new("set-ai")
+        .num_columns(3)
+        .spacing([16.0, 6.0])
+        .show(ui, |ui| {
+            ui.label("Model");
+            let current = ai.model_info();
+            egui::ComboBox::from_id_salt("set-ai-model")
+                .selected_text(&current.label)
+                .width(220.0)
+                .show_ui(ui, |ui| {
+                    for m in &models {
+                        ui.selectable_value(&mut ai.model, m.id.clone(), &m.label);
+                    }
+                });
+            ui.label(
+                RichText::new(format!(
+                    "${:.2} in, ${:.2} out per million tokens",
+                    current.input_per_mtok, current.output_per_mtok
+                ))
+                .small()
+                .color(skin.text_muted),
+            );
+            ui.end_row();
+            ui.label("Effort");
+            egui::ComboBox::from_id_salt("set-ai-effort")
+                .selected_text(ai.effort.as_str())
+                .show_ui(ui, |ui| {
+                    for e in mt_ai::Effort::ALL {
+                        ui.selectable_value(&mut ai.effort, e, e.as_str());
+                    }
+                });
+            ui.label(
+                RichText::new("more effort: deeper answers, more tokens")
+                    .small()
+                    .color(skin.text_muted),
+            );
+            ui.end_row();
+            ui.label("Monthly spending cap");
+            ui.add(
+                egui::DragValue::new(&mut ai.monthly_cap_usd)
+                    .speed(0.5)
+                    .prefix("$")
+                    .range(0.0..=1000.0),
+            );
+            ui.label(
+                RichText::new(if spent.is_finite() {
+                    format!("${spent:.2} spent this month; at $0 ASK sends nothing")
+                } else {
+                    "the usage ledger cannot be read: ASK sends nothing until it can".into()
+                })
+                .small()
+                .color(skin.text_muted),
+            );
+            ui.end_row();
+            ui.label("Lookup rounds per question");
+            ui.add(egui::DragValue::new(&mut ai.max_rounds).range(1..=40));
+            ui.label("");
+            ui.end_row();
+            ui.label("Search the web");
+            ui.checkbox(&mut ai.web_search, "");
+            ui.label(
+                RichText::new(
+                    "for questions the terminal has no data for; $10 per 1,000 searches, cited",
+                )
+                .small()
+                .color(skin.text_muted),
+            );
+            ui.end_row();
+            ui.label("Let ASK see the paper account");
+            ui.checkbox(&mut ai.share_paper_account, "");
+            ui.label(
+                RichText::new("positions and P&L, read only; also for Claude through --mcp")
+                    .small()
+                    .color(skin.text_muted),
+            );
+            ui.end_row();
+        });
+    ui.add_space(4.0);
+    ui.label(
+        RichText::new(
+            "With a Claude plan instead: add the terminal to Claude Desktop \
+             (Settings, Developer, Edit Config) or Claude Code as an MCP server. It answers \
+             from the same data, and the terminal sends nothing to Anthropic itself.",
+        )
+        .small()
+        .color(skin.text_muted),
+    );
+    let exe = std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "miso-terminal.exe".into());
+    let snippet = serde_json::to_string_pretty(&serde_json::json!({
+        "mcpServers": {"miso-terminal": {"command": exe, "args": ["--mcp"]}}
+    }))
+    .unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(&snippet).monospace().small());
+        if ui.small_button("Copy").clicked() {
+            ui.ctx().copy_text(snippet.clone());
+        }
+    });
+    let claude_code = format!("claude mcp add miso-terminal -- \"{exe}\" --mcp");
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(&claude_code).monospace().small());
+        if ui.small_button("Copy").clicked() {
+            ui.ctx().copy_text(claude_code.clone());
+        }
+    });
+}
+
 fn credentials(ui: &mut Ui, cx: &mut PanelCx<'_>, keys: &mut Keys) {
     let skin = cx.skin;
     let store = cx.hub.ctx().secrets().clone();
@@ -706,8 +830,10 @@ fn credentials(ui: &mut Ui, cx: &mut PanelCx<'_>, keys: &mut Keys) {
     ui.label(
         RichText::new(format!(
             "Kept in {}, never in config.toml, saved layouts or logs. Alpaca's keys bring \
-             stock and ETF prices (Q, GP, DES, CN) and, later, paper trading: sign up at \
-             alpaca.markets and create paper-trading keys in its dashboard.",
+             stock and ETF prices (Q, GP, DES, CN) and paper trading: sign up at \
+             alpaca.markets and create paper-trading keys in its dashboard. An Anthropic \
+             API key (console.anthropic.com) lets ASK answer in the terminal, paid per \
+             question; it is sent only to api.anthropic.com.",
             store.describe()
         ))
         .small()
