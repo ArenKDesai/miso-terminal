@@ -24,6 +24,14 @@ notes are that section.
   Claude Desktop and Claude Code setup for `--mcp`. The privacy policy now
   lists Anthropic.
 
+- **Reserve prices and load by day, for ASK and `--mcp`.** The `reserves`
+  lookup takes a date: MISO's hourly DA reserve prices (tomorrow's once the
+  day-ahead market clears) and RT reserve prices, MISO-wide and for zones
+  priced above it, with tomorrow's short-term reserve requirement. The new
+  `load` lookup gives a day's load forecast by zone and, for a past day,
+  the actual load. `price_extremes` now searches tomorrow's DA, and wind and
+  solar rows carry their dates.
+
 - **Ask Claude about the market (`--mcp`).** `miso-terminal --mcp` serves
   read-only lookups to Claude Desktop and Claude Code over the Model Context
   Protocol: nodes by name or place, a node's DA and RT prices with their

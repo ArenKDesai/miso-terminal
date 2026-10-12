@@ -169,7 +169,12 @@ under *Credentials*, the month's spending in `ai-usage.json` beside the
 layout (`assistant::ledger`, recorded after every request; an unreadable
 ledger sends nothing), LOG lines per request and the privacy policy. Not
 yet: a snapshot of a recorded conversation, per-day stores for the
-operating feeds, and the evaluation set.
+operating feeds, and the evaluation set. *Built (step 5):* MISO's daily
+reserve price reports (`AsmDayReport`, `Miso::asm_day`: DA ex-post else
+ex-ante, RT final else preliminary) and the load report's actuals
+(`Miso::load_report`), so `reserves` and the new `load` lookup answer for
+past days and tomorrow; the operating feeds MISO keeps no history of still
+need stores.
 
 - **The loop:** the question with the tool definitions; while Claude calls
   tools, run them (in parallel where independent) and send all results back

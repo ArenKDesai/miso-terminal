@@ -265,19 +265,16 @@ The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
         to do instead (add credits at console.anthropic.com, *Plans &
         Billing*), and have SET check the key like it checks Alpaca's, so
         ASK does not look ready when every question will fail.
-  - [ ] `price_extremes` stops at today, so it cannot search tomorrow's DA
-        once MISO posts it (it read 0 days for 2026-10-13).
-  - [ ] `system_conditions` lists today's and tomorrow's wind and solar
-        forecasts as hour ending 1-24 twice with no date; tomorrow's rows
-        read as today's.
-  - [ ] Lookups for tomorrow are missing: DA reserve prices (MISO's DA
-        ancillary report), the next-day reserve requirement (`CAP` has it),
-        and tomorrow's load forecast (the forecasts kept as issued have it).
-        A question about tomorrow's DA prices needs all three to tell a
-        reserve shortage from the top of the offer stack.
-  - [ ] Per-day stores for the operating feeds (load, fuel mix,
-        interchange, ACE, transfers, reserves, constraints), so questions
-        about past days have more than prices and constraints.
+  - [x] `price_extremes` stopped at today; it now reaches tomorrow's DA.
+  - [x] `system_conditions` listed wind and solar by hour ending with no
+        date; rows now carry their hour beginning.
+  - [x] Lookups for tomorrow and past days: `reserves` takes a date (DA and
+        RT reserve prices from MISO's daily reports, and tomorrow's
+        short-term reserve requirement), and `load` gives a day's MTLF and,
+        for a past day, its actual load.
+  - [ ] Per-day stores for the operating feeds MISO keeps no history of
+        (fuel mix, interchange, ACE, transfers), so questions about past
+        days have more than prices, constraints, reserves and load.
   - [ ] A snapshot test of a recorded ASK conversation, and the hand-run
         evaluation set.
 - [ ] An update check, off by default (a link, never a download).

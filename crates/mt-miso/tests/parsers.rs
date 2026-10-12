@@ -422,5 +422,72 @@ fn load_forecast_report() {
         let zones: f64 = v[..v.len() - 1].iter().flatten().sum();
         assert!((zones / miso - 1.0).abs() < 0.05, "{t}: {zones} vs {miso}");
     }
+    // The day before publication has its actual load, close to the forecast.
+    assert_eq!(r.actual.len(), 24, "one day of actuals");
+    assert_eq!(r.actual[0].0, first);
+    for ((t, actual), (_, forecast)) in r.actual.iter().zip(&r.hours) {
+        let (a, f) = (
+            actual.last().copied().flatten().unwrap(),
+            forecast.last().copied().flatten().unwrap(),
+        );
+        assert!((a / f - 1.0).abs() < 0.15, "{t}: actual {a} vs MTLF {f}");
+    }
     assert!(parse_load_forecast_report(b"not a workbook").is_err());
+}
+
+#[test]
+fn ancillary_day_reports() {
+    use mt_core::{AsmReportKind, ReserveProduct};
+    for (suffix, kind) in [
+        ("asm_expost_damcp", AsmReportKind::DaExPost),
+        ("asm_exante_damcp", AsmReportKind::DaExAnte),
+        ("asm_rtmcp_final", AsmReportKind::RtFinal),
+        ("asm_rtmcp_prelim", AsmReportKind::RtPrelim),
+    ] {
+        let (day, body) = report(suffix);
+        let r = parse_asm_day(kind, &body).unwrap_or_else(|e| panic!("{suffix}: {e}"));
+        assert_eq!(r.day, day, "{suffix}");
+        for p in [
+            ReserveProduct::Regulation,
+            ReserveProduct::Spinning,
+            ReserveProduct::Supplemental,
+        ] {
+            let system = r
+                .system(p)
+                .unwrap_or_else(|| panic!("{suffix}: no MISO-wide {p:?}"));
+            assert!(
+                system
+                    .iter()
+                    .all(|v| v.is_finite() && (0.0..=10_000.0).contains(v)),
+                "{suffix} {p:?}: {system:?}"
+            );
+            // Eight reserve zones, never below MISO-wide.
+            let zones: Vec<_> = r.zones.iter().filter(|z| z.1 == p).collect();
+            assert_eq!(zones.len(), 8, "{suffix} {p:?}");
+            for (zone, _, prices) in zones {
+                for h in 0..24 {
+                    assert!(
+                        prices[h] >= system[h] - 0.01,
+                        "{suffix} {zone} {p:?} HE{}: {} < {}",
+                        h + 1,
+                        prices[h],
+                        system[h]
+                    );
+                }
+            }
+        }
+        // Reserves nest: regulation >= spinning >= supplemental.
+        let reg = r.system(ReserveProduct::Regulation).unwrap();
+        let spin = r.system(ReserveProduct::Spinning).unwrap();
+        let supp = r.system(ReserveProduct::Supplemental).unwrap();
+        for h in 0..24 {
+            assert!(
+                reg[h] >= spin[h] - 0.01 && spin[h] >= supp[h] - 0.01,
+                "{suffix} HE{}",
+                h + 1
+            );
+        }
+        assert_eq!(r.zones[0].0, "Zone 1");
+    }
+    assert!(parse_asm_day(AsmReportKind::DaExPost, "nothing here").is_err());
 }

@@ -205,6 +205,9 @@ pub struct LoadForecastReport {
     pub zones: Vec<String>,
     /// Hour beginning (market time) and the MTLF for each zone, MW.
     pub hours: Vec<(NaiveDateTime, Vec<Option<f64>>)>,
+    /// Hour beginning and the actual load for each zone, MW: the day before
+    /// publication (the hours that have happened).
+    pub actual: Vec<(NaiveDateTime, Vec<Option<f64>>)>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
