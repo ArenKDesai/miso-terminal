@@ -157,6 +157,11 @@ keys, and anything Aren has asked to see.
   the specs is part of the cached prompt. Data code shared with panels takes
   `context::Sources` (`impl Into<Sources>`; panels pass `&*cx`), never
   `PanelCx`, so a lookup can run it, waiting with `DataHub::settled`.
+  `functions/ask.rs` is the ASK panel: it runs `mt_ai::ask` on the hub's
+  runtime, records each request's cost with `assistant::ledger` (the cap's
+  only record), and offers an answer's backticked commands as buttons
+  (never BUY, SELL, MLEG or ORD). The Anthropic key is
+  `anthropic/api-key` in the secret store.
 - `crates/mt-news`: RSS/Atom headlines, the built-in feeds and NI topics
   (`config.rs`), merging and the on-disk archive. `mt-ui/src/news.rs` combines
   feeds for panels and holds the headline browser TOP, NEWS and NI share.

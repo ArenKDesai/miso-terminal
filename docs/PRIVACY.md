@@ -37,6 +37,17 @@ The terminal keeps no cookies.
   `paper-api.alpaca.markets`), only once you enter your own Alpaca keys in
   `SET`: your keys (to Alpaca only), the symbols you look at, and the orders
   you confirm on a ticket. [Alpaca's policy](https://alpaca.markets/privacy-policy).
+- **Anthropic** (`api.anthropic.com`), only for `ASK`, and only once you
+  enter your own Anthropic API key in `SET` and raise the monthly cap above
+  $0 (it starts at $0): your key (to Anthropic only, never through a
+  redirect), each question you ask, the conversation so far, and the
+  results of the lookups Claude makes to answer it, which are public market
+  data, plus the paper account's positions and balances only if *Let ASK see
+  the paper account* is on in `SET` (off by default). Never other keys, the
+  order audit log or your files. With *Search the web* on, Claude may also
+  search the web through Anthropic. Conversations are kept in memory only,
+  and what this month has cost in `ai-usage.json` beside the layout.
+  [Anthropic's policy](https://www.anthropic.com/legal/privacy).
 - **GitHub Pages** (`arenkdesai.github.io`), when `THEME` shows the theme
   gallery: the gallery's list and the theme you install.
   [GitHub's policy](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
@@ -57,8 +68,8 @@ updates this page in the same pull request, and the
 
 - Settings, themes and fonts: `%APPDATA%\MISO Terminal\config`.
 - The cache, the price history, the forecasts kept as issued, saved
-  headlines (titles and links), the layout, logs, and the audit log of orders
-  you placed:
+  headlines (titles and links), the layout, logs, the audit log of orders
+  you placed, and what ASK has cost this month (`ai-usage.json`):
   `%LOCALAPPDATA%\MISO Terminal`.
 - API keys: Windows Credential Manager, never in files or logs. `SET`
   removes them.

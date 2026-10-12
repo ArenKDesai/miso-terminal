@@ -99,6 +99,7 @@ New to the terminal? The [tutorials](docs/TUTORIALS.md) walk through it.
 | Code | Name | What it shows |
 |---|---|---|
 | `HOME` | Launchpad | Demand, marginal energy, interchange, generation, hub prices with sparklines, fuel mix, constraints, weather, top stories and the paper account's equity |
+| `ASK` | Ask Claude | Questions about MISO and the markets, answered with the terminal's own data, showing each lookup and the commands to check it (`ASK why did RT spike at INDIANA.HUB yesterday`); needs an Anthropic API key and a monthly cap in `SET`, or use Claude Desktop with `--mcp` |
 | `LMP` | LMP monitor | ~300 key nodes (`LMP ALL`: all ~2,600) with RT, DA, RT − DA, congestion and loss; sort and filter |
 | `HUBS` | Hub statistics | The eight trading hubs over N days: averages, on- and off-peak, volatility, extremes |
 | `DAM` | Day-ahead strip | Hourly DA at the hubs for a day, with block averages, or the change from the day before |

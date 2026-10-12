@@ -163,8 +163,13 @@ cache rather than the running terminal's (simpler, and the cache is shared
 anyway). *Built (step 3):* `forecast`, `securities` and `paper_account`
 (`[ai] share_paper_account`, off by default); FCST's data code takes
 `Sources` (hub and query builders) so a lookup runs it outside a frame,
-waiting with `DataHub::settled`. Next: the ASK panel, SET and the privacy
-policy, then per-day stores for the operating feeds.
+waiting with `DataHub::settled`. *Built (step 4):* the ASK panel
+(`functions/ask.rs`), SET's *Assistant (ASK)* section and the Anthropic key
+under *Credentials*, the month's spending in `ai-usage.json` beside the
+layout (`assistant::ledger`, recorded after every request; an unreadable
+ledger sends nothing), LOG lines per request and the privacy policy. Not
+yet: a snapshot of a recorded conversation, per-day stores for the
+operating feeds, and the evaluation set.
 
 - **The loop:** the question with the tool definitions; while Claude calls
   tools, run them (in parallel where independent) and send all results back
