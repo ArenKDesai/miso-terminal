@@ -240,7 +240,34 @@ The [analytics plan](docs/ANALYTICS-PLAN.md) has the design.
       HUBS for any window.
 - [ ] **`ASK`:** a Claude assistant with read-only tools over the terminal's
       data, through Claude Desktop or Claude Code (the terminal as an MCP
-      server) or in the terminal with an API key.
+      server) or in the terminal with an API key. Found while trying it on
+      2026-10-12:
+  - [ ] Verify the request against the live API: Anthropic refuses every
+        call from an account without credits (even token counting) before
+        checking the request, so the body (strict tools, effort, caching,
+        `fallbacks`, web search) is tested only against the fake API. With
+        credits, run `cargo run -p mt-ai --example check_anthropic_request`
+        (free), then one real question.
+  - [ ] A billing refusal reads as *Anthropic rejected the request
+        (invalid_request_error): Your credit balance is too low…*; say what
+        to do instead (add credits at console.anthropic.com, *Plans &
+        Billing*), and have SET check the key like it checks Alpaca's, so
+        ASK does not look ready when every question will fail.
+  - [ ] `price_extremes` stops at today, so it cannot search tomorrow's DA
+        once MISO posts it (it read 0 days for 2026-10-13).
+  - [ ] `system_conditions` lists today's and tomorrow's wind and solar
+        forecasts as hour ending 1-24 twice with no date; tomorrow's rows
+        read as today's.
+  - [ ] Lookups for tomorrow are missing: DA reserve prices (MISO's DA
+        ancillary report), the next-day reserve requirement (`CAP` has it),
+        and tomorrow's load forecast (the forecasts kept as issued have it).
+        A question about tomorrow's DA prices needs all three to tell a
+        reserve shortage from the top of the offer stack.
+  - [ ] Per-day stores for the operating feeds (load, fuel mix,
+        interchange, ACE, transfers, reserves, constraints), so questions
+        about past days have more than prices and constraints.
+  - [ ] A snapshot test of a recorded ASK conversation, and the hand-run
+        evaluation set.
 - [ ] An update check, off by default (a link, never a download).
 - [ ] The docs site deploys from published releases, not from `main`.
 
