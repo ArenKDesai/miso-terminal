@@ -170,6 +170,13 @@ struct Setup {
     api: Arc<FakeApi>,
     client: Anthropic,
     events: EventLog,
+    ctx: FetchCtx,
+}
+
+impl Setup {
+    fn client_ctx(&self) -> FetchCtx {
+        self.ctx.clone()
+    }
 }
 
 fn setup(answers: Vec<Response>) -> Setup {
@@ -188,12 +195,13 @@ fn setup(answers: Vec<Response>) -> Setup {
         },
         events.clone(),
     );
-    let mut client = Anthropic::new(ctx);
+    let mut client = Anthropic::new(ctx.clone());
     client.retry_base = Duration::from_millis(1);
     Setup {
         api,
         client,
         events,
+        ctx,
     }
 }
 
@@ -499,6 +507,23 @@ async fn busy_and_rate_limited_requests_are_retried() {
         Ending::Failed(mt_ai::AiError::Busy("overloaded_error".into()))
     );
 
+    // An account without credits: said plainly, not retried.
+    let s = setup(vec![status(
+        400,
+        &[],
+        r#"{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."}}"#,
+    )]);
+    let (out, _) = run(
+        &s,
+        &Prices::default(),
+        &AiConfig::default(),
+        &mut Conversation::default(),
+        "?",
+    )
+    .await;
+    assert_eq!(out.ending, Ending::Failed(mt_ai::AiError::NoCredit));
+    assert_eq!(s.api.asked.lock().len(), 1);
+
     // A bad request is not retried.
     let s = setup(vec![status(
         400,
@@ -642,4 +667,33 @@ async fn cancelling_leaves_the_conversation_as_it_was() {
     .await;
     assert_eq!(out.ending, Ending::Cancelled);
     assert_eq!(conv, before);
+}
+
+#[tokio::test]
+async fn the_key_check_tells_ready_from_no_credit_and_refused() {
+    use mt_ai::{KeyCheckQuery, KeyStatus};
+    use mt_data::Query;
+    let q = KeyCheckQuery {
+        model: "claude-opus-5-5".into(),
+    };
+    let credit = r#"{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}"#;
+    let s = setup(vec![
+        status(200, &[], r#"{"input_tokens":8}"#),
+        status(400, &[], credit),
+        status(
+            401,
+            &[],
+            r#"{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}"#,
+        ),
+    ]);
+    let ctx = || s.client_ctx();
+    assert_eq!(q.fetch(ctx(), None).await, Ok(KeyStatus::Ready));
+    assert_eq!(q.fetch(ctx(), None).await, Ok(KeyStatus::NoCredit));
+    assert_eq!(q.fetch(ctx(), None).await, Ok(KeyStatus::Refused));
+    let asked = s.api.asked.lock()[0].clone();
+    assert_eq!(
+        asked.url,
+        "https://api.anthropic.com/v1/messages/count_tokens"
+    );
+    assert!(KeyStatus::NoCredit.blocks() && !KeyStatus::Ready.blocks());
 }

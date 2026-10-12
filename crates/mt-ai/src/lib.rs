@@ -20,7 +20,10 @@ pub mod mcp;
 pub mod tools;
 pub mod usage;
 
-pub use api::{AiError, Anthropic, Message, Provider, Role, StopReason, Turn, TurnRequest};
+pub use api::{
+    AiError, Anthropic, KeyCheckQuery, KeyStatus, Message, Provider, Role, StopReason, Turn,
+    TurnRequest,
+};
 pub use config::{AiConfig, Effort, ModelInfo};
 pub use conversation::{Allowance, Cancel, Conversation, Ending, Outcome, Progress, ask};
 pub use tools::{NoTools, ToolBox, ToolResult, ToolSpec};

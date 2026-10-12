@@ -180,6 +180,13 @@ pub enum Delta {
 pub enum AiError {
     #[error("no Anthropic API key is set")]
     NoKey,
+    #[error(
+        "the Anthropic account has no credits left: add some at console.anthropic.com \
+         (Plans & Billing)"
+    )]
+    NoCredit,
+    #[error("Anthropic refused the API key: check it in SET")]
+    KeyRefused,
     #[error("Anthropic rejected the request ({kind}): {message}")]
     Rejected { kind: String, message: String },
     #[error("Anthropic is busy or limiting requests ({0}); try again later")]
@@ -258,15 +265,15 @@ impl Anthropic {
                     String::from_utf8_lossy(&body).into(),
                 )
             });
+            if is_billing(&message) {
+                return Err(Attempt::Fatal(AiError::NoCredit));
+            }
             let err = AiError::Rejected {
                 kind: kind.clone(),
                 message,
             };
             return Err(match status {
-                401 | 403 => Attempt::Fatal(AiError::Rejected {
-                    kind,
-                    message: "the API key was refused; check it in SET".into(),
-                }),
+                401 | 403 => Attempt::Fatal(AiError::KeyRefused),
                 408 | 409 | 429 | 500..=599 => Attempt::Retry(kind, retry_after, err),
                 _ => Attempt::Fatal(err),
             });
@@ -333,6 +340,95 @@ impl Provider for Anthropic {
                     }
                 }
             }
+        })
+    }
+}
+
+/// Anthropic refuses every request from an account without credits, with a
+/// 400 whose message says so.
+fn is_billing(message: &str) -> bool {
+    message.to_ascii_lowercase().contains("credit balance")
+}
+
+/// Whether the key works and the account can pay, checked for free with
+/// the token counter (which refuses accounts without credits the same way).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum KeyStatus {
+    NoKey,
+    Ready,
+    NoCredit,
+    Refused,
+    /// Anything else (network, an outage), as text.
+    Unknown(String),
+}
+
+impl KeyStatus {
+    /// What SET and ASK show.
+    pub fn describe(&self) -> String {
+        match self {
+            Self::NoKey => "no API key".into(),
+            Self::Ready => "the key works and the account has credits".into(),
+            Self::NoCredit => AiError::NoCredit.to_string(),
+            Self::Refused => AiError::KeyRefused.to_string(),
+            Self::Unknown(e) => format!("could not check the key: {e}"),
+        }
+    }
+
+    /// Whether a question would surely fail.
+    pub fn blocks(&self) -> bool {
+        matches!(self, Self::NoKey | Self::NoCredit | Self::Refused)
+    }
+}
+
+/// Checks the stored key (see [`KeyStatus`]) every quarter of an hour while
+/// something watches it.
+#[derive(Clone, Debug)]
+pub struct KeyCheckQuery {
+    /// A model to count tokens for (the configured one).
+    pub model: String,
+}
+
+impl mt_data::Query for KeyCheckQuery {
+    type Output = KeyStatus;
+
+    fn key(&self) -> String {
+        "anthropic/key-check".into()
+    }
+
+    fn label(&self) -> String {
+        "Anthropic API key".into()
+    }
+
+    fn freshness(&self, _: &KeyStatus) -> mt_data::Freshness {
+        mt_data::Freshness::Every(Duration::from_secs(15 * 60))
+    }
+
+    async fn fetch(
+        &self,
+        ctx: FetchCtx,
+        _prev: Option<std::sync::Arc<KeyStatus>>,
+    ) -> Result<KeyStatus, FetchError> {
+        let Ok(key) = ctx.secret(KEY_NAME) else {
+            return Ok(KeyStatus::NoKey);
+        };
+        let req = Request::post(format!("{}/count_tokens", API_URL))
+            .secret_header("x-api-key", key)
+            .header("anthropic-version", API_VERSION)
+            .json(&json!({
+                "model": self.model,
+                "messages": [{"role": "user", "content": "ping"}],
+            }))
+            .map_err(|e| FetchError::Other(e.to_string()))?;
+        let resp = match ctx.send(req).await {
+            Ok(r) => r,
+            Err(e) => return Ok(KeyStatus::Unknown(e.to_string())),
+        };
+        let message = api_error(&resp.body).map(|e| e.1).unwrap_or_default();
+        Ok(match resp.status {
+            200..=299 => KeyStatus::Ready,
+            401 | 403 => KeyStatus::Refused,
+            _ if is_billing(&message) => KeyStatus::NoCredit,
+            s => KeyStatus::Unknown(format!("HTTP {s}: {}", resp.excerpt(200))),
         })
     }
 }

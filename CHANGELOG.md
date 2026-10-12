@@ -32,6 +32,12 @@ notes are that section.
   the actual load. `price_extremes` now searches tomorrow's DA, and wind and
   solar rows carry their dates.
 
+- **ASK reads better and says when it cannot work.** Answers render as
+  Markdown (headings, lists, bold, tables), and the commands they name are
+  links in the text. SET and ASK check the Anthropic key and the account's
+  credits for free, so an account without credits is named as such before
+  a question is asked, not after.
+
 - **Ask Claude about the market (`--mcp`).** `miso-terminal --mcp` serves
   read-only lookups to Claude Desktop and Claude Code over the Model Context
   Protocol: nodes by name or place, a node's DA and RT prices with their

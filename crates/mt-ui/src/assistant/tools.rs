@@ -223,10 +223,12 @@ impl ToolBox for Lookups {
             spec(
                 "system_conditions",
                 "MISO's system now and through today: load against forecast and DA cleared, \
-                 the fuel mix, wind and solar against forecast, scheduled and actual \
+                 the fuel mix, wind and solar (forecast and actual for today, and MISO's \
+                 forecast for tomorrow once it is posted, by hour), scheduled and actual \
                  interchange, area control error, the North-South transfer against its \
-                 limits, and committed capacity against demand. MISO's feeds cover today \
-                 only.",
+                 limits, and committed capacity against demand. Apart from tomorrow's wind \
+                 and solar, MISO's feeds cover today only; `load` and `reserves` cover \
+                 other days.",
                 schema(json!({}), &[]),
             ),
             spec(
