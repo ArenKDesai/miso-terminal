@@ -211,6 +211,8 @@ struct Inner {
     entries: Mutex<HashMap<String, Entry>>,
     streams: Mutex<HashMap<String, Arc<StreamShared>>>,
     notify: Mutex<Option<Notify>>,
+    /// Wakes [`DataHub::get`] callers when any fetch lands.
+    landed: tokio::sync::Notify,
     paused: AtomicBool,
 }
 
@@ -223,6 +225,7 @@ impl DataHub {
                 entries: Mutex::default(),
                 streams: Mutex::default(),
                 notify: Mutex::default(),
+                landed: tokio::sync::Notify::new(),
                 paused: AtomicBool::new(false),
             }),
         }
@@ -280,6 +283,37 @@ impl DataHub {
             self.spawn(q.clone(), key, prev);
         }
         snap
+    }
+
+    /// Wait for a current value of `q`: the cached one when it is fresh,
+    /// else the one the fetch it starts (or joins) brings. For code that
+    /// needs an answer rather than a frame (the assistant's lookups); panels
+    /// use [`Self::watch`]. A fetch that fails returns its error, even when
+    /// an older value is cached.
+    pub async fn get<Q: Query>(&self, q: &Q) -> Result<Arc<Q::Output>, FetchError> {
+        let mut waited = false;
+        loop {
+            // Listen before looking, so a fetch landing in between is not missed.
+            let landed = self.inner.landed.notified();
+            tokio::pin!(landed);
+            landed.as_mut().enable();
+            let snap = self.watch(q);
+            if !snap.loading {
+                match (snap.data, snap.error) {
+                    (_, Some(e)) if waited || snap.generation == 0 => return Err(e),
+                    (Some(d), _) => return Ok(d),
+                    (None, Some(e)) => return Err(e),
+                    (None, None) => {
+                        return Err(FetchError::Other(format!(
+                            "{} is not available (the data feeds are paused)",
+                            q.label()
+                        )));
+                    }
+                }
+            }
+            landed.await;
+            waited = true;
+        }
     }
 
     /// Current value of `q` without registering interest or fetching.
@@ -452,6 +486,7 @@ impl DataHub {
                 }
             }
         }
+        self.inner.landed.notify_waiters();
         self.notify();
     }
 }
@@ -621,6 +656,34 @@ mod tests {
             Some(&51),
             "the refresh saw the seed as prev"
         );
+    }
+
+    #[test]
+    fn get_waits_for_a_fresh_value_and_reports_failures() {
+        let (rt, hub) = hub();
+        let q = Counter::new("t/h", Freshness::Every(Duration::from_millis(30)));
+        assert_eq!(*rt.block_on(hub.get(&q)).unwrap(), 1);
+        assert_eq!(*rt.block_on(hub.get(&q)).unwrap(), 1, "fresh: no fetch");
+        std::thread::sleep(Duration::from_millis(40));
+        assert_eq!(
+            *rt.block_on(hub.get(&q)).unwrap(),
+            12,
+            "due: waits for the refresh"
+        );
+        // Two waiting at once share one fetch.
+        std::thread::sleep(Duration::from_millis(40));
+        let (a, b) = rt.block_on(async { tokio::join!(hub.get(&q), hub.get(&q)) });
+        assert_eq!((*a.unwrap(), *b.unwrap()), (123, 123));
+        assert_eq!(q.calls.load(Ordering::SeqCst), 3);
+        q.fail.store(true, Ordering::SeqCst);
+        std::thread::sleep(Duration::from_millis(40));
+        assert_eq!(
+            rt.block_on(hub.get(&q)).unwrap_err(),
+            FetchError::Other("boom".into())
+        );
+        let p = Counter::new("t/i", Freshness::Forever);
+        hub.set_paused(true);
+        assert!(rt.block_on(hub.get(&p)).is_err());
     }
 
     #[test]

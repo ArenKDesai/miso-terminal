@@ -47,6 +47,9 @@ OPTIONS:
                     terminal is already open, the command runs in that window.
   --new-instance    Open another window even if one is running (live mode
                     normally allows one window per home, so MISO is polled once).
+  --mcp             Serve the assistant's read-only lookups to Claude Desktop or
+                    Claude Code over the Model Context Protocol (stdio), with
+                    no window. Combine with --home or --offline as usual.
   --version         Print the version.
   --help            Print this help.";
 
@@ -58,6 +61,7 @@ struct Args {
     reset_config: bool,
     run: Vec<String>,
     new_instance: bool,
+    mcp: bool,
 }
 
 fn parse_args() -> Result<Option<Args>> {
@@ -73,6 +77,7 @@ fn parse_args() -> Result<Option<Args>> {
             "--reset-layout" => args.reset_layout = true,
             "--reset-config" => args.reset_config = true,
             "--new-instance" => args.new_instance = true,
+            "--mcp" => args.mcp = true,
             "--run" => args.run.push(it.next().context("--run needs a command")?),
             "--version" | "-V" => {
                 println!("miso-terminal {}", env!("MT_VERSION"));
@@ -167,6 +172,29 @@ fn default_fixtures() -> PathBuf {
     }
 }
 
+/// `--mcp`: the assistant's lookups over stdio until the client closes it.
+/// Everything the app logs goes to stderr and the log file, never stdout,
+/// which belongs to the protocol.
+fn serve_mcp(runtime: &tokio::runtime::Runtime, hub: DataHub, config: &AppConfig) -> Result<()> {
+    let lookups = mt_ui::assistant::Lookups::new(hub, config);
+    let info = mt_ai::mcp::ServerInfo {
+        name: "miso-terminal".into(),
+        version: env!("MT_VERSION").into(),
+        instructions: mt_ui::assistant::prompt::SYSTEM.into(),
+    };
+    tracing::info!("serving the lookups over MCP (stdio)");
+    runtime
+        .block_on(mt_ai::mcp::serve(
+            &lookups,
+            &info,
+            tokio::io::BufReader::new(tokio::io::stdin()),
+            tokio::io::stdout(),
+        ))
+        .context("the MCP session")?;
+    tracing::info!("the MCP client closed the session");
+    Ok(())
+}
+
 fn main() -> Result<()> {
     // `0.2.0`, or `0.2.0+3f2a1c9` outside releases (build.rs).
     mt_ui::set_version(env!("MT_VERSION"));
@@ -182,7 +210,7 @@ fn main() -> Result<()> {
     }));
     // One live window per home: a second launch hands its commands over.
     // Offline replay is for development and demos, so it never forwards.
-    let primary = if args.offline.is_none() && !args.new_instance {
+    let primary = if args.offline.is_none() && !args.new_instance && !args.mcp {
         let dir = paths
             .state_file
             .parent()
@@ -305,6 +333,9 @@ fn main() -> Result<()> {
         runtime.handle().clone(),
         FetchCtx::new(transport, cache, opts, EventLog::default()),
     );
+    if args.mcp {
+        return serve_mcp(&runtime, hub, &config);
+    }
 
     let icon =
         eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/icon/miso-terminal.png"))

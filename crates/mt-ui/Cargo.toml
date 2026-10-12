@@ -16,6 +16,7 @@ mt-eia.workspace = true
 mt-forecast.workspace = true
 mt-news.workspace = true
 mt-alpaca.workspace = true
+mt-ai.workspace = true
 mt-theme.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
@@ -32,6 +33,7 @@ parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
+tokio.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

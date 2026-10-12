@@ -647,6 +647,42 @@ collar measured against the bid or ask (for a spread, against the natural
 price); the exchanges' price steps; and `max_contracts` per order. A stock on
 the restricted list takes its options with it.
 
+## Ask Claude about the market
+
+Claude Desktop and Claude Code can use the terminal's data to answer
+questions such as *why did RT spike at Indiana yesterday?* or *what will
+DA be tomorrow in Michigan?* The terminal runs as a Model Context Protocol
+server with no window (`--mcp`), and Claude calls its lookups: nodes by name
+or place, a node's DA and RT prices and components, price extremes across
+the footprint, binding constraints, reserve prices, load, fuel mix, wind and
+solar, interchange, outages, weather, gas and the news archive. Every lookup
+only reads; none can trade or change a setting. This uses your Claude plan,
+and the terminal itself sends nothing to Anthropic.
+
+In Claude Desktop, open *Settings*, *Developer*, *Edit Config*, and add the
+terminal to `claude_desktop_config.json` (with your user name in the path),
+then restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "miso-terminal": {
+      "command": "C:\\Users\\you\\AppData\\Local\\Programs\\MISO Terminal\\miso-terminal.exe",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+In Claude Code, run
+`claude mcp add miso-terminal -- "%LOCALAPPDATA%\Programs\MISO Terminal\miso-terminal.exe" --mcp`.
+
+Add `--offline` after `--mcp` to try it on the recorded data. The server
+reads the same cache and price history as the terminal, so a longer
+history (`SET`, *Price history*) lets it answer about longer windows. Its
+answers name the terminal commands that show the same data (`GP
+INDIANA.HUB 2`, `BCH 2026-10-06`), to check them in the terminal.
+
 ## Make it yours
 
 **Settings.** `SET` edits `config.toml` in place: zoom, the price levels that

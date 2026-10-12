@@ -14,6 +14,14 @@ notes are that section.
 
 ### Added
 
+- **Ask Claude about the market (`--mcp`).** `miso-terminal --mcp` serves
+  read-only lookups to Claude Desktop and Claude Code over the Model Context
+  Protocol: nodes by name or place, a node's DA and RT prices with their
+  components (hourly, or five-minute for a day), price extremes across the
+  footprint from the price history, binding constraints, reserve prices,
+  system conditions, outages, weather, gas and the news archive. None can
+  trade or change anything. A tutorial shows the setup.
+
 - **Forecasts in GP and DAM.** GP's *Today* view has *+ forecast*: tomorrow's
   forecast with its 80% band after today's prices (DA until MISO posts it,
   then RT). Until MISO posts tomorrow's day-ahead results, `DAM TOMORROW`

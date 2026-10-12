@@ -14,6 +14,7 @@
 
 pub mod alerts;
 pub mod app;
+pub mod assistant;
 pub mod capture;
 pub mod command;
 pub mod config;

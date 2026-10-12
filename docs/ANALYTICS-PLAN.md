@@ -154,8 +154,15 @@ official Rust SDK). *Built (step 1):* `mt_data::sse` and
 `FetchCtx::send_streaming`; `mt_ai::api` (requests, the streamed answer,
 retries), `conversation` (the loop and its caps), `tools` (the `ToolBox`
 and input checking), `usage` and `config` (`[ai]`), tested against a fake
-API in `crates/mt-ai/tests/fake_server.rs`. Next: the tools and the MCP
-server, then the ASK panel, SET and the privacy policy.
+API in `crates/mt-ai/tests/fake_server.rs`. *Built (step 2):*
+`DataHub::get` (a lookup waits for data the way a panel watches it),
+`mt_ui::assistant` (the `Lookups` tool box and the system prompt with the
+price reference) with ten of the tools below, `mt_ai::mcp` and
+`miso-terminal --mcp`. The MCP server reads a hub of its own over the same
+cache rather than the running terminal's (simpler, and the cache is shared
+anyway). Next: `forecast`, `securities` and `paper_account`, then the ASK
+panel, SET and the privacy policy, then per-day stores for the operating
+feeds.
 
 - **The loop:** the question with the tool definitions; while Claude calls
   tools, run them (in parallel where independent) and send all results back

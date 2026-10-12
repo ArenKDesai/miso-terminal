@@ -86,6 +86,7 @@ cargo run --release
 | `--reset-layout` | Start from the default layout |
 | `--reset-config` | Start from the default settings; the old `config.toml` is kept as `config.toml.bak` |
 | `--new-instance` | Open a second window anyway (normally one per home, so MISO is polled once) |
+| `--mcp` | No window: serve the assistant's read-only lookups to Claude Desktop or Claude Code over MCP ([tutorial](docs/TUTORIALS.md#ask-claude-about-the-market)) |
 
 Settings, themes and fonts live in `%APPDATA%\MISO Terminal\config`; the cache,
 logs, order audit log and layout in `%LOCALAPPDATA%\MISO Terminal`. `LOG` shows

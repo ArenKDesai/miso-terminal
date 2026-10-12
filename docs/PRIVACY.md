@@ -41,6 +41,11 @@ The terminal keeps no cookies.
   gallery: the gallery's list and the theme you install.
   [GitHub's policy](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
 
+With `--mcp`, the terminal answers an AI assistant you run yourself
+(Claude Desktop or Claude Code) from the same sources as its panels, and
+sends nothing anywhere else: what you ask, and the answers, stay between
+you and that assistant's provider, under its own policy.
+
 Opening a headline or a link hands it to your web browser; the terminal does
 not fetch the article. A change that adds a service, or sends something new,
 updates this page in the same pull request, and the
