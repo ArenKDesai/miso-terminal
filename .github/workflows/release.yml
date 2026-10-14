@@ -83,7 +83,7 @@ jobs:
           $hash = (Get-FileHash "$dir.zip" -Algorithm SHA256).Hash.ToLower()
           # sha256sum's format (two spaces, LF), so `sha256sum -c` works too.
           [IO.File]::WriteAllText("$PWD/SHA256SUMS.txt", "$hash  $dir.zip`n")
-      - uses: astral-sh/setup-uv@v10.2.0  # no floating major tag
+      - uses: astral-sh/setup-uv@v10.3.0  # no floating major tag
       - name: Notes
         shell: bash
         env:
