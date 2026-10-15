@@ -195,7 +195,7 @@ fn every_lookup_answers_from_the_fixtures_and_only_reads() {
         let past = call(&tools, "reserves", json!({"date": "2026-09-30", "market": "rt"})).await;
         assert!(past["rt"]["miso_wide"]["regulation"].is_array(), "{past}");
 
-        let load = call(&tools, "load", json!({"date": "2026-10-08"})).await;
+        let load = call(&tools, "load", json!({"date": "2026-10-01"})).await;
         assert_eq!(load["mtlf"]["MISO"].as_array().map(Vec::len), Some(24), "{load}");
         assert_eq!(load["actual"]["MISO"].as_array().map(Vec::len), Some(24), "{load}");
         assert!(load["mtlf_peak_miso"]["mw"].as_f64().is_some_and(|mw| mw > 40_000.0));
